@@ -293,7 +293,7 @@ export const zh = {
   cancel: "取消",
   save: "保存",
   done: "完成",
-  continue: "再记一笔",
+  continue: "保存再记",
   standard: "标准",
   daily: "日常",
   categories: "分类",

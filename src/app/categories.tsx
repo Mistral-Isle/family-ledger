@@ -1,6 +1,7 @@
+import { CategoryEditor } from "../components/CategoryEditor";
 import { CategoryDeletionSheet } from "../components/CategoryDeletionSheet";
 import { useState } from "react";
-import { Modal, Pressable, ScrollView, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useLedger } from "../components/LedgerProvider";
 import {
@@ -8,7 +9,6 @@ import {
   Card,
   Chip,
   ErrorText,
-  Field,
   Heading,
   Icon,
   IconButton,
@@ -16,8 +16,6 @@ import {
   Row,
   Txt,
   useTheme,
-  iconOptions,
-  styles,
 } from "../components/ui";
 import { zh } from "../i18n/zh";
 import type { Category, CategoryKind } from "../domain/types";
@@ -157,6 +155,20 @@ export default function Categories() {
           />
         </Row>
         <ErrorText message={form ? "" : error} />
+        <Button
+          secondary
+          label={zh.addCategory}
+          icon="plus"
+          onPress={() => {
+            setError("");
+            setForm({
+              name: "",
+              parentId: null,
+              icon: "category:bag",
+              color: "#648BD2",
+            });
+          }}
+        />
         {roots.map((root) => (
           <Card
             key={root.id}
@@ -170,20 +182,6 @@ export default function Categories() {
               .map((c) => row(c, true))}
           </Card>
         ))}
-        <Button
-          secondary
-          label={zh.addCategory}
-          icon="plus"
-          onPress={() => {
-            setError("");
-            setForm({
-              name: "",
-              parentId: null,
-              icon: "sparkles",
-              color: "#648BD2",
-            });
-          }}
-        />
         {repo.categoryDeletionHistory().length > 0 && (
           <Card>
             <Txt bold>已删除分类 · 可恢复</Txt>
@@ -212,134 +210,17 @@ export default function Categories() {
           </Card>
         )}
       </Page>
-      <Modal
-        visible={!!form}
-        onRequestClose={() => setForm(null)}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <View style={{ flex: 1, backgroundColor: t.bg }}>
-          {form && (
-            <Page>
-              <Heading
-                title={form.id ? zh.editCategory : zh.addCategory}
-                action={
-                  <IconButton
-                    name="xmark"
-                    label={zh.close}
-                    onPress={() => setForm(null)}
-                  />
-                }
-              />
-              <Field
-                label={zh.categoryName}
-                value={form.name}
-                onChangeText={(name) => setForm({ ...form, name })}
-                maxLength={30}
-              />
-              <Txt size={12} color={t.muted}>
-                {zh.parent}
-              </Txt>
-              <ScrollView horizontal contentContainerStyle={{ gap: 8 }}>
-                <Chip
-                  label={zh.root}
-                  selected={!form.parentId}
-                  onPress={() => setForm({ ...form, parentId: null })}
-                />
-                {roots
-                  .filter((c) => c.id !== form.id)
-                  .map((root) => (
-                    <Chip
-                      key={root.id}
-                      label={root.name}
-                      selected={form.parentId === root.id}
-                      onPress={() => setForm({ ...form, parentId: root.id })}
-                    />
-                  ))}
-              </ScrollView>
-              <Txt size={12} color={t.muted}>
-                {zh.icon}
-              </Txt>
-              <View style={styles.wrap}>
-                {iconOptions.map((icon) => (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={icon}
-                    key={icon}
-                    onPress={() => setForm({ ...form, icon })}
-                    style={{
-                      padding: 13,
-                      borderWidth: 1,
-                      borderColor: form.icon === icon ? t.blue : t.line,
-                      borderRadius: 13,
-                      backgroundColor: t.card,
-                    }}
-                  >
-                    <Icon name={icon} color={form.color} />
-                  </Pressable>
-                ))}
-              </View>
-              <Txt size={12} color={t.muted}>
-                {zh.color}
-              </Txt>
-              <Row style={{ flexWrap: "wrap" }}>
-                {[
-                  "#648BD2",
-                  "#E88766",
-                  "#7E9D8A",
-                  "#A18ABE",
-                  "#C59A63",
-                  "#D18295",
-                  "#689FA0",
-                ].map((color) => (
-                  <Pressable
-                    key={color}
-                    accessibilityRole="button"
-                    accessibilityLabel={color}
-                    onPress={() => setForm({ ...form, color })}
-                    style={{
-                      width: 35,
-                      height: 35,
-                      borderRadius: 18,
-                      backgroundColor: color,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    {form.color === color && (
-                      <Icon name="checkmark" color="#fff" size={18} />
-                    )}
-                  </Pressable>
-                ))}
-              </Row>
-              {form.id && (
-                <Button
-                  secondary
-                  label="删除分类…"
-                  onPress={() => {
-                    setDeletionId(form.id!);
-                    setForm(null);
-                    setError("");
-                  }}
-                />
-              )}
-              <ErrorText message={error} />
-              <Button
-                label={zh.save}
-                onPress={() => {
-                  try {
-                    run(() => repo.saveCategory({ ...form, kind }));
-                    setForm(null);
-                    setError("");
-                  } catch (e) {
-                    setError((e as Error).message);
-                  }
-                }}
-              />
-            </Page>
-          )}
-        </View>
-      </Modal>
+      {form && (
+        <CategoryEditor
+          initial={form}
+          kind={kind}
+          onClose={() => setForm(null)}
+          onDelete={(id) => {
+            setForm(null);
+            setDeletionId(id);
+          }}
+        />
+      )}
     </>
   );
 }

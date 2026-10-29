@@ -1,3 +1,7 @@
+import {
+  categoryIconPaths,
+  categoryIconAliases,
+} from "../domain/categoryIcons";
 import React from "react";
 import {
   Alert,
@@ -148,6 +152,22 @@ export function Icon({
   size?: number;
   color?: string;
 }) {
+  const customPath =
+    categoryIconPaths[name] ??
+    categoryIconPaths["category:" + categoryIconAliases[name]];
+  if (customPath)
+    return (
+      <Svg width={size} height={size} viewBox="0 0 24 24">
+        <Path
+          d={customPath}
+          fill="none"
+          stroke={color}
+          strokeWidth={1.8}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </Svg>
+    );
   const valid = symbols.find((s) => s === name) ?? "sparkles";
   if (Platform.OS === "ios")
     return (
