@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "两个人的账本",
+    "slug": "family-ledger",
+    "version": "0.1.0",
+    "scheme": "familyledger",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "platforms": ["ios", "web"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dwigh.familyledger",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "解锁仅保存在本机的小金库",
+        "NSLocalNetworkUsageDescription": "连接家庭电脑上的账本同步服务",
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "headers": {
+            "Cross-Origin-Embedder-Policy": "credentialless",
+            "Cross-Origin-Opener-Policy": "same-origin"
+          }
+        }
+      ],
+      "expo-sqlite"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
