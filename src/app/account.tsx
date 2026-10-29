@@ -1,3 +1,4 @@
+import { VaultGate } from "../components/VaultGate";
 import { useState } from "react";
 import { View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -20,8 +21,20 @@ import {
 import { moneyInput, parseMoney } from "../domain/money";
 import { zh } from "../i18n/zh";
 import type { AccountKind } from "../domain/types";
-export default function AccountEditor() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
+export default function AccountRoute() {
+  const { id, scope } = useLocalSearchParams<{ id?: string; scope?: string }>();
+  const { data } = useLedger();
+  return scope === "private" ||
+    data.accounts.find((a) => a.id === id)?.scope === "private" ? (
+    <VaultGate>
+      <AccountEditor />
+    </VaultGate>
+  ) : (
+    <AccountEditor />
+  );
+}
+function AccountEditor() {
+  const { id, scope } = useLocalSearchParams<{ id?: string; scope?: string }>();
   const { data, repo, run } = useLedger();
   const t = useTheme();
   const router = useRouter();
@@ -31,6 +44,9 @@ export default function AccountEditor() {
   const [balance, setBalance] = useState(
     moneyInput(existing?.initialBalance ?? 0),
   );
+  const [ownerMemberId, setOwnerMemberId] = useState(
+    existing?.ownerMemberId ?? data.meId,
+  );
   const [last4, setLast4] = useState(existing?.last4 ?? "");
   const [error, setError] = useState("");
   const save = (archive?: boolean) => {
@@ -39,10 +55,13 @@ export default function AccountEditor() {
       run(() =>
         repo.saveAccount({
           id: existing?.id,
+          scope:
+            existing?.scope ?? (scope === "private" ? "private" : "family"),
           name,
           kind,
           initialBalance: parseMoney(balance),
           last4,
+          ownerMemberId,
           archived: archive ?? existing?.archived,
         }),
       );
@@ -104,6 +123,23 @@ export default function AccountEditor() {
           maxLength={4}
         />
       </Card>
+      {scope !== "private" && existing?.scope !== "private" && (
+        <Card style={{ gap: 12 }}>
+          <Txt>{zh.accountOwner}</Txt>
+          <View style={styles.wrap}>
+            {data.members
+              .filter((m) => !m.deleted)
+              .map((m) => (
+                <Chip
+                  key={m.id}
+                  label={m.name}
+                  selected={ownerMemberId === m.id}
+                  onPress={() => setOwnerMemberId(m.id)}
+                />
+              ))}
+          </View>
+        </Card>
+      )}
       <ErrorText message={error} />
       <Button label={zh.save} onPress={() => save()} />
       {existing && (

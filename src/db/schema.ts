@@ -51,7 +51,16 @@ export const txns = sqliteTable(
     ...base(),
     scope: text("scope", { enum: ["family", "private"] }).notNull(),
     type: text("type", {
-      enum: ["expense", "income", "transfer", "refund", "repayment", "adjust"],
+      enum: [
+        "expense",
+        "income",
+        "transfer",
+        "refund",
+        "repayment",
+        "adjust",
+        "scope_in",
+        "scope_out",
+      ],
     }).notNull(),
     amount: integer("amount").notNull(),
     accountId: text("account_id").notNull(),
@@ -81,4 +90,19 @@ export const outbox = sqliteTable("outbox", {
 export const localPrefs = sqliteTable("local_pref", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
+});
+
+export const plans = sqliteTable("plan", {
+  ...base(),
+  scope: text("scope", { enum: ["family"] }).notNull(),
+  kind: text("kind", { enum: ["loan", "deposit", "prepaid"] }).notNull(),
+  name: text("name").notNull(),
+  data: text("data").notNull(),
+});
+
+export const budgets = sqliteTable("budget", {
+  ...base(),
+  scope: text("scope", { enum: ["family"] }).notNull(),
+  month: text("month").notNull(),
+  amount: integer("amount").notNull(),
 });

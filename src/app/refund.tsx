@@ -1,3 +1,4 @@
+import { VaultGate } from "../components/VaultGate";
 import { useState } from "react";
 import { View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -20,7 +21,23 @@ import { calculate, formatMoney, moneyInput } from "../domain/money";
 import { today } from "../domain/date";
 import { zh } from "../i18n/zh";
 
-export default function Refund() {
+export default function RefundRoute() {
+  const { id, sourceId } = useLocalSearchParams<{
+    id?: string;
+    sourceId?: string;
+  }>();
+  const { data } = useLedger();
+  return data.txns.some(
+    (t) => (t.id === id || t.id === sourceId) && t.scope === "private",
+  ) ? (
+    <VaultGate>
+      <Refund />
+    </VaultGate>
+  ) : (
+    <Refund />
+  );
+}
+function Refund() {
   const { data, repo, run } = useLedger();
   const { sourceId, id } = useLocalSearchParams<{
     sourceId?: string;

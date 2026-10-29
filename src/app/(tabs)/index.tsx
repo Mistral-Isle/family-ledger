@@ -1,3 +1,5 @@
+import { MemberShare } from "../../components/MemberShare";
+import { BudgetCard } from "../../components/BudgetCard";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
@@ -51,13 +53,16 @@ function TransactionRow({
     txn.type === "refund"
       ? `${zh.refund} · ${category?.name ?? ""}`
       : (category?.name ?? zh[txn.type]);
-  const income = txn.type === "income" || txn.type === "refund";
+  const income =
+    txn.type === "income" || txn.type === "refund" || txn.type === "scope_in";
   const transfer = txn.type === "transfer";
   const open = () =>
-    router.push({
-      pathname: txn.type === "refund" ? "/refund" : "/entry",
-      params: { id: txn.id },
-    });
+    txn.type === "scope_in" || txn.type === "scope_out"
+      ? router.push({ pathname: "/scope-transfer", params: { id: txn.id } })
+      : router.push({
+          pathname: txn.type === "refund" ? "/refund" : "/entry",
+          params: { id: txn.id },
+        });
   const canRefund = txn.type === "expense";
   return (
     <SwipeActions
@@ -264,6 +269,8 @@ export default function Details() {
         }
       />
       <MonthPicker />
+      <BudgetCard key={month} month={month} />
+      <MemberShare month={month} />
       <View
         style={{
           borderRadius: 24,

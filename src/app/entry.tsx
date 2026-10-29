@@ -1,3 +1,4 @@
+import { VaultGate } from "../components/VaultGate";
 import { useState } from "react";
 import { Pressable, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -28,12 +29,29 @@ import { today } from "../domain/date";
 import type { Favorite, Txn } from "../domain/types";
 import { zh } from "../i18n/zh";
 
-export default function Entry() {
+export default function EntryRoute() {
+  const { id, scope } = useLocalSearchParams<{ id?: string; scope?: string }>();
+  const { data } = useLedger();
+  return scope === "private" ||
+    data.txns.find((t) => t.id === id)?.scope === "private" ? (
+    <VaultGate>
+      <Entry />
+    </VaultGate>
+  ) : (
+    <Entry />
+  );
+}
+function Entry() {
   const { data, repo, run } = useLedger();
   const t = useTheme();
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, scope: requestedScope } = useLocalSearchParams<{
+    id?: string;
+    scope?: string;
+  }>();
   const existing = data.txns.find((txn) => txn.id === id && !txn.deleted);
+  const scope =
+    existing?.scope ?? (requestedScope === "private" ? "private" : "family");
   const [type, setType] = useState<"expense" | "income" | "transfer">(
     existing?.type === "income"
       ? "income"
@@ -47,9 +65,12 @@ export default function Entry() {
   const [accountId, setAccountId] = useState(
     existing?.accountId ??
       data.preferences.pinned.find((p) =>
-        data.accounts.some((a) => a.id === p && !a.archived),
+        data.accounts.some(
+          (a) => a.id === p && a.scope === scope && !a.deleted && !a.archived,
+        ),
       ) ??
-      data.accounts.find((a) => !a.archived)?.id ??
+      data.accounts.find((a) => a.scope === scope && !a.deleted && !a.archived)
+        ?.id ??
       "",
   );
   const [toId, setToId] = useState(existing?.toAccountId ?? "");
@@ -63,7 +84,9 @@ export default function Entry() {
     existing?.forWhom ?? "both",
   );
   const [allAccounts, setAllAccounts] = useState(false);
-  const [mode, setMode] = useState(data.preferences.mode);
+  const [mode, setMode] = useState(
+    scope === "private" ? "standard" : data.preferences.mode,
+  );
   const [error, setError] = useState("");
   const [favoriteForm, setFavoriteForm] = useState(false);
   const [favoriteName, setFavoriteName] = useState("");
@@ -77,29 +100,30 @@ export default function Entry() {
   const accounts = data.accounts
     .filter(
       (a) =>
-        a.scope === "family" &&
+        a.scope === scope &&
         !a.deleted &&
         (!a.archived ||
           a.id === existing?.accountId ||
           a.id === existing?.toAccountId),
     )
     .sort((a, b) => a.sort - b.sort);
-  const visibleAccounts = allAccounts
-    ? accounts
-    : accounts
-        .filter(
-          (a) =>
-            data.preferences.pinned.includes(a.id) ||
-            a.id === accountId ||
-            a.id === toId,
-        )
-        .sort((a, b) => {
-          const rank = (id: string) => {
-            const index = data.preferences.pinned.indexOf(id);
-            return index < 0 ? 99 : index;
-          };
-          return rank(a.id) - rank(b.id);
-        });
+  const visibleAccounts =
+    allAccounts || scope === "private"
+      ? accounts
+      : accounts
+          .filter(
+            (a) =>
+              data.preferences.pinned.includes(a.id) ||
+              a.id === accountId ||
+              a.id === toId,
+          )
+          .sort((a, b) => {
+            const rank = (id: string) => {
+              const index = data.preferences.pinned.indexOf(id);
+              return index < 0 ? 99 : index;
+            };
+            return rank(a.id) - rank(b.id);
+          });
   const roots = data.categories
     .filter((c) => !c.deleted && !c.hidden && !c.parentId && c.kind === type)
     .sort((a, b) => {
@@ -136,6 +160,7 @@ export default function Entry() {
       );
   }
   function selectMode(next: "standard" | "daily") {
+    if (scope === "private") return;
     setMode(next);
     run(() => repo.updatePreferences({ mode: next }));
   }
@@ -181,6 +206,7 @@ export default function Entry() {
     }
   }
   function addFavorite() {
+    if (scope === "private") return;
     try {
       const value = amount ? calculate(amount) : undefined;
       run(() =>
@@ -238,7 +264,9 @@ export default function Entry() {
             <Button
               secondary
               label={zh.addAccount}
-              onPress={() => router.push("/account")}
+              onPress={() =>
+                router.push({ pathname: "/account", params: { scope } })
+              }
             />
           )}
         </HorizontalStrip>
@@ -273,6 +301,25 @@ export default function Entry() {
         </>
       }
     >
+      {scope === "family" && (
+        <Button
+          secondary
+          label={zh.vault.title}
+          onPress={() =>
+            router.replace({ pathname: "/entry", params: { scope: "private" } })
+          }
+        />
+      )}
+      {scope === "private" && <Txt bold>{zh.vault.title}</Txt>}
+      {scope === "family" && !existing && type === "expense" && (
+        <Button
+          secondary
+          label={zh.finance.prepaid}
+          onPress={() =>
+            router.push({ pathname: "/finance", params: { kind: "prepaid" } })
+          }
+        />
+      )}
       <Heading
         title={existing ? zh.editEntry : zh.newEntry}
         action={
@@ -346,18 +393,20 @@ export default function Entry() {
             <Txt size={12} bold>
               {zh.categories}
             </Txt>
-            <Row style={{ gap: 5 }}>
-              <Chip
-                label={zh.standard}
-                selected={mode === "standard"}
-                onPress={() => selectMode("standard")}
-              />
-              <Chip
-                label={zh.daily}
-                selected={mode === "daily"}
-                onPress={() => selectMode("daily")}
-              />
-            </Row>
+            {scope === "family" && (
+              <Row style={{ gap: 5 }}>
+                <Chip
+                  label={zh.standard}
+                  selected={mode === "standard"}
+                  onPress={() => selectMode("standard")}
+                />
+                <Chip
+                  label={zh.daily}
+                  selected={mode === "daily"}
+                  onPress={() => selectMode("daily")}
+                />
+              </Row>
+            )}
           </Row>
           {mode === "daily" ? (
             <View style={styles.wrap}>
@@ -536,7 +585,13 @@ export default function Entry() {
                 onChangeText={setFavoriteName}
                 placeholder={selectedCategory?.name}
               />
-              <Button secondary label={zh.addFavorite} onPress={addFavorite} />
+              {scope === "family" && (
+                <Button
+                  secondary
+                  label={zh.addFavorite}
+                  onPress={addFavorite}
+                />
+              )}
             </Card>
           )}
         </View>

@@ -36,3 +36,37 @@ test("refund income upgrade preserves legacy receipt, defaults split to zero, an
     db.close();
   }
 });
+test("financial and budget migrations preserve existing transactions and match runtime SQL", () => {
+  const { financialSql, budgetSql } = require("../src/db/migration");
+  const db = new DatabaseSync(":memory:");
+  try {
+    db.exec(initialSql.replace(/--> statement-breakpoint/g, ""));
+    db.exec(refundIncomeSql.replace(/--> statement-breakpoint/g, ""));
+    db.exec(
+      "INSERT INTO txn(id,created_at,updated_at,hlc,scope,type,amount,account_id,occurred_at,recorder_member_id,for_whom) VALUES('legacy','c','u','h','family','expense',1234,'a','2026-10-01','m','both')",
+    );
+    for (const [index, sql] of [
+      [2, financialSql],
+      [3, budgetSql],
+    ] as const) {
+      db.exec(sql.replace(/--> statement-breakpoint/g, ""));
+      const normalize = (s: string) =>
+        s.replace(/`|\s|--> statement-breakpoint/g, "");
+      expect(
+        normalize(
+          readFileSync(
+            `src/db/migrations/${migrations.journal.entries[index]!.tag}.sql`,
+            "utf8",
+          ),
+        ),
+      ).toBe(normalize(sql));
+    }
+    expect(
+      db.prepare("SELECT amount FROM txn WHERE id='legacy'").get(),
+    ).toEqual({ amount: 1234 });
+    expect(db.prepare("SELECT * FROM plan").all()).toEqual([]);
+    expect(db.prepare("SELECT * FROM budget").all()).toEqual([]);
+  } finally {
+    db.close();
+  }
+});

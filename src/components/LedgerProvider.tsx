@@ -1,3 +1,5 @@
+import { updateReminders } from "../services/reminders";
+import { useUi } from "../state/ui";
 import React, {
   createContext,
   useCallback,
@@ -25,14 +27,22 @@ export function LedgerProvider({ children }: { children: React.ReactNode }) {
     setError("");
     openLedger()
       .then((next) => {
+        useUi.getState().setTheme(next.getTheme());
         setRepo(next);
         setData(next.snapshot());
+        void updateReminders(next.snapshot(), next.remindersEnabled()).catch(
+          () => {},
+        );
       })
       .catch((e) => setError(String(e)));
   }, []);
   useEffect(initialize, [initialize]);
   const refresh = useCallback(() => {
-    if (repo) setData(repo.snapshot());
+    if (repo) {
+      setData(repo.snapshot());
+      if (repo.remindersEnabled())
+        void updateReminders(repo.snapshot(), true).catch(() => {});
+    }
   }, [repo]);
   if (!repo || !data)
     return (
@@ -63,6 +73,8 @@ export function LedgerProvider({ children }: { children: React.ReactNode }) {
         run: (fn) => {
           fn();
           refresh();
+          if (repo.remindersEnabled())
+            void updateReminders(repo.snapshot(), true).catch(() => {});
         },
       }}
     >

@@ -6,7 +6,10 @@
     "scheme": "familyledger",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "platforms": ["ios", "web"],
+    "platforms": [
+      "ios",
+      "web"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.dwigh.familyledger",
@@ -15,7 +18,8 @@
         "NSLocalNetworkUsageDescription": "连接家庭电脑上的账本同步服务",
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
-        }
+        },
+        "NSCameraUsageDescription": "扫描另一位家庭成员的账本配对二维码"
       }
     },
     "web": {

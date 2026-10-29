@@ -1,3 +1,4 @@
+import { CategoryDeletionSheet } from "../components/CategoryDeletionSheet";
 import { useState } from "react";
 import { Modal, Pressable, ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
@@ -35,6 +36,7 @@ export default function Categories() {
     sort?: number;
   } | null>(null);
   const [error, setError] = useState("");
+  const [deletionId, setDeletionId] = useState<string | null>(null);
   const roots = data.categories
     .filter((c) => !c.deleted && c.kind === kind && !c.parentId)
     .sort((a, b) => a.sort - b.sort);
@@ -125,6 +127,12 @@ export default function Categories() {
   }
   return (
     <>
+      {deletionId && (
+        <CategoryDeletionSheet
+          id={deletionId}
+          onClose={() => setDeletionId(null)}
+        />
+      )}
       <Page>
         <Heading
           title={zh.categoryManagement}
@@ -176,6 +184,33 @@ export default function Categories() {
             });
           }}
         />
+        {repo.categoryDeletionHistory().length > 0 && (
+          <Card>
+            <Txt bold>已删除分类 · 可恢复</Txt>
+            <Txt size={12} color={t.muted}>
+              恢复原分类及当时的流水分类和统计状态；接收分类中后来新增的流水不受影响。
+            </Txt>
+            {repo
+              .categoryDeletionHistory()
+              .slice()
+              .reverse()
+              .map((item) => (
+                <Button
+                  key={item.id}
+                  secondary
+                  label={`恢复 ${item.name}（${item.txns.filter((t) => t.scope === "family").length} 笔）`}
+                  onPress={() => {
+                    try {
+                      run(() => repo.restoreCategoryDeletion(item.id));
+                      setError("");
+                    } catch (e) {
+                      setError((e as Error).message);
+                    }
+                  }}
+                />
+              ))}
+          </Card>
+        )}
       </Page>
       <Modal
         visible={!!form}
@@ -277,6 +312,17 @@ export default function Categories() {
                   </Pressable>
                 ))}
               </Row>
+              {form.id && (
+                <Button
+                  secondary
+                  label="删除分类…"
+                  onPress={() => {
+                    setDeletionId(form.id!);
+                    setForm(null);
+                    setError("");
+                  }}
+                />
+              )}
               <ErrorText message={error} />
               <Button
                 label={zh.save}

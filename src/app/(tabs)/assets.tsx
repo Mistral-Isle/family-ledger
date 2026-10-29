@@ -39,6 +39,11 @@ export default function Assets() {
   return (
     <Page>
       <Heading title={zh.tabs.assets} subtitle={zh.assetHint} />
+      <Button
+        secondary
+        label={zh.finance.title}
+        onPress={() => router.push("/finance")}
+      />
       <Card
         style={{
           backgroundColor: t.dark ? "#29364D" : "#EAF0FA",
@@ -71,6 +76,26 @@ export default function Assets() {
           </View>
         </Row>
       </Card>
+      <Card>
+        <Txt>
+          {zh.finance.available} ·{" "}
+          {formatMoney(
+            accounts
+              .filter(
+                (a) => !["deposit", "prepaid", "loan"].includes(a.account.kind),
+              )
+              .reduce((sum, a) => sum + a.balance, 0),
+          )}
+        </Txt>
+        <Txt>
+          {zh.finance.frozen} ·{" "}
+          {formatMoney(
+            accounts
+              .filter((a) => ["deposit", "prepaid"].includes(a.account.kind))
+              .reduce((sum, a) => sum + a.balance, 0),
+          )}
+        </Txt>
+      </Card>
       <Row style={{ justifyContent: "space-between" }}>
         <Txt size={19} bold>
           {zh.account}
@@ -90,10 +115,15 @@ export default function Assets() {
               key={account.id}
               accessibilityRole="button"
               onPress={() =>
-                router.push({
-                  pathname: "/account",
-                  params: { id: account.id },
-                })
+                data.plans.some(
+                  (p) =>
+                    !p.deleted && JSON.parse(p.data).accountId === account.id,
+                )
+                  ? router.push("/finance")
+                  : router.push({
+                      pathname: "/account",
+                      params: { id: account.id },
+                    })
               }
             >
               <Card

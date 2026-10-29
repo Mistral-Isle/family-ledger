@@ -9,7 +9,14 @@ export type AccountKind =
   | "deposit"
   | "prepaid";
 export type TxnType =
-  "expense" | "income" | "transfer" | "refund" | "repayment" | "adjust";
+  | "expense"
+  | "income"
+  | "transfer"
+  | "refund"
+  | "repayment"
+  | "adjust"
+  | "scope_in"
+  | "scope_out";
 export type CategoryKind = "expense" | "income";
 export type Favorite = {
   id: string;
@@ -77,12 +84,14 @@ export type Operation = {
   deviceId: string;
   seq: number;
   hlc: string;
-  entity: "member" | "account" | "category" | "txn";
+  entity: "member" | "account" | "category" | "txn" | "plan" | "budget";
   entityId: string;
   action: "upsert" | "delete";
-  record: Member | Account | Category | Txn;
+  record: Member | Account | Category | Txn | FinancialPlan | Budget;
 };
 export type Snapshot = {
+  budgets: Budget[];
+  plans: FinancialPlan[];
   members: Member[];
   accounts: Account[];
   categories: Category[];
@@ -90,4 +99,17 @@ export type Snapshot = {
   preferences: Preferences;
   pending: number;
   meId: string;
+};
+
+export type FinancialPlan = BaseRecord & {
+  scope: "family";
+  kind: "loan" | "deposit" | "prepaid";
+  name: string;
+  data: string;
+};
+
+export type Budget = BaseRecord & {
+  scope: "family";
+  month: string;
+  amount: number;
 };

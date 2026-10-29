@@ -21,6 +21,10 @@ ALTER TABLE txn ADD refund_income integer DEFAULT 0 NOT NULL;
 --> statement-breakpoint
 ALTER TABLE txn ADD refund_income_category_id text;
 `;
+export const financialSql =
+  "CREATE TABLE `plan` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`created_at` text NOT NULL,\n\t`updated_at` text NOT NULL,\n\t`hlc` text NOT NULL,\n\t`deleted` integer DEFAULT false NOT NULL,\n\t`scope` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`name` text NOT NULL,\n\t`data` text NOT NULL\n);\n";
+export const budgetSql =
+  "CREATE TABLE `budget` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`created_at` text NOT NULL,\n\t`updated_at` text NOT NULL,\n\t`hlc` text NOT NULL,\n\t`deleted` integer DEFAULT false NOT NULL,\n\t`scope` text NOT NULL,\n\t`month` text NOT NULL,\n\t`amount` integer NOT NULL\n);\n";
 export const migrations = {
   journal: {
     version: "7",
@@ -40,7 +44,26 @@ export const migrations = {
         tag: "0001_flawless_the_professor",
         breakpoints: true,
       },
+      {
+        idx: 2,
+        version: "6",
+        when: 1793291718596,
+        tag: "0002_tough_warbound",
+        breakpoints: true,
+      },
+      {
+        idx: 3,
+        version: "6",
+        when: 1793292895582,
+        tag: "0003_whole_steel_serpent",
+        breakpoints: true,
+      },
     ],
   },
-  migrations: { m0000: initialSql, m0001: refundIncomeSql },
+  migrations: {
+    m0000: initialSql,
+    m0001: refundIncomeSql,
+    m0002: financialSql,
+    m0003: budgetSql,
+  },
 };

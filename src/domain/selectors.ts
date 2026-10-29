@@ -13,7 +13,10 @@ export function accountBalance(
       let delta = 0;
       if (t.accountId === account.id)
         delta +=
-          t.type === "income" || t.type === "refund" || t.type === "adjust"
+          t.type === "income" ||
+          t.type === "refund" ||
+          t.type === "adjust" ||
+          t.type === "scope_in"
             ? t.amount
             : -t.amount;
       if (

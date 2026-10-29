@@ -2,6 +2,7 @@ import { Pressable, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useLedger } from "../../components/LedgerProvider";
 import {
+  Button,
   Card,
   Chip,
   Heading,
@@ -77,6 +78,31 @@ export default function Me() {
           </Row>
         </Card>
       </Pressable>
+      <Button
+        secondary
+        label={zh.sync.title}
+        onPress={() => router.push("/sync")}
+      />
+      <Button
+        secondary
+        label={zh.finance.title}
+        onPress={() => router.push("/finance")}
+      />
+      <Button
+        secondary
+        label={zh.vault.title}
+        onPress={() => router.push("/vault")}
+      />
+      <Button
+        secondary
+        label={zh.discarded.title}
+        onPress={() => router.push("/discarded")}
+      />
+      <Button
+        secondary
+        label={zh.backup.title}
+        onPress={() => router.push("/backup")}
+      />
       <Card style={{ gap: 14 }}>
         <Txt bold>{zh.preferences}</Txt>
         <View style={styles.wrap}>
@@ -85,7 +111,10 @@ export default function Me() {
               key={mode}
               label={zh[mode]}
               selected={theme === mode}
-              onPress={() => setTheme(mode)}
+              onPress={() => {
+                repo.setTheme(mode);
+                setTheme(mode);
+              }}
             />
           ))}
         </View>
@@ -139,23 +168,7 @@ export default function Me() {
           ))}
         </Card>
       )}
-      <View style={{ gap: 15, paddingHorizontal: 6 }}>
-        {[
-          [zh.futureSync, "arrow.left.arrow.right"],
-          [zh.futureVault, "lock.fill"],
-          [zh.futureLoans, "house.fill"],
-        ].map(([title, icon]) => (
-          <Row key={title}>
-            <Icon name={icon ?? "sparkles"} color={t.muted} size={18} />
-            <Txt color={t.muted} style={{ flex: 1 }}>
-              {title}
-            </Txt>
-            <Txt size={10} color={t.muted}>
-              {zh.comingSoon}
-            </Txt>
-          </Row>
-        ))}
-      </View>
+
       <Txt
         size={11}
         color={t.muted}
