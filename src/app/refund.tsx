@@ -13,6 +13,7 @@ import {
   Page,
   Txt,
   useTheme,
+  confirmAction,
 } from "../components/ui";
 import { HorizontalStrip } from "../components/HorizontalStrip";
 import { calculate, formatMoney, moneyInput } from "../domain/money";
@@ -180,6 +181,23 @@ export default function Refund() {
           <View>
             <Button label={zh.save} onPress={save} />
           </View>
+          {existing && (
+            <Button
+              secondary
+              icon="trash"
+              label={zh.remove}
+              onPress={() =>
+                confirmAction(zh.deleteRefund, zh.deleteEntryHint, () => {
+                  try {
+                    run(() => repo.deleteTxn(existing.id));
+                    router.back();
+                  } catch (e) {
+                    setError((e as Error).message);
+                  }
+                })
+              }
+            />
+          )}
         </>
       )}
     </Page>

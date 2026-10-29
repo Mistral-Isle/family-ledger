@@ -17,22 +17,22 @@ import Svg, { Path } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useUi } from "../state/ui";
 import { zh } from "../i18n/zh";
-export const blue = "#648BD2";
-export const coral = "#DB8D79";
+export const blue = "#007AFF";
+export const coral = "#D9363E";
 export function useTheme() {
   const system = useColorScheme();
   const preference = useUi((s) => s.theme);
   const dark = (preference === "system" ? system : preference) === "dark";
   return {
     dark,
-    bg: dark ? "#151A22" : "#F7F6F2",
-    card: dark ? "#202733" : "#FFFFFF",
-    text: dark ? "#F4F2ED" : "#283448",
-    muted: dark ? "#A6B0C0" : "#8490A1",
-    line: dark ? "#343D4C" : "#ECEEF1",
-    soft: dark ? "#2B3546" : "#EEF3FC",
-    blue: dark ? "#8FAFEC" : blue,
-    green: dark ? "#8FC1A2" : "#648E75",
+    bg: dark ? "#000000" : "#F2F2F7",
+    card: dark ? "#1C1C1E" : "#FFFFFF",
+    text: dark ? "#F5F5F7" : "#1C1C1E",
+    muted: dark ? "#ABABB2" : "#67676F",
+    line: dark ? "#38383A" : "#E5E5EA",
+    soft: dark ? "#29292D" : "#E9E9EF",
+    blue: dark ? "#64ACFF" : blue,
+    green: dark ? "#6BDA89" : "#247342",
   };
 }
 const symbols = [
@@ -98,6 +98,7 @@ export type IconName = (typeof symbols)[number];
 const paths: Record<string, string> = {
   plus: "M12 5v14M5 12h14",
   xmark: "M6 6l12 12M6 18L18 6",
+  ellipsis: "M4 12h.1M12 12h.1M20 12h.1",
   checkmark: "M5 12l4 4L19 6",
   "chevron.left": "M15 5l-7 7 7 7",
   "chevron.right": "M9 5l7 7-7 7",
@@ -194,7 +195,7 @@ export const iconOptions: IconName[] = [
 ];
 export function Txt({
   children,
-  size = 14,
+  size = 15,
   bold = false,
   color,
   style,
@@ -211,7 +212,9 @@ export function Txt({
       style={[
         {
           fontSize: size,
-          lineHeight: size * 1.5,
+          lineHeight: size * (size >= 28 ? 1.15 : 1.45),
+          letterSpacing: size >= 28 ? -0.6 : 0,
+          fontVariant: ["tabular-nums"],
           color: color ?? t.text,
           fontWeight: bold ? "600" : "400",
         },
@@ -225,9 +228,11 @@ export function Txt({
 export function Page({
   children,
   scroll = true,
+  footer,
 }: {
   children: React.ReactNode;
   scroll?: boolean;
+  footer?: React.ReactNode;
 }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
@@ -237,10 +242,10 @@ export function Page({
         width: "100%",
         maxWidth: 760,
         alignSelf: "center",
-        paddingHorizontal: 24,
+        paddingHorizontal: 20,
         paddingTop: insets.top + 20,
-        paddingBottom: 32,
-        gap: 22,
+        paddingBottom: footer ? 24 : 110 + insets.bottom,
+        gap: 20,
       }}
     >
       {children}
@@ -252,11 +257,33 @@ export function Page({
         <ScrollView
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ flexGrow: 1 }}
+          style={{ flex: 1 }}
         >
           {content}
         </ScrollView>
       ) : (
         content
+      )}
+      {footer && (
+        <View
+          style={{
+            backgroundColor: t.card,
+            paddingBottom: Math.max(insets.bottom, 12),
+          }}
+        >
+          <View
+            style={{
+              width: "100%",
+              maxWidth: 760,
+              alignSelf: "center",
+              paddingHorizontal: 16,
+              paddingTop: 12,
+              gap: 10,
+            }}
+          >
+            {footer}
+          </View>
+        </View>
       )}
     </View>
   );
@@ -274,10 +301,9 @@ export function Card({
       style={[
         {
           backgroundColor: t.card,
-          borderRadius: 22,
-          padding: 22,
-          borderWidth: 1,
-          borderColor: t.line,
+          borderRadius: 20,
+          borderCurve: "continuous",
+          padding: 20,
         },
         style,
       ]}
@@ -327,6 +353,7 @@ export function Button({
         paddingVertical: 14,
         paddingHorizontal: 18,
         borderRadius: 14,
+        borderCurve: "continuous",
         alignItems: "center",
         flexDirection: "row",
         justifyContent: "center",
@@ -362,6 +389,8 @@ export function IconButton({
       onPress={onPress}
       style={({ pressed }) => ({
         padding: 11,
+        minWidth: 44,
+        minHeight: 44,
         borderRadius: 14,
         backgroundColor: pressed ? t.soft : "transparent",
       })}
@@ -385,16 +414,21 @@ export function Chip({
       accessibilityRole="button"
       accessibilityState={{ selected: !!selected }}
       onPress={onPress}
-      style={{
-        borderWidth: 1,
-        borderColor: selected ? blue : t.line,
-        backgroundColor: selected ? t.soft : t.card,
-        borderRadius: 12,
+      style={({ pressed }) => ({
+        backgroundColor: selected ? t.blue : pressed ? t.soft : t.card,
+        borderRadius: 14,
+        borderCurve: "continuous",
+        minHeight: 44,
+        justifyContent: "center",
         paddingVertical: 10,
         paddingHorizontal: 14,
-      }}
+      })}
     >
-      <Txt size={13} color={selected ? t.blue : t.muted} bold={selected}>
+      <Txt
+        size={13}
+        color={selected ? (t.dark ? "#000" : "#fff") : t.text}
+        bold={selected}
+      >
         {label}
       </Txt>
     </Pressable>
@@ -433,7 +467,7 @@ export function Heading({
   return (
     <Row style={{ justifyContent: "space-between" }}>
       <View style={{ flex: 1, gap: 5 }}>
-        <Txt size={28} bold>
+        <Txt size={34} bold>
           {title}
         </Txt>
         {subtitle && (

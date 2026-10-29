@@ -24,4 +24,31 @@ describe("integer cents", () => {
     expect(formatMoney(1234567)).toBe("¥12,345.67");
     expect(moneyInput(-1)).toBe("-0.01");
   });
+  test.each([
+    ["2+3×4", 1400],
+    ["20÷4-1", 400],
+    ["0.1×0.2", 2],
+    ["10÷3", 333],
+    ["1÷8", 13],
+    ["-1÷8", -13],
+    ["1÷3×3", 100],
+    ["6÷2×3", 900],
+    ["2×-3", -600],
+    ["2+3*4/2", 800],
+    ["100−0.1×3", 9970],
+  ])("calculates %s with precedence and exact rounding", (input, expected) =>
+    expect(calculate(input)).toBe(expected),
+  );
+  test.each([
+    "1÷0",
+    "2/(1+1)",
+    "1+",
+    "2×",
+    "1..2",
+    "1++2",
+    "1e3",
+    "90071992547409.91×2",
+  ])("rejects invalid calculation %s", (input) =>
+    expect(() => calculate(input)).toThrow(),
+  );
 });

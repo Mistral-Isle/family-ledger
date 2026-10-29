@@ -266,12 +266,11 @@ export default function Details() {
       <MonthPicker />
       <View
         style={{
-          borderRadius: 25,
-          backgroundColor: t.dark ? "#29364D" : "#EAF0FA",
-          padding: 25,
+          borderRadius: 24,
+          borderCurve: "continuous",
+          backgroundColor: t.card,
+          padding: 24,
           gap: 18,
-          borderWidth: 1,
-          borderColor: t.dark ? "#34445F" : "#E0E8F6",
         }}
       >
         <Row style={{ justifyContent: "space-between" }}>
@@ -295,9 +294,7 @@ export default function Details() {
         <Txt size={39} bold style={{ letterSpacing: -1 }}>
           {formatMoney(summary.expense)}
         </Txt>
-        <View
-          style={{ height: 1, backgroundColor: t.dark ? "#3C4860" : "#D9E2F2" }}
-        />
+        <View style={{ height: 1, backgroundColor: t.line }} />
         <Row>
           <View style={{ flex: 1, gap: 4 }}>
             <Txt size={11} color={t.muted}>
@@ -311,7 +308,7 @@ export default function Details() {
             style={{
               width: 1,
               height: 34,
-              backgroundColor: t.dark ? "#3C4860" : "#D9E2F2",
+              backgroundColor: t.line,
             }}
           />
           <View style={{ flex: 1, gap: 4, paddingLeft: 16 }}>

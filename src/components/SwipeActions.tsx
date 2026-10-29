@@ -1,5 +1,7 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, PanResponder, View } from "react-native";
+import { useReducedMotion } from "./useReducedMotion";
+import { resistedPosition, swipeTarget } from "./swipePhysics";
 export function SwipeActions({
   children,
   actions,
@@ -11,20 +13,36 @@ export function SwipeActions({
   startActions?: ReactNode;
   disabled?: boolean;
 }) {
-  const config = useRef({ disabled, start: !!startActions });
-  config.current = { disabled, start: !!startActions };
+  const reduced = useReducedMotion();
+  const config = useRef({ disabled, start: !!startActions, reduced });
+  config.current = { disabled, start: !!startActions, reduced };
   const [side, setSide] = useState(0);
   const offset = useRef(new Animated.Value(0)).current;
   const base = useRef(0);
   const current = useRef(0);
-  const settle = (value: number) => {
+  useEffect(() => {
+    const listener = offset.addListener(({ value }) => {
+      current.current = value;
+      setSide(Math.sign(value));
+    });
+    return () => {
+      offset.stopAnimation();
+      offset.removeListener(listener);
+    };
+  }, [offset]);
+  const settle = (value: number, velocity = 0) => {
     base.current = value;
-    current.current = value;
-    setSide(Math.sign(value));
+    if (config.current.reduced) {
+      offset.setValue(value);
+      return;
+    }
     Animated.spring(offset, {
       toValue: value,
       useNativeDriver: true,
-      bounciness: 0,
+      stiffness: 576,
+      damping: 48,
+      mass: 1,
+      velocity,
     }).start();
   };
   const responder = useRef(
@@ -34,19 +52,29 @@ export function SwipeActions({
         Math.abs(g.dx) > 8 &&
         Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
       onPanResponderGrant: () => {
-        offset.stopAnimation();
+        base.current = current.current;
+        offset.stopAnimation((value) => {
+          base.current = value;
+          current.current = value;
+        });
       },
       onPanResponderMove: (_, g) => {
-        current.current = Math.max(
-          -80,
-          Math.min(config.current.start ? 80 : 0, base.current + g.dx),
+        current.current = resistedPosition(
+          base.current + g.dx,
+          config.current.start ? 80 : 0,
         );
         setSide(Math.sign(current.current));
         offset.setValue(current.current);
       },
-      onPanResponderRelease: () =>
-        settle(current.current < -40 ? -80 : current.current > 40 ? 80 : 0),
-      onPanResponderTerminate: () => settle(base.current),
+      onPanResponderRelease: (_, g) => {
+        const velocity = Math.max(-1500, Math.min(1500, g.vx * 1000));
+        settle(
+          swipeTarget(current.current, velocity, config.current.start ? 80 : 0),
+          velocity,
+        );
+      },
+      onPanResponderTerminate: () =>
+        settle(swipeTarget(base.current, 0, config.current.start ? 80 : 0)),
     }),
   ).current;
   return (

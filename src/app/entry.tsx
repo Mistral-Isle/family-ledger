@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Pressable, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { HorizontalStrip } from "../components/HorizontalStrip";
+import { AmountKeyboard } from "../components/AmountKeyboard";
+import { Segmented } from "../components/Segmented";
 import { useLedger } from "../components/LedgerProvider";
 import {
   Button,
@@ -66,6 +68,12 @@ export default function Entry() {
   const [favoriteForm, setFavoriteForm] = useState(false);
   const [favoriteName, setFavoriteName] = useState("");
   const [message, setMessage] = useState("");
+  let preview = "";
+  try {
+    if (/[+−×÷*/-]/.test(amount)) preview = formatMoney(calculate(amount));
+  } catch {
+    /* Expression is still being entered. */
+  }
   const accounts = data.accounts
     .filter(
       (a) =>
@@ -197,15 +205,7 @@ export default function Entry() {
       setAmount(amount.slice(0, -1));
       return;
     }
-    if (key === "=") {
-      try {
-        setAmount(moneyInput(calculate(amount)));
-        setError("");
-      } catch (e) {
-        setError((e as Error).message);
-      }
-      return;
-    }
+    setError("");
     if (amount.length < 36) setAmount(amount + key);
   }
   function accountStrip(destination = false) {
@@ -246,7 +246,33 @@ export default function Entry() {
     );
   }
   return (
-    <Page>
+    <Page
+      footer={
+        <>
+          <ErrorText message={error} />
+          {!!message && (
+            <Txt size={12} color={t.green}>
+              {message}
+            </Txt>
+          )}
+          <AmountKeyboard onKey={key} />
+          <Row>
+            {!existing && (
+              <View style={{ flex: 1 }}>
+                <Button
+                  secondary
+                  label={zh.continue}
+                  onPress={() => submit(true)}
+                />
+              </View>
+            )}
+            <View style={{ flex: 1 }}>
+              <Button label={zh.save} onPress={() => submit()} />
+            </View>
+          </Row>
+        </>
+      }
+    >
       <Heading
         title={existing ? zh.editEntry : zh.newEntry}
         action={
@@ -257,26 +283,19 @@ export default function Entry() {
           />
         }
       />
-      <Row style={{ justifyContent: "space-between", flexWrap: "wrap" }}>
-        <Row style={{ gap: 7 }}>
-          {(["expense", "income", "transfer"] as const).map((kind) => (
-            <Chip
-              key={kind}
-              label={zh[kind]}
-              selected={type === kind}
-              onPress={() => {
-                setType(kind);
-                setCategoryId("");
-                setExpanded("");
-                setError("");
-              }}
-            />
-          ))}
-        </Row>
-        <Txt size={10} color={t.muted}>
-          {zh.family}
-        </Txt>
-      </Row>
+      <Segmented
+        value={type}
+        options={(["expense", "income", "transfer"] as const).map((value) => ({
+          value,
+          label: zh[value],
+        }))}
+        onChange={(kind) => {
+          setType(kind);
+          setCategoryId("");
+          setExpanded("");
+          setError("");
+        }}
+      />
       <View style={{ paddingVertical: 3, gap: 5 }}>
         <Txt size={12} color={t.muted}>
           {zh.amount}
@@ -292,6 +311,8 @@ export default function Entry() {
             placeholderTextColor={t.muted}
             onChangeText={setAmount}
             keyboardType="decimal-pad"
+            showSoftInputOnFocus={false}
+            maxLength={36}
             style={{
               fontSize: 42,
               fontWeight: "600",
@@ -302,6 +323,14 @@ export default function Entry() {
             }}
           />
         </Row>
+        {!!preview && (
+          <Txt size={15} color={t.blue}>
+            {zh.calculatedAmount} {preview}
+          </Txt>
+        )}
+        <Txt size={11} color={t.muted}>
+          {zh.calculatorHint}
+        </Txt>
         <Txt size={11} color={t.muted}>
           {selectedCategory?.name ??
             (type === "transfer" ? zh.transfer : zh.chooseCategory)}{" "}
@@ -512,70 +541,6 @@ export default function Entry() {
           )}
         </View>
       )}
-      <ErrorText message={error} />
-      {!!message && (
-        <Txt size={12} color={t.green}>
-          {message}
-        </Txt>
-      )}
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-        {[
-          "1",
-          "2",
-          "3",
-          "⌫",
-          "4",
-          "5",
-          "6",
-          "+",
-          "7",
-          "8",
-          "9",
-          "−",
-          ".",
-          "0",
-          "00",
-          "=",
-        ].map((k) => (
-          <Pressable
-            key={k}
-            accessibilityRole="button"
-            accessibilityLabel={k}
-            onPress={() => key(k)}
-            style={({ pressed }) => ({
-              width: "23%",
-              height: 48,
-              borderRadius: 13,
-              backgroundColor: pressed ? t.soft : t.card,
-              alignItems: "center",
-              justifyContent: "center",
-              borderWidth: 1,
-              borderColor: t.line,
-            })}
-          >
-            <Txt
-              size={20}
-              color={["+", "−", "="].includes(k) ? t.blue : t.text}
-            >
-              {k}
-            </Txt>
-          </Pressable>
-        ))}
-      </View>
-      <Row>
-        {!existing && (
-          <View style={{ flex: 1 }}>
-            <Button
-              secondary
-              label={zh.continue}
-              onPress={() => submit(true)}
-            />
-          </View>
-        )}
-        <View style={{ flex: 1 }}>
-          <Button label={zh.done} onPress={() => submit()} />
-        </View>
-      </Row>
       {existing && (
         <Button
           secondary

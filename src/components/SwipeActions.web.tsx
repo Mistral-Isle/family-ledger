@@ -1,5 +1,6 @@
-import { useRef, useState, type ReactNode } from "react";
-
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useReducedMotion } from "./useReducedMotion";
+import { resistedPosition, swipeTarget, swipeWidth } from "./swipePhysics";
 export function SwipeActions({
   children,
   actions,
@@ -13,6 +14,11 @@ export function SwipeActions({
 }) {
   const [offset, setOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const reduced = useReducedMotion();
+  const current = useRef(0),
+    frame = useRef(0),
+    consumed = useRef(false);
+  const max = startActions ? swipeWidth : 0;
   const gesture = useRef({
     x: 0,
     y: 0,
@@ -20,9 +26,40 @@ export function SwipeActions({
     active: false,
     horizontal: false,
     vertical: false,
+    lastX: 0,
+    time: 0,
+    velocity: 0,
+    pointer: -1,
   });
-  const consumed = useRef(false);
-  const width = 80;
+  const show = (value: number) => {
+    current.current = value;
+    setOffset(value);
+  };
+  const stop = () => cancelAnimationFrame(frame.current);
+  useEffect(() => () => cancelAnimationFrame(frame.current), []);
+  const settle = (target: number, velocity = 0) => {
+    stop();
+    if (reduced) {
+      show(target);
+      return;
+    }
+    let last = performance.now();
+    // Analytic critical spring, interrupted from its current presentation value.
+    const tick = (now: number) => {
+      const dt = Math.min((now - last) / 1000, 0.064);
+      last = now;
+      const delta = current.current - target,
+        omega = 24;
+      const c = velocity + omega * delta,
+        decay = Math.exp(-omega * dt);
+      const next = (delta + c * dt) * decay;
+      velocity = (velocity - omega * c * dt) * decay;
+      show(target + next);
+      if (Math.abs(next) < 0.2 && Math.abs(velocity) < 2) show(target);
+      else frame.current = requestAnimationFrame(tick);
+    };
+    frame.current = requestAnimationFrame(tick);
+  };
   return (
     <div style={{ position: "relative", overflow: "hidden" }}>
       <div
@@ -32,7 +69,7 @@ export function SwipeActions({
           right: 0,
           top: 0,
           bottom: 0,
-          width,
+          width: swipeWidth,
           display: "flex",
           alignItems: "center",
           justifyContent: "flex-end",
@@ -48,7 +85,7 @@ export function SwipeActions({
           left: 0,
           top: 0,
           bottom: 0,
-          width,
+          width: swipeWidth,
           display: "flex",
           alignItems: "center",
           visibility: offset <= 0 ? "hidden" : "visible",
@@ -59,32 +96,37 @@ export function SwipeActions({
       <div
         style={{
           transform: `translateX(${offset}px)`,
-          transition: dragging ? "none" : "transform 180ms ease-out",
           touchAction: "pan-y",
           userSelect: "none",
+          willChange: dragging ? "transform" : "auto",
           cursor: disabled ? "pointer" : dragging ? "grabbing" : "grab",
         }}
         onPointerDown={(e) => {
-          if (e.button !== 0 || disabled) return;
+          if (e.button !== 0 || !e.isPrimary || disabled) return;
+          stop();
           consumed.current = false;
           gesture.current = {
             x: e.clientX,
             y: e.clientY,
-            base: offset,
+            base: current.current,
             active: true,
             horizontal: false,
             vertical: false,
+            lastX: e.clientX,
+            time: e.timeStamp,
+            velocity: 0,
+            pointer: e.pointerId,
           };
         }}
         onPointerMove={(e) => {
           const g = gesture.current;
-          if (e.buttons === 0) g.active = false;
-          if (!g.active || g.vertical) return;
+          if (!g.active || g.vertical || g.pointer !== e.pointerId) return;
           const dx = e.clientX - g.x,
             dy = e.clientY - g.y;
           if (!g.horizontal) {
             if (Math.abs(dy) > 8 && Math.abs(dy) > Math.abs(dx)) {
               g.vertical = true;
+              settle(swipeTarget(current.current, 0, max));
               return;
             }
             if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
@@ -93,26 +135,37 @@ export function SwipeActions({
             e.currentTarget.setPointerCapture(e.pointerId);
             setDragging(true);
           }
-          setOffset(
-            Math.max(-width, Math.min(startActions ? width : 0, g.base + dx)),
-          );
+          const dt = e.timeStamp - g.time;
+          if (dt > 0)
+            g.velocity = Math.max(
+              -1500,
+              Math.min(1500, ((e.clientX - g.lastX) / dt) * 1000),
+            );
+          g.lastX = e.clientX;
+          g.time = e.timeStamp;
+          show(resistedPosition(g.base + dx, max));
         }}
         onPointerUp={(e) => {
           const g = gesture.current;
+          if (g.pointer !== e.pointerId) return;
           g.active = false;
           setDragging(false);
-          if (g.horizontal) {
-            setOffset(
-              offset < -width / 2 ? -width : offset > width / 2 ? width : 0,
-            );
-            if (e.currentTarget.hasPointerCapture(e.pointerId))
-              e.currentTarget.releasePointerCapture(e.pointerId);
+          const velocity = e.timeStamp - g.time < 80 ? g.velocity : 0;
+          settle(swipeTarget(current.current, velocity, max), velocity);
+          if (e.currentTarget.hasPointerCapture(e.pointerId))
+            e.currentTarget.releasePointerCapture(e.pointerId);
+        }}
+        onPointerLeave={() => {
+          const g = gesture.current;
+          if (!g.horizontal && g.active) {
+            g.active = false;
+            settle(swipeTarget(current.current, 0, max));
           }
         }}
         onPointerCancel={() => {
           gesture.current.active = false;
           setDragging(false);
-          setOffset(gesture.current.base);
+          settle(swipeTarget(gesture.current.base, 0, max));
         }}
         onClickCapture={(e) => {
           if (consumed.current) {
