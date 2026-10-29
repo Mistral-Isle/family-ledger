@@ -2,7 +2,14 @@
 
 ## 安装包状态
 
-源代码分支：`codex/ios-rounded-ui`。macOS 构建完成后生成 `family-ledger-unsigned.ipa`，由 SideStore 用你的 Apple Account 重新签名安装。Windows 本地的 `dist` 只是资源，不是 IPA。
+0.2.0 的最终 IPA 已于 2026-10-30 构建成功。源码分支为 `codex/ios-rounded-ui`，构建提交为 `7e4dd27`。
+
+- 本地安装文件：`dist/releases/family-ledger-0.2.0.ipa`（13,878,095 字节）。
+- [GitHub 构建与下载](https://github.com/Mistral-Isle/family-ledger/actions/runs/40932822196)：Artifacts 中下载 `family-ledger-unsigned`，解压取得 IPA；产物保留至 2026-11-06 02:55（北京时间）。
+- SHA-256：`00f23fdfc64a36037b20804038eea586c5af760776127b2e4aaabeb85d7d7a74`。
+- 已核对真机 arm64 架构、iOS 16.4 最低版本、0.2.0 / build 2、内置 Hermes 资源及最新“日期与时间”组件。
+
+这是供 SideStore 重新签名的 IPA。单独运行 `export:ios` 只导出资源，不会生成 IPA。
 
 本应用最低 iOS 版本以 IPA 内的 MinimumOSVersion 为准；当前 Expo 原生模块要求至少 iOS 16.4，Liquid Glass 需要 iOS 26+。
 

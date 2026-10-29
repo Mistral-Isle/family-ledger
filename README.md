@@ -41,7 +41,7 @@ npm run export:ios
 
 当前完整检查通过 117 项自动测试；Web 和 iOS 资源导出通过。浏览器实测备份往返、预算、导出、财务操作、配对校验与网页私有区锁定。详见 [验证记录](docs/verification.md)。
 
-已连接 GitHub 仓库并启动 [未签名 iOS 构建工作流](.github/workflows/ios-unsigned.yml)。安装包状态以 Actions 成功产物为准。SideStore 安装、刷新和升级保留数据的步骤见 [iPhone 安装说明](docs/ios-build-and-acceptance.md)。
+已通过 macOS / Xcode 构建生成 0.2.0 IPA，安装文件位于 `dist/releases/family-ledger-0.2.0.ipa`。[成功构建记录](https://github.com/Mistral-Isle/family-ledger/actions/runs/40932822196)。SideStore 安装、刷新和升级保留数据的步骤见 [iPhone 安装说明](docs/ios-build-and-acceptance.md)。
 
 0.2.0 新增三种圆润外观、下拉搜索、悬浮记账按钮、原生日期与时间选择器、可选时间、分类筛选和分层预算校验。[外观对照](docs/ui-styles.html) · [设计技能与原生组件](docs/design-skills.md)。
 
