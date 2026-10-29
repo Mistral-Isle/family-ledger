@@ -1,122 +1,82 @@
 import { Tabs, useRouter } from "expo-router";
 import { Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Icon, Txt, useTheme, blue } from "../../components/ui";
-import { zh } from "../../i18n/zh";
-import { TabBarSurface } from "../../components/TabBarSurface";
+import { Icon, useTheme } from "../../components/ui";
+import { Segmented } from "../../components/SlidingTabs";
+const labels = ["明细", "统计", "资产", "我的"];
+const icons = [
+  "list.bullet",
+  "chart.bar.fill",
+  "creditcard.fill",
+  "person.crop.circle",
+];
 export default function TabsLayout() {
-  const t = useTheme();
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const router = useRouter(),
+    t = useTheme(),
+    insets = useSafeAreaInsets();
   return (
     <Tabs
       screenOptions={{ headerShown: false }}
       tabBar={({ state, navigation }) => (
-        <TabBarSurface>
+        <View
+          pointerEvents="box-none"
+          style={{
+            position: "absolute",
+            bottom: Math.max(insets.bottom, 12),
+            left: 16,
+            right: 16,
+            alignItems: "center",
+          }}
+        >
           <View
-            style={{
-              paddingBottom: Math.max(insets.bottom, 12),
-              paddingTop: 8,
-            }}
+            pointerEvents="box-none"
+            style={{ width: "100%", maxWidth: 560 }}
           >
-            <View
-              style={{
-                maxWidth: 760,
-                width: "100%",
-                alignSelf: "center",
-                flexDirection: "row",
-                justifyContent: "space-around",
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="记一笔"
+              onPress={() => router.push("/entry")}
+              style={({ pressed }) => ({
+                position: "absolute",
+                right: 4,
+                bottom: 84,
+                width: 58,
+                height: 58,
+                borderRadius: 29,
+                backgroundColor: t.blue,
                 alignItems: "center",
-                paddingHorizontal: 14,
-              }}
+                justifyContent: "center",
+                boxShadow: "0 6px 20px rgba(0,85,200,.24)",
+                transform: [{ scale: pressed ? 0.94 : 1 }],
+              })}
             >
-              {state.routes.map((route, index) => (
-                <View
-                  key={route.key}
-                  style={{
-                    flex: index === 1 ? 2 : 1,
-                    flexDirection: "row",
-                    justifyContent: "space-around",
-                    alignItems: "center",
-                  }}
-                >
-                  <Pressable
-                    accessibilityRole="tab"
-                    accessibilityLabel={
-                      [
-                        zh.tabs.detail,
-                        zh.tabs.stats,
-                        zh.tabs.assets,
-                        zh.tabs.me,
-                      ][index]
-                    }
-                    accessibilityState={{ selected: state.index === index }}
-                    onPress={() => navigation.navigate(route.name)}
-                    style={({ pressed }) => ({
-                      alignItems: "center",
-                      gap: 4,
-                      padding: 8,
-                      minWidth: 48,
-                      borderRadius: 16,
-                      backgroundColor: pressed ? t.soft : "transparent",
-                    })}
-                  >
-                    <Icon
-                      name={
-                        [
-                          "list.bullet",
-                          "chart.bar.fill",
-                          "creditcard.fill",
-                          "person.crop.circle",
-                        ][index] ?? "list.bullet"
-                      }
-                      color={state.index === index ? t.blue : t.muted}
-                      size={21}
-                    />
-                    <Txt
-                      size={11}
-                      color={state.index === index ? t.blue : t.muted}
-                      bold={state.index === index}
-                    >
-                      {
-                        [
-                          zh.tabs.detail,
-                          zh.tabs.stats,
-                          zh.tabs.assets,
-                          zh.tabs.me,
-                        ][index]
-                      }
-                    </Txt>
-                  </Pressable>
-                  {index === 1 && (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={zh.tabs.add}
-                      onPress={() => router.push("/entry")}
-                      style={({ pressed }) => ({
-                        width: 52,
-                        height: 52,
-                        borderRadius: 26,
-                        backgroundColor: blue,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        opacity: pressed ? 0.65 : 1,
-                      })}
-                    >
-                      <Icon name="plus" color="#fff" size={26} />
-                    </Pressable>
-                  )}
-                </View>
-              ))}
-            </View>
+              <Icon name="plus" color={t.dark ? "#101114" : "#fff"} size={26} />
+            </Pressable>
+            <Segmented
+              value={state.routes[state.index]!.name}
+              options={state.routes.map((r, i) => ({
+                value: r.name,
+                label: labels[i]!,
+                icon: icons[i],
+              }))}
+              onChange={(name) => {
+                const route = state.routes.find((r) => r.name === name)!;
+                const event = navigation.emit({
+                  type: "tabPress",
+                  target: route.key,
+                  canPreventDefault: true,
+                });
+                if (!event.defaultPrevented) navigation.navigate(name);
+              }}
+            />
           </View>
-        </TabBarSurface>
+        </View>
       )}
     >
-      <Tabs.Screen name="index" options={{ title: zh.tabs.detail }} />
-      <Tabs.Screen name="stats" options={{ title: zh.tabs.stats }} />
-      <Tabs.Screen name="assets" options={{ title: zh.tabs.assets }} />
-      <Tabs.Screen name="me" options={{ title: zh.tabs.me }} />
+      <Tabs.Screen name="index" />
+      <Tabs.Screen name="stats" />
+      <Tabs.Screen name="assets" />
+      <Tabs.Screen name="me" />
     </Tabs>
   );
 }

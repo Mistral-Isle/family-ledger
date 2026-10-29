@@ -67,6 +67,7 @@ export const txns = sqliteTable(
     toAccountId: text("to_account_id"),
     categoryId: text("category_id"),
     occurredAt: text("occurred_at").notNull(),
+    occurredTime: text("occurred_time"),
     note: text("note").notNull().default(""),
     recorderMemberId: text("recorder_member_id").notNull(),
     forWhom: text("for_whom", { enum: ["me", "partner", "both"] }).notNull(),
@@ -105,4 +106,5 @@ export const budgets = sqliteTable("budget", {
   scope: text("scope", { enum: ["family"] }).notNull(),
   month: text("month").notNull(),
   amount: integer("amount").notNull(),
+  allocations: text("allocations").notNull().default("{}"),
 });

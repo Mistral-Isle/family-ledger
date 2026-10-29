@@ -1,3 +1,4 @@
+import { DateField } from "../components/DateField";
 import { useReducedMotion } from "../components/useReducedMotion";
 import { VaultGate } from "../components/VaultGate";
 import { useState } from "react";
@@ -99,8 +100,10 @@ function Entry() {
   );
   const [note, setNote] = useState(existing?.note ?? "");
   const [date, setDate] = useState(existing?.occurredAt ?? today());
-  const [forWhom, setForWhom] = useState<Txn["forWhom"]>(
-    existing?.forWhom ?? "both",
+  const [time, setTime] = useState(
+    existing
+      ? (existing.occurredTime ?? "")
+      : new Date().toTimeString().slice(0, 5),
   );
   const [allAccounts, setAllAccounts] = useState(false);
   const [mode, setMode] = useState(
@@ -211,7 +214,8 @@ function Entry() {
           categoryId,
           occurredAt: date,
           note,
-          forWhom,
+          forWhom: existing?.forWhom ?? "both",
+          occurredTime: time || null,
         }),
       );
       if (again) {
@@ -598,21 +602,11 @@ function Entry() {
             </Row>
             <View style={{ height: 1, backgroundColor: t.line }} />
             <Row style={{ gap: 10 }}>
-              <TextInput
-                accessibilityLabel={zh.date}
+              <DateField
+                compact
+                label={zh.date}
                 value={date}
-                onChangeText={setDate}
-                onFocus={focusText}
-                maxLength={10}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={t.muted}
-                style={{
-                  color: t.text,
-                  fontSize: 12,
-                  width: 100,
-                  minHeight: 44,
-                  paddingVertical: 5,
-                }}
+                onChange={setDate}
               />
               <View style={{ width: 1, height: 18, backgroundColor: t.line }} />
               <TextInput
@@ -634,19 +628,22 @@ function Entry() {
             </Row>
           </View>
           <Row style={{ justifyContent: "space-between" }}>
-            <Txt size={11} color={t.muted}>
-              {zh.forWhom}
-            </Txt>
-            <Row style={{ gap: 6 }}>
-              {(["me", "partner", "both"] as const).map((who) => (
-                <Chip
-                  key={who}
-                  label={zh[who]}
-                  selected={forWhom === who}
-                  onPress={() => setForWhom(who)}
-                />
-              ))}
-            </Row>
+            <DateField
+              compact
+              mode="time"
+              label="时间"
+              value={time}
+              onChange={setTime}
+            />
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setTime("")}
+              style={{ minHeight: 44, padding: 12 }}
+            >
+              <Txt size={12} color={t.muted}>
+                不记录时间
+              </Txt>
+            </Pressable>
           </Row>
           <ErrorText message={error} />
           {!!message && (
@@ -709,6 +706,9 @@ function Entry() {
               </Row>
               <ScrollView keyboardShouldPersistTaps="handled">
                 <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                  {roots
+                    .filter((c) => c.id === expanded)
+                    .map((c) => tile(c, true))}
                   {children.map((c) => tile(c, true))}
                 </View>
                 <Button

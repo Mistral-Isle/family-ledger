@@ -1,3 +1,5 @@
+import { CategoryPicker } from "../components/CategoryPicker";
+import { DateField } from "../components/DateField";
 import { ReminderSettings } from "../components/ReminderSettings";
 import { useState } from "react";
 import { View } from "react-native";
@@ -79,16 +81,7 @@ export default function Finance() {
         ))}
       </View>
       <Txt>{zh.finance.category}</Txt>
-      <View style={styles.wrap}>
-        {categories.map((c) => (
-          <Chip
-            key={c.id}
-            label={c.name}
-            selected={category === c.id}
-            onPress={() => setCategory(c.id)}
-          />
-        ))}
-      </View>
+      <CategoryPicker value={category} onChange={setCategory} />
     </>
   );
   function perform(fn: () => void) {
@@ -284,13 +277,14 @@ export default function Finance() {
               />
             </>
           ) : (
-            <Field label={zh.date} value={date} onChangeText={setDate} />
+            <DateField label={zh.date} value={date} onChange={setDate} />
           )}
           {kind === "deposit" && (
-            <Field
+            <DateField
+              optional
               label={zh.finance.expectedReturn}
               value={expectedReturn}
-              onChangeText={setExpectedReturn}
+              onChange={setExpectedReturn}
             />
           )}
           {(kind === "prepaid" || kind === "rent") && (
@@ -305,10 +299,11 @@ export default function Finance() {
           )}
           {kind === "prepaid" && (
             <>
-              <Field
+              <DateField
+                mode="month"
                 label={zh.finance.startMonth}
                 value={startMonth}
-                onChangeText={setStartMonth}
+                onChange={setStartMonth}
               />
               <Field
                 label={zh.finance.day}
@@ -358,10 +353,10 @@ export default function Finance() {
               keyboardType="decimal-pad"
             />
           )}
-          <Field
+          <DateField
             label={zh.date}
             value={actionDate}
-            onChangeText={setActionDate}
+            onChange={setActionDate}
           />
           {selection}
           <Button label={zh.save} onPress={submitAction} />

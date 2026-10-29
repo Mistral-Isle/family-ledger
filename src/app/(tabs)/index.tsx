@@ -1,4 +1,4 @@
-import { MemberShare } from "../../components/MemberShare";
+import { CategoryPicker } from "../../components/CategoryPicker";
 import { BudgetCard } from "../../components/BudgetCard";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, TextInput, View } from "react-native";
@@ -29,19 +29,7 @@ import { today } from "../../domain/date";
 import { zh } from "../../i18n/zh";
 import type { Txn } from "../../domain/types";
 
-function TransactionRow({
-  txn,
-  selecting,
-  selected,
-  onToggle,
-  onSelect,
-}: {
-  txn: Txn;
-  selecting: boolean;
-  selected: boolean;
-  onToggle: () => void;
-  onSelect: () => void;
-}) {
+function TransactionRow({ txn }: { txn: Txn }) {
   const { data, repo, run } = useLedger();
   const t = useTheme();
   const router = useRouter();
@@ -66,8 +54,6 @@ function TransactionRow({
   const canRefund = txn.type === "expense";
   return (
     <SwipeActions
-      key={selecting ? "select" : "swipe"}
-      disabled={selecting}
       startActions={
         canRefund ? (
           <Button
@@ -105,33 +91,15 @@ function TransactionRow({
           </Txt>
         )}
         <Pressable
-          accessibilityRole={selecting ? "checkbox" : "button"}
-          accessibilityState={selecting ? { checked: selected } : undefined}
+          accessibilityRole="button"
           accessibilityLabel={`${title} ${formatMoney(txn.amount)}`}
-          onPress={selecting ? onToggle : open}
-          onLongPress={onSelect}
+          onPress={open}
           style={({ pressed }) => ({
             paddingVertical: 16,
             backgroundColor: pressed ? t.soft : "transparent",
           })}
         >
           <Row>
-            {selecting && (
-              <View
-                style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: 12,
-                  borderWidth: 2,
-                  borderColor: selected ? t.blue : t.line,
-                  backgroundColor: selected ? t.blue : t.card,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                {selected && <Txt color="#fff">✓</Txt>}
-              </View>
-            )}
             <View
               style={{
                 width: 44,
@@ -165,6 +133,7 @@ function TransactionRow({
               <Txt size={11} color={t.muted} style={{ flexShrink: 1 }}>
                 {account?.name}
                 {account?.last4 ? ` · ${account.last4}` : ""}
+                {txn.occurredTime ? ` · ${txn.occurredTime}` : ""}
                 {txn.note ? ` · ${txn.note}` : ""}
                 {transfer
                   ? ` → ${data.accounts.find((a) => a.id === txn.toAccountId)?.name ?? ""}`
@@ -197,36 +166,7 @@ export default function Details() {
   const router = useRouter();
   const month = useUi((s) => s.month);
   const [query, setQuery] = useState("");
-  const [selecting, setSelecting] = useState(false);
-  const [selected, setSelected] = useState<string[]>([]);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    setSelected([]);
-    setSelecting(false);
-    setError("");
-  }, [month, query]);
-  const exitSelection = () => {
-    setSelecting(false);
-    setSelected([]);
-    setError("");
-  };
-  const toggle = (id: string) =>
-    setSelected((ids) =>
-      ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id],
-    );
-  const removeSelected = () =>
-    confirmAction(
-      zh.batchDeleteTitle(selected.length),
-      zh.deleteEntryHint,
-      () => {
-        try {
-          run(() => repo.deleteTxns(selected));
-          exitSelection();
-        } catch (e) {
-          setError((e as Error).message);
-        }
-      },
-    );
+  const [categoryId, setCategoryId] = useState("");
   const monthTxns = visibleTxns(data.txns).filter((txn) =>
     txn.occurredAt.startsWith(month),
   );
@@ -234,6 +174,12 @@ export default function Details() {
   const filtered = monthTxns.filter((txn) => {
     const category = data.categories.find((c) => c.id === txn.categoryId);
     const account = data.accounts.find((a) => a.id === txn.accountId);
+    if (
+      categoryId &&
+      txn.categoryId !== categoryId &&
+      category?.parentId !== categoryId
+    )
+      return false;
     return `${txn.note} ${category?.name ?? ""} ${account?.name ?? ""}`
       .toLowerCase()
       .includes(query.toLowerCase());
@@ -249,7 +195,42 @@ export default function Details() {
     [filtered],
   );
   return (
-    <Page>
+    <Page
+      searchActive={!!query}
+      revealSearch={
+        <Row
+          style={{
+            backgroundColor: t.card,
+            borderRadius: 13,
+            paddingHorizontal: 14,
+            borderWidth: 1,
+            borderColor: t.line,
+          }}
+        >
+          <Icon name="magnifyingglass" size={17} color={t.muted} />
+          <TextInput
+            accessibilityLabel={zh.search}
+            placeholder={zh.search}
+            placeholderTextColor={t.muted}
+            value={query}
+            onChangeText={setQuery}
+            style={{
+              flex: 1,
+              paddingVertical: 13,
+              color: t.text,
+              fontSize: 13,
+            }}
+          />
+          {!!query && (
+            <IconButton
+              name="xmark"
+              label={zh.close}
+              onPress={() => setQuery("")}
+            />
+          )}
+        </Row>
+      }
+    >
       <Heading
         title={zh.family}
         subtitle={zh.tagline}
@@ -269,8 +250,6 @@ export default function Details() {
         }
       />
       <MonthPicker />
-      <BudgetCard key={month} month={month} />
-      <MemberShare month={month} />
       <View
         style={{
           borderRadius: 24,
@@ -284,19 +263,6 @@ export default function Details() {
           <Txt size={12} color={t.blue}>
             {zh.monthExpense}
           </Txt>
-          <Row style={{ gap: 5 }}>
-            <View
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: 3,
-                backgroundColor: t.muted,
-              }}
-            />
-            <Txt size={10} color={t.muted}>
-              {zh.localOnly}
-            </Txt>
-          </Row>
         </Row>
         <Txt size={39} bold style={{ letterSpacing: -1 }}>
           {formatMoney(summary.expense)}
@@ -327,63 +293,14 @@ export default function Details() {
             </Txt>
           </View>
         </Row>
+        <BudgetCard key={month} month={month} embedded />
       </View>
-      <Row
-        style={{
-          backgroundColor: t.card,
-          borderRadius: 13,
-          paddingHorizontal: 14,
-          borderWidth: 1,
-          borderColor: t.line,
-        }}
-      >
-        <Icon name="magnifyingglass" size={17} color={t.muted} />
-        <TextInput
-          accessibilityLabel={zh.search}
-          placeholder={zh.search}
-          placeholderTextColor={t.muted}
-          value={query}
-          onChangeText={setQuery}
-          style={{ flex: 1, paddingVertical: 13, color: t.text, fontSize: 13 }}
-        />
-        {!!query && (
-          <IconButton
-            name="xmark"
-            label={zh.close}
-            onPress={() => setQuery("")}
-          />
-        )}
-      </Row>
-      {selecting ? (
-        <Card style={{ gap: 12 }}>
-          <Row style={{ justifyContent: "space-between" }}>
-            <Txt bold>{zh.selectedEntries(selected.length)}</Txt>
-            <Chip label={zh.cancel} onPress={exitSelection} />
-          </Row>
-          <Row style={{ flexWrap: "wrap" }}>
-            <Chip
-              label={zh.selectAll}
-              onPress={() => setSelected(filtered.map((x) => x.id))}
-            />
-            <Chip label={zh.clearSelection} onPress={() => setSelected([])} />
-            {!!selected.length && (
-              <Button
-                secondary
-                label={zh.batchDelete}
-                onPress={removeSelected}
-              />
-            )}
-          </Row>
-          <ErrorText message={error} />
-        </Card>
-      ) : (
-        <Row style={{ justifyContent: "space-between", flexWrap: "wrap" }}>
-          <Txt size={11} color={t.muted}>
-            {zh.gestureHint}
-          </Txt>
-          <Chip label={zh.selectEntries} onPress={() => setSelecting(true)} />
-        </Row>
-      )}
+      <CategoryPicker
+        value={categoryId}
+        onChange={setCategoryId}
+        allowAll
+        label="筛选分类"
+      />
       {groups.length === 0 ? (
         <Card style={{ alignItems: "center", paddingVertical: 40, gap: 12 }}>
           <View
@@ -440,18 +357,7 @@ export default function Details() {
                     key={txn.id}
                     style={{ borderTopWidth: i ? 1 : 0, borderColor: t.line }}
                   >
-                    <TransactionRow
-                      txn={txn}
-                      selecting={selecting}
-                      selected={selected.includes(txn.id)}
-                      onToggle={() => toggle(txn.id)}
-                      onSelect={() => {
-                        setSelecting(true);
-                        setSelected((ids) =>
-                          ids.includes(txn.id) ? ids : [...ids, txn.id],
-                        );
-                      }}
-                    />
+                    <TransactionRow txn={txn} />
                   </View>
                 ))}
               </Card>
@@ -459,12 +365,6 @@ export default function Details() {
           );
         })
       )}
-      <Row style={{ justifyContent: "center", gap: 6 }}>
-        <Icon name="cloud" size={14} color={t.muted} />
-        <Txt size={10} color={t.muted}>
-          {zh.syncNotConfigured}
-        </Txt>
-      </Row>
     </Page>
   );
 }

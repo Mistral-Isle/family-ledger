@@ -70,6 +70,7 @@ export type Txn = BaseRecord & {
   toAccountId: string | null;
   categoryId: string | null;
   occurredAt: string;
+  occurredTime?: string | null;
   note: string;
   recorderMemberId: string;
   forWhom: "me" | "partner" | "both";
@@ -112,4 +113,5 @@ export type Budget = BaseRecord & {
   scope: "family";
   month: string;
   amount: number;
+  allocations?: string;
 };

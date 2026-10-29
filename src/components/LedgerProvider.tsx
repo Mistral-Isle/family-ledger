@@ -36,6 +36,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }) {
     openLedger()
       .then((next) => {
         useUi.getState().setTheme(next.getTheme());
+        useUi.getState().setAppearance(next.getAppearance());
         setRepo(next);
         setData(next.snapshot());
         void updateReminders(next.snapshot(), next.remindersEnabled()).catch(

@@ -1,4 +1,5 @@
 import { validatePlanData } from "../domain/finance";
+import { validateBudgetAllocation } from "../domain/budgets";
 import { accountBalance } from "../domain/selectors";
 import { today } from "../domain/date";
 import {
@@ -56,6 +57,7 @@ const keys: Record<string, string> = {
   toAccountId: "to_account_id",
   categoryId: "category_id",
   occurredAt: "occurred_at",
+  occurredTime: "occurred_time",
   recorderMemberId: "recorder_member_id",
   forWhom: "for_whom",
   refundOfId: "refund_of_id",
@@ -111,10 +113,34 @@ export class LedgerRepository {
         : record.amount
       : (this.pref<Record<string, number>>("monthBudgets", {})[month] ?? null);
   }
-  setMonthBudget(month: string, amount: number | null) {
+  monthAllocations(month: string): Record<string, number> {
+    const record = this.all<Budget>("budget")
+      .filter((b) => b.month === month)
+      .sort((a, b) => b.hlc.localeCompare(a.hlc))[0];
+    const active = new Set(
+      this.all<Category>("category")
+        .filter((c) => !c.deleted)
+        .map((c) => c.id),
+    );
+    return Object.fromEntries(
+      Object.entries(
+        record && !record.deleted ? JSON.parse(record.allocations ?? "{}") : {},
+      ).filter(([id]) => active.has(id)),
+    ) as Record<string, number>;
+  }
+  setMonthBudget(
+    month: string,
+    amount: number | null,
+    allocations = this.monthAllocations(month),
+  ) {
     validDate(month + "-01");
-    if (amount !== null && assertMoney(amount) <= 0)
+    if (amount !== null && assertMoney(amount) < 0)
       throw new Error(zh.errors.amount);
+    validateBudgetAllocation(
+      amount,
+      allocations,
+      this.all<Category>("category"),
+    );
     this.db.withTransactionSync(() => {
       const previous = this.all<Budget>("budget")
         .filter((b) => b.month === month)
@@ -124,6 +150,7 @@ export class LedgerRepository {
         scope: "family",
         month,
         amount: amount ?? 0,
+        allocations: JSON.stringify(allocations),
         deleted: amount === null,
       });
     });
@@ -136,6 +163,12 @@ export class LedgerRepository {
   }
   getTheme(): "system" | "light" | "dark" {
     return this.pref("theme", "system");
+  }
+  getAppearance(): "classic" | "warm" | "ink" {
+    return this.pref("appearance", "classic");
+  }
+  setAppearance(value: "classic" | "warm" | "ink") {
+    this.db.withTransactionSync(() => this.setPref("appearance", value));
   }
   setTheme(theme: "system" | "light" | "dark") {
     this.db.withTransactionSync(() => this.setPref("theme", theme));
@@ -642,6 +675,7 @@ export class LedgerRepository {
     toAccountId?: string | null;
     categoryId?: string | null;
     occurredAt: string;
+    occurredTime?: string | null;
     note: string;
     forWhom: Txn["forWhom"];
     refundOfId?: string | null;
@@ -679,6 +713,11 @@ export class LedgerRepository {
         throw new Error(zh.errors.refundSource);
       if (assertMoney(input.amount) <= 0) throw new Error(zh.errors.amount);
       validDate(input.occurredAt);
+      if (
+        input.occurredTime != null &&
+        !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.occurredTime)
+      )
+        throw new Error("请选择有效时间");
       const account = s.accounts.find(
         (a) =>
           a.id === input.accountId &&
@@ -792,6 +831,10 @@ export class LedgerRepository {
         toAccountId,
         categoryId,
         occurredAt: input.occurredAt,
+        occurredTime:
+          input.occurredTime === undefined
+            ? (previous?.occurredTime ?? null)
+            : input.occurredTime,
         note: input.note.trim().slice(0, 500),
         recorderMemberId: previous?.recorderMemberId ?? s.meId,
         forWhom: input.forWhom,
@@ -1409,6 +1452,13 @@ export class LedgerRepository {
           type: string;
           notnull: number;
         }>(`PRAGMA table_info(${op.entity})`);
+        if (op.entity === "txn" && (record as Txn).occurredTime === undefined)
+          (record as Txn).occurredTime = null;
+        if (
+          op.entity === "budget" &&
+          (record as Budget).allocations === undefined
+        )
+          (record as Budget).allocations = "{}";
         const expected = columns.map((c) => reverseKeys[c.name] ?? c.name);
         if (Object.keys(record).sort().join() !== expected.sort().join())
           throw new Error(zh.sync.invalid);
@@ -1461,12 +1511,31 @@ export class LedgerRepository {
         if (op.entity === "budget") {
           const b = record as Budget;
           validDate(b.month + "-01");
-          if (b.amount < 0 || (!b.deleted && b.amount === 0))
+          if (b.amount < 0) throw new Error(zh.sync.invalid);
+          const allocation = JSON.parse(b.allocations ?? "{}");
+          if (
+            !allocation ||
+            Array.isArray(allocation) ||
+            typeof allocation !== "object"
+          )
             throw new Error(zh.sync.invalid);
+          // A monthly record contains the entire allocation, so total and children merge atomically.
+          const cats = this.all<Category>("category");
+          const active = Object.fromEntries(
+            Object.entries(allocation).filter(([id]) =>
+              cats.some((c) => c.id === id && !c.deleted),
+            ),
+          ) as Record<string, number>;
+          if (!b.deleted) validateBudgetAllocation(b.amount, active, cats);
         }
         if (op.entity === "txn") {
           const t = record as Txn;
           validDate(t.occurredAt);
+          if (
+            t.occurredTime != null &&
+            !/^([01]\d|2[0-3]):[0-5]\d$/.test(t.occurredTime)
+          )
+            throw new Error(zh.sync.invalid);
           if (
             ![
               "expense",

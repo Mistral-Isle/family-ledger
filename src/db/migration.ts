@@ -25,6 +25,8 @@ export const financialSql =
   "CREATE TABLE `plan` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`created_at` text NOT NULL,\n\t`updated_at` text NOT NULL,\n\t`hlc` text NOT NULL,\n\t`deleted` integer DEFAULT false NOT NULL,\n\t`scope` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`name` text NOT NULL,\n\t`data` text NOT NULL\n);\n";
 export const budgetSql =
   "CREATE TABLE `budget` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`created_at` text NOT NULL,\n\t`updated_at` text NOT NULL,\n\t`hlc` text NOT NULL,\n\t`deleted` integer DEFAULT false NOT NULL,\n\t`scope` text NOT NULL,\n\t`month` text NOT NULL,\n\t`amount` integer NOT NULL\n);\n";
+export const allocationSql =
+  "ALTER TABLE `budget` ADD `allocations` text DEFAULT '{}' NOT NULL;--> statement-breakpoint\nALTER TABLE `txn` ADD `occurred_time` text;";
 export const migrations = {
   journal: {
     version: "7",
@@ -58,6 +60,13 @@ export const migrations = {
         tag: "0003_whole_steel_serpent",
         breakpoints: true,
       },
+      {
+        idx: 4,
+        version: "6",
+        when: 1793297994440,
+        tag: "0004_sour_sugar_man",
+        breakpoints: true,
+      },
     ],
   },
   migrations: {
@@ -65,5 +74,6 @@ export const migrations = {
     m0001: refundIncomeSql,
     m0002: financialSql,
     m0003: budgetSql,
+    m0004: allocationSql,
   },
 };

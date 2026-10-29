@@ -144,7 +144,7 @@ test.each([1, 2])(
       delete raw.tables.budget;
       if (version === 1) delete raw.tables.plan;
       const parsed = f.repo.inspectBackup(JSON.stringify(raw));
-      expect(parsed.version).toBe(3);
+      expect(parsed.version).toBe(4);
       expect(parsed.tables.plan).toEqual([]);
       expect(parsed.tables.budget).toEqual([]);
     } finally {

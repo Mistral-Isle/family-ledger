@@ -1,6 +1,8 @@
 name: Unsigned iOS build
 on:
   workflow_dispatch:
+  push:
+    branches: ["codex/ios-rounded-ui"]
 permissions:
   contents: read
 jobs:
@@ -11,13 +13,14 @@ jobs:
       CI: "1"
       EXPO_NO_TELEMETRY: "1"
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@v4
         with:
           node-version: "22.16.0"
           cache: npm
+      - run: xcodebuild -version
       - run: npm ci
       - run: npm run check
       - name: Generate iOS project
@@ -37,7 +40,7 @@ jobs:
           cp -R "$app" artifacts/Payload/
           cd artifacts
           zip -qry family-ledger-unsigned.ipa Payload
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v4
         with:
           name: family-ledger-unsigned
           path: artifacts/family-ledger-unsigned.ipa

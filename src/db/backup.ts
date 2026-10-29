@@ -1,3 +1,5 @@
+import { validateBudgetAllocation } from "../domain/budgets";
+import type { Category } from "../domain/types";
 import { validateLoan, validatePlanData } from "../domain/finance";
 import type { SqlDriver } from "./repository";
 import { zh } from "../i18n/zh";
@@ -16,7 +18,7 @@ type Table = (typeof tables)[number];
 type Row = Record<string, string | number | null>;
 export type BackupData = {
   format: "family-ledger";
-  version: 3;
+  version: 4;
   createdAt: string;
   tables: Record<Table, Row[]>;
 };
@@ -31,7 +33,7 @@ export function exportBackup(db: SqlDriver): string {
     );
     result = JSON.stringify({
       format: "family-ledger",
-      version: 3,
+      version: 4,
       createdAt: new Date().toISOString(),
       tables: data,
     });
@@ -53,7 +55,7 @@ export function parseBackup(db: SqlDriver, text: string): BackupData {
     (value.tables as Partial<BackupData["tables"]>).plan === undefined
   ) {
     value.tables.plan = [];
-    value.version = 2 as 3;
+    value.version = 2 as 4;
   }
   if (
     Number(value.version) === 2 &&
@@ -61,9 +63,16 @@ export function parseBackup(db: SqlDriver, text: string): BackupData {
     (value.tables as Partial<BackupData["tables"]>).budget === undefined
   ) {
     value.tables.budget = [];
-    value.version = 3;
+    value.version = 3 as 4;
   }
-  if (value.version !== 3) throw new Error(zh.backup.version);
+  if (Number(value.version) === 3) {
+    for (const row of value.tables.txn ?? [])
+      row.occurred_time = row.occurred_time ?? null;
+    for (const row of value.tables.budget ?? [])
+      row.allocations = row.allocations ?? "{}";
+    value.version = 4;
+  }
+  if (value.version !== 4) throw new Error(zh.backup.version);
   if (
     !Number.isFinite(Date.parse(value.createdAt)) ||
     !value.tables ||
@@ -81,6 +90,8 @@ export function parseBackup(db: SqlDriver, text: string): BackupData {
     }>(`PRAGMA table_info(${table})`);
     const seen = new Set();
     for (const row of rows) {
+      if (table === "txn" && row && row.occurred_time === undefined)
+        row.occurred_time = null;
       if (
         !row ||
         typeof row !== "object" ||
@@ -171,6 +182,11 @@ export function parseBackup(db: SqlDriver, text: string): BackupData {
         "scope_out",
       ].includes(String(t.type)) ||
       !["me", "partner", "both"].includes(String(t.for_whom))
+    )
+      return fail();
+    if (
+      t.occurred_time != null &&
+      !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(t.occurred_time))
     )
       return fail();
     const date = String(t.occurred_at);
@@ -379,11 +395,34 @@ export function parseBackup(db: SqlDriver, text: string): BackupData {
     parseBackup(db, JSON.stringify(historical));
   }
   for (const row of value.tables.budget) {
+    try {
+      const allocations = JSON.parse(String(row.allocations));
+      if (
+        !allocations ||
+        Array.isArray(allocations) ||
+        typeof allocations !== "object"
+      )
+        return fail();
+      const cats = category.map((c) => ({
+        ...c,
+        parentId: c.parent_id,
+        deleted: !!c.deleted,
+      })) as unknown as Category[];
+      const active = Object.fromEntries(
+        Object.entries(allocations).filter(([id]) =>
+          cats.some((c) => c.id === id && !c.deleted),
+        ),
+      ) as Record<string, number>;
+      if (!row.deleted)
+        validateBudgetAllocation(Number(row.amount), active, cats);
+    } catch {
+      return fail();
+    }
+
     if (
       row.scope !== "family" ||
       !/^\d{4}-(0[1-9]|1[0-2])$/.test(String(row.month)) ||
-      Number(row.amount) < 0 ||
-      (!row.deleted && Number(row.amount) === 0)
+      Number(row.amount) < 0
     )
       return fail();
   }

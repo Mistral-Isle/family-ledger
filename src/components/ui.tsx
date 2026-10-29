@@ -2,7 +2,7 @@ import {
   categoryIconPaths,
   categoryIconAliases,
 } from "../domain/categoryIcons";
-import React from "react";
+import React, { useRef, useState } from "react";
 import {
   Alert,
   Platform,
@@ -14,6 +14,7 @@ import {
   useColorScheme,
   View,
   type TextInputProps,
+  type ScrollViewProps,
   type ViewStyle,
 } from "react-native";
 import { SymbolView } from "expo-symbols";
@@ -26,16 +27,20 @@ export const coral = "#D9363E";
 export function useTheme() {
   const system = useColorScheme();
   const preference = useUi((s) => s.theme);
-  const dark = (preference === "system" ? system : preference) === "dark";
+  const appearance = useUi((s) => s.appearance);
+  const dark =
+    appearance === "ink" ||
+    (preference === "system" ? system : preference) === "dark";
+  const warm = appearance === "warm";
   return {
     dark,
-    bg: dark ? "#000000" : "#F2F2F7",
-    card: dark ? "#1C1C1E" : "#FFFFFF",
+    bg: dark ? "#101114" : warm ? "#F5F1EA" : "#F2F2F7",
+    card: dark ? "#1D2026" : warm ? "#FFFDFA" : "#FFFFFF",
     text: dark ? "#F5F5F7" : "#1C1C1E",
     muted: dark ? "#ABABB2" : "#67676F",
     line: dark ? "#38383A" : "#E5E5EA",
-    soft: dark ? "#29292D" : "#E9E9EF",
-    blue: dark ? "#64ACFF" : blue,
+    soft: dark ? "#2B3039" : warm ? "#EDE5D9" : "#E9E9EF",
+    blue: dark ? "#9CBFFF" : warm ? "#8B6844" : blue,
     green: dark ? "#6BDA89" : "#247342",
   };
 }
@@ -249,13 +254,20 @@ export function Page({
   children,
   scroll = true,
   footer,
+  revealSearch,
+  searchActive = false,
 }: {
   children: React.ReactNode;
   scroll?: boolean;
   footer?: React.ReactNode;
+  revealSearch?: React.ReactNode;
+  searchActive?: boolean;
 }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const scroller = useRef<ScrollView>(null);
+  const searchPositioned = useRef(false);
+  const [viewportHeight,setViewportHeight] = useState(0);
   const content = (
     <View
       style={{
@@ -263,8 +275,8 @@ export function Page({
         maxWidth: 760,
         alignSelf: "center",
         paddingHorizontal: 20,
-        paddingTop: insets.top + 20,
-        paddingBottom: footer ? 24 : 110 + insets.bottom,
+        paddingTop: revealSearch ? 20 : insets.top + 20,
+        paddingBottom: footer ? 24 : 180 + insets.bottom,
         gap: 20,
       }}
     >
@@ -275,10 +287,38 @@ export function Page({
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       {scroll ? (
         <ScrollView
+          ref={scroller}
+          onLayout={e=>setViewportHeight(e.nativeEvent.layout.height)}
+          onContentSizeChange={(_,height) => {
+            if (revealSearch && viewportHeight > 0 && height >= viewportHeight + 63 && !searchPositioned.current) {
+              searchPositioned.current = true;
+              scroller.current?.scrollTo({
+                y: searchActive ? 0 : 64,
+                animated: false,
+              });
+            }
+          }}
+          contentOffset={
+            revealSearch && !searchActive ? { x: 0, y: 64 } : undefined
+          }
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ flexGrow: 1 }}
+          contentContainerStyle={{ flexGrow: 1, minHeight: revealSearch ? viewportHeight + 64 : undefined }}
           style={{ flex: 1 }}
         >
+          {revealSearch && (
+            <View
+              style={{
+                height: 64 + insets.top,
+                paddingHorizontal: 20,
+                paddingTop: insets.top + 4,
+                maxWidth: 760,
+                width: "100%",
+                alignSelf: "center",
+              }}
+            >
+              {revealSearch}
+            </View>
+          )}
           {content}
         </ScrollView>
       ) : (
@@ -321,9 +361,10 @@ export function Card({
       style={[
         {
           backgroundColor: t.card,
-          borderRadius: 20,
+          borderRadius: 26,
           borderCurve: "continuous",
           padding: 20,
+          gap: 14,
         },
         style,
       ]}
@@ -368,17 +409,18 @@ export function Button({
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => ({
-        backgroundColor: secondary ? t.soft : blue,
+        backgroundColor: secondary ? t.soft : t.blue,
         opacity: disabled ? 0.4 : pressed ? 0.75 : 1,
         paddingVertical: 14,
         paddingHorizontal: 18,
-        borderRadius: 14,
+        borderRadius: 24,
         borderCurve: "continuous",
         alignItems: "center",
         flexDirection: "row",
         justifyContent: "center",
         gap: 8,
         minHeight: 48,
+        flexShrink: 1,
       })}
     >
       {icon && (

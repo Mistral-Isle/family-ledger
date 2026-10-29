@@ -1,3 +1,4 @@
+import { DateField } from "../components/DateField";
 import { VaultGate } from "../components/VaultGate";
 import { useState } from "react";
 import { View } from "react-native";
@@ -181,13 +182,7 @@ function Refund() {
               />
             ))}
           </HorizontalStrip>
-          <Field
-            label={zh.date}
-            value={date}
-            onChangeText={setDate}
-            placeholder={zh.datePlaceholder}
-            maxLength={10}
-          />
+          <DateField label={zh.date} value={date} onChange={setDate} />
           <Field
             label={zh.note}
             value={note}

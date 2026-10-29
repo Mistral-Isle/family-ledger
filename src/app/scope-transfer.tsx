@@ -1,3 +1,4 @@
+import { DateField } from "../components/DateField";
 import { useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useLedger } from "../components/LedgerProvider";
@@ -65,7 +66,7 @@ export default function ScopeTransfer() {
               onChangeText={setAmount}
               keyboardType="decimal-pad"
             />
-            <Field label={zh.date} value={date} onChangeText={setDate} />
+            <DateField label={zh.date} value={date} onChange={setDate} />
             <Button
               label={zh.save}
               onPress={() =>

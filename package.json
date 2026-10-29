@@ -15,6 +15,8 @@
   },
   "dependencies": {
     "@noble/ciphers": "^2.1.1",
+    "@react-native-community/datetimepicker": "9.1.0",
+    "@react-native-segmented-control/segmented-control": "2.5.7",
     "dayjs": "^1.11.18",
     "drizzle-orm": "^0.45.4",
     "expo": "~57.0.31",
@@ -24,6 +26,7 @@
     "expo-document-picker": "~57.0.3",
     "expo-file-system": "~57.0.7",
     "expo-font": "~57.0.4",
+    "expo-glass-effect": "~57.0.4",
     "expo-linking": "~57.0.13",
     "expo-local-authentication": "~57.0.3",
     "expo-notifications": "~57.0.23",

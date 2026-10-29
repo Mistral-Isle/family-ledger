@@ -2,7 +2,7 @@
   "expo": {
     "name": "两个人的账本",
     "slug": "family-ledger",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "scheme": "familyledger",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
@@ -20,7 +20,8 @@
           "NSAllowsLocalNetworking": true
         },
         "NSCameraUsageDescription": "扫描另一位家庭成员的账本配对二维码"
-      }
+      },
+      "buildNumber": "2"
     },
     "web": {
       "bundler": "metro",
@@ -36,7 +37,8 @@
           }
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true

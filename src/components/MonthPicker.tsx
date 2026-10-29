@@ -1,3 +1,4 @@
+import { DateField } from "./DateField";
 import { useUi } from "../state/ui";
 import { shiftMonth, monthTitle } from "../domain/date";
 import { Row, Txt, IconButton, useTheme } from "./ui";
@@ -8,14 +9,12 @@ export function MonthPicker() {
   return (
     <Row style={{ justifyContent: "space-between" }}>
       <Row>
-        <Txt size={17} bold>
-          {monthTitle(month)}
-        </Txt>
+        <DateField compact mode="month" label="选择月份" value={month} onChange={setMonth}/>
         <Txt size={11} color={t.muted}>
           {zh.family}
         </Txt>
       </Row>
-      <Row style={{ gap: 0 }}>
+      <Row style={{ gap: 10 }}>
         <IconButton
           name="chevron.left"
           label={zh.previousMonth}

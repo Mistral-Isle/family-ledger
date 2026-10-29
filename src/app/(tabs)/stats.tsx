@@ -1,3 +1,6 @@
+import { DateField } from "../../components/DateField";
+import { Segmented } from "../../components/Segmented";
+import { CategoryPicker } from "../../components/CategoryPicker";
 import { ExportCard } from "../../components/ExportCard";
 import { BudgetCard } from "../../components/BudgetCard";
 import { IncomeCalendar } from "../../components/IncomeCalendar";
@@ -13,7 +16,7 @@ import {
   type RangeMode,
 } from "../../domain/reports";
 import { useState } from "react";
-import { View } from "react-native";
+import { View, Pressable } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 import { useLedger } from "../../components/LedgerProvider";
 import {
@@ -38,6 +41,8 @@ import { zh } from "../../i18n/zh";
 export default function Stats() {
   const { data } = useLedger();
   const t = useTheme();
+  const [categoryId, setCategoryId] = useState("");
+  const [expanded, setExpanded] = useState<string[]>([]);
   const [memberId, setMemberId] = useState("");
   const [includeRepayments, setIncludeRepayments] = useState(false);
   const reportData = reportingSnapshot(data, memberId, includeRepayments);
@@ -61,7 +66,15 @@ export default function Stats() {
   const rows = rangeTxns(reportData.txns, range);
   const summary = totals(rows);
   const prior = previous ? totals(rangeTxns(reportData.txns, previous)) : null;
-  const categories = categoryReport(reportData, range, kind, level);
+  const allLeaves = categoryReport(reportData, range, kind, "leaf");
+  const categories = categoryReport(reportData, range, kind, level).filter(
+    (c) =>
+      !categoryId ||
+      c.id === categoryId ||
+      c.category?.parentId === categoryId ||
+      (level === "root" &&
+        data.categories.find((x) => x.id === categoryId)?.parentId === c.id),
+  );
   const previousCategories = new Map(
     previous
       ? categoryReport(reportData, previous, kind, level).map((c) => [
@@ -79,7 +92,7 @@ export default function Stats() {
   let offset = 0;
   return (
     <Page>
-      <Heading title={zh.tabs.stats} subtitle={zh.statsHint} />
+      <Heading title={zh.tabs.stats} />
       <View style={styles.wrap}>
         <Chip
           label={zh.memberAll}
@@ -120,20 +133,20 @@ export default function Stats() {
       </View>
       {mode === "month" && <MonthPicker />}
       {(mode === "week" || mode === "year") && (
-        <Field
+        <DateField
           label={zh.reports.anchor}
           value={anchorInput}
-          onChangeText={setAnchorInput}
+          onChange={setAnchorInput}
         />
       )}
       {mode === "custom" && (
         <>
-          <Field
+          <DateField
             label={zh.reports.start}
             value={start}
-            onChangeText={setStart}
+            onChange={setStart}
           />
-          <Field label={zh.reports.end} value={end} onChangeText={setEnd} />
+          <DateField label={zh.reports.end} value={end} onChange={setEnd} />
         </>
       )}
       {["week", "year", "custom"].includes(mode) && (
@@ -202,31 +215,36 @@ export default function Stats() {
           />
         </>
       )}
-      <View style={styles.wrap}>
-        {(["root", "leaf"] as const).map((l) => (
-          <Chip
-            key={l}
-            label={zh.reports[l]}
-            selected={level === l}
-            onPress={() => setLevel(l)}
-          />
-        ))}
-      </View>
-      <Row>
-        <Txt size={19} bold style={{ flex: 1 }}>
-          {zh.spending}
-        </Txt>
-        <Chip
-          label={zh.expense}
-          selected={kind === "expense"}
-          onPress={() => setKind("expense")}
-        />
-        <Chip
-          label={zh.income}
-          selected={kind === "income"}
-          onPress={() => setKind("income")}
-        />
-      </Row>
+      <Txt size={20} bold>
+        分类占比
+      </Txt>
+      <Segmented
+        value={kind}
+        options={[
+          { value: "expense", label: "支出" },
+          { value: "income", label: "收入" },
+        ]}
+        onChange={(value) => {
+          setKind(value);
+          setCategoryId("");
+          setExpanded([]);
+        }}
+      />
+      <Segmented
+        value={level}
+        options={[
+          { value: "root", label: "一级分类" },
+          { value: "leaf", label: "二级分类" },
+        ]}
+        onChange={setLevel}
+      />
+      <CategoryPicker
+        value={categoryId}
+        onChange={setCategoryId}
+        kind={kind}
+        allowAll
+        label="筛选分类"
+      />
       <Card style={{ alignItems: "center", gap: 24 }}>
         <View
           style={{
@@ -298,7 +316,32 @@ export default function Stats() {
                       size={17}
                     />
                   </View>
-                  <Txt style={{ flex: 1 }}>{category?.name}</Txt>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`展开${category?.name ?? "分类"}`}
+                    accessibilityState={{
+                      expanded: expanded.includes(category?.id ?? ""),
+                    }}
+                    onPress={() => {
+                      if (category && level === "root")
+                        setExpanded(
+                          expanded.includes(category.id)
+                            ? expanded.filter((id) => id !== category.id)
+                            : [...expanded, category.id],
+                        );
+                    }}
+                    style={{ flex: 1, minHeight: 44, justifyContent: "center" }}
+                  >
+                    <Txt>
+                      {level === "leaf" && category?.parentId
+                        ? data.categories.find(
+                            (c) => c.id === category.parentId,
+                          )?.name + " · "
+                        : ""}
+                      {category?.name}
+                      {level === "root" ? " ›" : ""}
+                    </Txt>
+                  </Pressable>
                   <Txt size={11} color={t.muted}>
                     {amount > 0 && positiveTotal
                       ? `${Math.round((amount * 100) / positiveTotal)}%`
@@ -334,6 +377,27 @@ export default function Stats() {
                     }}
                   />
                 </View>
+                {level === "root" &&
+                  expanded.includes(category?.id ?? "") &&
+                  allLeaves
+                    .filter(
+                      (c) =>
+                        c.category?.parentId === category?.id ||
+                        c.id === category?.id,
+                    )
+                    .map((child) => (
+                      <Row
+                        key={child.id}
+                        style={{ marginLeft: 44, paddingVertical: 8 }}
+                      >
+                        <Txt size={13} style={{ flex: 1 }}>
+                          {child.id === category?.id
+                            ? "未细分"
+                            : child.category?.name}
+                        </Txt>
+                        <Txt size={13}>{formatMoney(child.amount)}</Txt>
+                      </Row>
+                    ))}
               </View>
             ))}
           </View>
