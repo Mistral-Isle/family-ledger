@@ -20,7 +20,7 @@ npm run check
 npm run web
 ```
 
-网页预览：`http://127.0.0.1:4173`。`npm run web` 先导出再启动带 COOP/COEP 头的静态服务。SQLite 网页文件在浏览器中持久化；同源多标签同时使用仍需专门验证。
+网页预览：`http://127.0.0.1:4173`。`npm run web` 先导出再启动带 COOP/COEP 头的静态服务。SQLite 网页文件在浏览器中持久化；同源多标签采用独占等待，关闭正在使用的账本标签后，等待页会自动继续。
 
 ```powershell
 npm start
@@ -39,7 +39,7 @@ npm run export:ios
 
 ## 验证与安装
 
-当前完整检查通过 110 项自动测试；Web 和 iOS 资源导出通过。浏览器实测备份往返、预算、导出、财务操作、配对校验与网页私有区锁定。详见 [验证记录](docs/verification.md)。
+当前完整检查通过 113 项自动测试；Web 和 iOS 资源导出通过。浏览器实测备份往返、预算、导出、财务操作、配对校验与网页私有区锁定。详见 [验证记录](docs/verification.md)。
 
 已准备手动触发的 [未签名 iOS 构建工作流](.github/workflows/ios-unsigned.yml)；尚未在 macOS/GitHub Actions 执行，也没有生成 IPA。仓库目前没有 GitHub remote。后续步骤见 [iOS 构建与真机验收](docs/ios-build-and-acceptance.md)。
 

@@ -1,3 +1,4 @@
+import { useDatabaseOpenStatus, databaseOpenError } from "../db/openStatus";
 import { updateReminders } from "../services/reminders";
 import { useUi } from "../state/ui";
 import React, {
@@ -7,7 +8,13 @@ import React, {
   useEffect,
   useState,
 } from "react";
-import { ActivityIndicator, Text, View, Pressable } from "react-native";
+import {
+  ActivityIndicator,
+  Text,
+  View,
+  Pressable,
+  Platform,
+} from "react-native";
 import { openLedger } from "../db/open";
 import type { LedgerRepository } from "../db/repository";
 import type { Snapshot } from "../domain/types";
@@ -20,6 +27,7 @@ type Context = {
 };
 const LedgerContext = createContext<Context | null>(null);
 export function LedgerProvider({ children }: { children: React.ReactNode }) {
+  const phase = useDatabaseOpenStatus((s) => s.phase);
   const [repo, setRepo] = useState<LedgerRepository>();
   const [data, setData] = useState<Snapshot>();
   const [error, setError] = useState("");
@@ -34,7 +42,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }) {
           () => {},
         );
       })
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(databaseOpenError(e)));
   }, []);
   useEffect(initialize, [initialize]);
   const refresh = useCallback(() => {
@@ -55,11 +63,35 @@ export function LedgerProvider({ children }: { children: React.ReactNode }) {
           backgroundColor: "#F7F6F2",
         }}
       >
-        <ActivityIndicator color="#648BD2" />
-        <Text>{error || zh.loading}</Text>
+        {!error && <ActivityIndicator color="#648BD2" />}
+        <Text
+          style={{ textAlign: "center", paddingHorizontal: 24, maxWidth: 500 }}
+        >
+          {error ||
+            (phase === "waiting" ? "账本已在另一个标签页打开" : zh.loading)}
+        </Text>
+        {!error && phase === "waiting" && (
+          <Text
+            style={{
+              textAlign: "center",
+              paddingHorizontal: 24,
+              maxWidth: 500,
+            }}
+          >
+            当前页面正在等待。关闭另一个账本标签后，这里会自动继续。
+          </Text>
+        )}
         {!!error && (
-          <Pressable onPress={initialize}>
-            <Text>{zh.retry}</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={
+              Platform.OS === "web"
+                ? () => window.location.reload()
+                : initialize
+            }
+            style={{ padding: 14 }}
+          >
+            <Text>{Platform.OS === "web" ? "重新载入" : zh.retry}</Text>
           </Pressable>
         )}
       </View>
