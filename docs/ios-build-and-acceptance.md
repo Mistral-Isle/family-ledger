@@ -4,6 +4,8 @@
 
 源代码分支：`codex/ios-rounded-ui`。macOS 构建完成后生成 `family-ledger-unsigned.ipa`，由 SideStore 用你的 Apple Account 重新签名安装。Windows 本地的 `dist` 只是资源，不是 IPA。
 
+本应用最低 iOS 版本以 IPA 内的 MinimumOSVersion 为准；当前 Expo 原生模块要求至少 iOS 16.4，Liquid Glass 需要 iOS 26+。
+
 ## 已经安装好 SideStore
 
 1. 下载构建产物 ZIP，解压得到 `family-ledger-unsigned.ipa`，将 IPA 保存到 iPhone「文件」App。

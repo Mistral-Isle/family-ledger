@@ -1,3 +1,4 @@
+import { DateField } from "../components/DateField";
 import { useState } from "react";
 import { View } from "react-native";
 import { useRouter } from "expo-router";
@@ -162,7 +163,7 @@ function Vault() {
             onChangeText={setAmount}
             keyboardType="decimal-pad"
           />
-          <Field label={zh.date} value={date} onChangeText={setDate} />
+          <DateField label={zh.date} value={date} onChange={setDate} />
           <Field label={zh.note} value={note} onChangeText={setNote} />
           <Button
             label={zh.vault.saveTransfer}

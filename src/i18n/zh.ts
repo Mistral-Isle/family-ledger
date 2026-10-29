@@ -154,7 +154,6 @@ export const zh = {
     accounts: "账户余额",
     loans: "贷款进度",
     status: "状态",
-    loanPending: "贷款功能尚未上线，暂无贷款进度数据",
     archived: "已归档",
     active: "使用中",
     detailHeaders: [
@@ -402,7 +401,6 @@ export const zh = {
   futureSync: "双人同步",
   futureVault: "小金库",
   futureLoans: "贷款与租房",
-  comingSoon: "后续阶段",
   progress: "两个人，一起好好生活",
   version: "v0.2.0",
   errorTitle: "暂时无法完成",
