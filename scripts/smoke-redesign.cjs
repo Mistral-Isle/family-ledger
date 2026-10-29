@@ -14,7 +14,14 @@ const server=http.createServer((req,res)=>{let f=path.join(root,decodeURICompone
   await b('记一笔').click();await b('日常').click();await b('三餐').click();await b('关闭二级分类').waitFor({state:'hidden'});
   await page.getByLabel('金额',{exact:true}).fill('38.50');
   await page.getByLabel('备注',{exact:true}).fill('一起吃早餐');
-  await page.getByLabel('时间',{exact:true}).fill('08:30');
+  await b('日期与时间').click();await b('调整时间').click();
+  await page.getByLabel('选择时间',{exact:true}).fill('08:30');
+  await b('调整时间').click();await page.waitForTimeout(450);await page.screenshot({path:'docs/acceptance/redesign-date-time.png'});
+  await b('确定').click();await b('取消日期时间选择').waitFor({state:'hidden'});
+  await b('日期与时间').click();await b('调整时间').click();
+  await page.getByLabel('选择时间',{exact:true}).fill('09:45');await b('取消').click();
+  await b('取消日期时间选择').waitFor({state:'hidden'});
+  if(!(await b('日期与时间').innerText()).includes('08:30'))throw Error('cancel changed time');
   await page.waitForTimeout(450);await page.screenshot({path:'docs/acceptance/redesign-entry.png'});
   await b('完成记账').click();await b('记一笔').waitFor();
   if(await b('多选').count())throw Error('multi-select remains');
@@ -33,8 +40,8 @@ const server=http.createServer((req,res)=>{let f=path.join(root,decodeURICompone
   await tab('二级分类').click();await page.getByText('日常 · 三餐',{exact:true}).waitFor();
   await tab('一级分类').click();await b('展开日常').click();
   await page.waitForTimeout(450);await page.screenshot({path:'docs/acceptance/redesign-stats.png',fullPage:true});
-  await tab('明细').click();await b('记一笔').click();await b('不记录时间').click();
-  if(await page.getByLabel('时间',{exact:true}).inputValue()!=='')throw Error('time not cleared');
+  await tab('明细').click();await b('记一笔').click();await b('日期与时间').click();await page.getByRole('switch',{name:'记录时间'}).click();await b('确定').click();await b('取消日期时间选择').waitFor({state:'hidden'});
+  if((await b('日期与时间').innerText()).includes(':'))throw Error('time not cleared');
   await page.setViewportSize({width:375,height:667});
   await page.waitForTimeout(450);await page.screenshot({path:'docs/acceptance/redesign-small.png'});
   for(const name of ['金额','备注']){const box=await page.getByLabel(name,{exact:true}).boundingBox();if(!box||box.y+box.height>667)throw Error(name+' outside viewport');}

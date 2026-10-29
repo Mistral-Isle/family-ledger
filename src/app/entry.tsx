@@ -1,4 +1,4 @@
-import { DateField } from "../components/DateField";
+import { EntryDateTime } from "../components/EntryDateTime";
 import { useReducedMotion } from "../components/useReducedMotion";
 import { VaultGate } from "../components/VaultGate";
 import { useState } from "react";
@@ -602,11 +602,13 @@ function Entry() {
             </Row>
             <View style={{ height: 1, backgroundColor: t.line }} />
             <Row style={{ gap: 10 }}>
-              <DateField
-                compact
-                label={zh.date}
-                value={date}
-                onChange={setDate}
+              <EntryDateTime
+                date={date}
+                time={time}
+                onChange={(nextDate, nextTime) => {
+                  setDate(nextDate);
+                  setTime(nextTime);
+                }}
               />
               <View style={{ width: 1, height: 18, backgroundColor: t.line }} />
               <TextInput
@@ -627,24 +629,6 @@ function Entry() {
               />
             </Row>
           </View>
-          <Row style={{ justifyContent: "space-between" }}>
-            <DateField
-              compact
-              mode="time"
-              label="时间"
-              value={time}
-              onChange={setTime}
-            />
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setTime("")}
-              style={{ minHeight: 44, padding: 12 }}
-            >
-              <Txt size={12} color={t.muted}>
-                不记录时间
-              </Txt>
-            </Pressable>
-          </Row>
           <ErrorText message={error} />
           {!!message && (
             <Txt size={11} color={t.green}>
