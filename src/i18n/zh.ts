@@ -14,7 +14,11 @@ export const zh = {
   transfer: "转账",
   refund: "退款",
   refundRemaining: "剩余可退",
-  refundHint: "退款关联原支出，按退款日期抵减支出，不计入收入。",
+  refundHint:
+    "到账金额先抵减剩余支出，超出部分自动记为收入；两部分均按退款日期统计。",
+  refundExcess: "退款超额收入",
+  refundOffset: "抵减支出",
+  refundReceived: "退款到账总额",
   refundChartHint:
     "跨月退款可能使分类净支出为负；金额保留负数，环图与占比仅展示净支出为正的分类。",
   refundAccount: "退款到账账户",
@@ -180,10 +184,9 @@ export const zh = {
     last4: "卡号末尾应为四位数字",
     future: "当前版本暂不支持此类流水",
     refundSource: "请选择有效的原支出记录",
-    refundAmount: "退款金额不能超过剩余可退金额",
     refundDate: "退款日期不能早于原支出日期",
     refundConflict:
-      "此支出已有退款：不能改变类型、分类，金额不能小于已退款总额，日期不能晚于退款日期",
+      "此支出已有退款：不能改变类型、分类，金额不能小于已抵减的支出，日期不能晚于退款日期",
     deleteRefundSource: "请先删除关联退款，或将原支出和关联退款一起选中删除",
   },
   defaultAccounts: { cash: "现金", wechat: "微信", bank: "银行卡" },

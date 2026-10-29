@@ -68,6 +68,9 @@ export type Txn = BaseRecord & {
   forWhom: "me" | "partner" | "both";
   discarded: boolean;
   refundOfId: string | null;
+  // Optional for pre-migration records in older operation logs.
+  refundIncome?: number;
+  refundIncomeCategoryId?: string | null;
 };
 export type Operation = {
   opId: string;

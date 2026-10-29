@@ -14,7 +14,7 @@ import {
 } from "../../components/ui";
 import { MonthPicker } from "../../components/MonthPicker";
 import { useUi } from "../../state/ui";
-import { totals, visibleTxns } from "../../domain/selectors";
+import { totals, visibleTxns, categoryAmounts } from "../../domain/selectors";
 import { formatMoney } from "../../domain/money";
 import { zh } from "../../i18n/zh";
 export default function Stats() {
@@ -26,20 +26,7 @@ export default function Stats() {
     txn.occurredAt.startsWith(month),
   );
   const summary = totals(rows);
-  const amounts = new Map<string, number>();
-  rows
-    .filter(
-      (txn) =>
-        txn.type === kind || (kind === "expense" && txn.type === "refund"),
-    )
-    .forEach((txn) => {
-      if (txn.categoryId)
-        amounts.set(
-          txn.categoryId,
-          (amounts.get(txn.categoryId) ?? 0) +
-            (txn.type === "refund" ? -txn.amount : txn.amount),
-        );
-    });
+  const amounts = categoryAmounts(rows, kind);
   const categories = Array.from(amounts.entries())
     .map(([id, amount]) => ({
       category: data.categories.find((c) => c.id === id),

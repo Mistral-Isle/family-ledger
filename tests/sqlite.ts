@@ -1,11 +1,12 @@
 import { DatabaseSync } from "node:sqlite";
-import { initialSql } from "../src/db/migration";
+import { initialSql, refundIncomeSql } from "../src/db/migration";
 import { LedgerRepository, type SqlDriver } from "../src/db/repository";
 import { randomUUID } from "node:crypto";
 
 export function fixture() {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.exec(initialSql.replace(/--> statement-breakpoint/g, ""));
+  sqlite.exec(refundIncomeSql.replace(/--> statement-breakpoint/g, ""));
   const driver: SqlDriver = {
     runSync(sql, ...params) {
       return sqlite.prepare(sql).run(...params);

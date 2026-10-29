@@ -16,6 +16,11 @@ CREATE TABLE outbox (seq INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, op_json TEX
 --> statement-breakpoint
 CREATE TABLE local_pref (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
 `;
+export const refundIncomeSql = `
+ALTER TABLE txn ADD refund_income integer DEFAULT 0 NOT NULL;
+--> statement-breakpoint
+ALTER TABLE txn ADD refund_income_category_id text;
+`;
 export const migrations = {
   journal: {
     version: "7",
@@ -28,7 +33,14 @@ export const migrations = {
         tag: "0000_ledger",
         breakpoints: true,
       },
+      {
+        idx: 1,
+        version: "6",
+        when: 1793287424031,
+        tag: "0001_flawless_the_professor",
+        breakpoints: true,
+      },
     ],
   },
-  migrations: { m0000: initialSql },
+  migrations: { m0000: initialSql, m0001: refundIncomeSql },
 };

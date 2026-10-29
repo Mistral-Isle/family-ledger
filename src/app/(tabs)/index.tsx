@@ -58,13 +58,7 @@ function TransactionRow({
       pathname: txn.type === "refund" ? "/refund" : "/entry",
       params: { id: txn.id },
     });
-  const canRefund =
-    txn.type === "expense" &&
-    data.txns
-      .filter(
-        (x) => !x.deleted && x.type === "refund" && x.refundOfId === txn.id,
-      )
-      .reduce((sum, x) => sum + x.amount, 0) < txn.amount;
+  const canRefund = txn.type === "expense";
   return (
     <SwipeActions
       key={selecting ? "select" : "swipe"}
@@ -171,6 +165,12 @@ function TransactionRow({
                   ? ` → ${data.accounts.find((a) => a.id === txn.toAccountId)?.name ?? ""}`
                   : ""}
               </Txt>
+              {!!txn.refundIncome && (
+                <Txt size={11} color={t.green}>
+                  {zh.refundOffset} {formatMoney(txn.amount - txn.refundIncome)}{" "}
+                  · {zh.income} {formatMoney(txn.refundIncome)}
+                </Txt>
+              )}
             </View>
             <Txt
               size={17}

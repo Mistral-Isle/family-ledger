@@ -1,5 +1,10 @@
 import { fixture } from "./sqlite";
-import { accountBalance, totals, visibleTxns } from "../src/domain/selectors";
+import {
+  accountBalance,
+  totals,
+  visibleTxns,
+  categoryAmounts,
+} from "../src/domain/selectors";
 
 describe("linked refunds and atomic batch deletion", () => {
   let f: ReturnType<typeof fixture>;
@@ -48,13 +53,13 @@ describe("linked refunds and atomic batch deletion", () => {
     ).toBe(-3000);
     expect(f.repo.pendingOperations().at(-1)!.record.id).toBe(row.id);
   });
-  test("cumulative limit, refund editing, and deletion reopen the remaining allowance", () => {
+  test("cumulative refunds route excess to income, and deletion reopens offset allowance", () => {
     const source = purchase();
     f.repo.saveTxn(refund(source.id, 7000));
     f.repo.saveTxn(refund(source.id, 3000));
     const before = f.repo.snapshot();
-    expect(() => f.repo.saveTxn(refund(source.id, 1))).toThrow();
-    expect(f.repo.snapshot()).toEqual(before);
+    f.repo.saveTxn(refund(source.id, 1));
+    expect(totals(f.repo.snapshot().txns).income).toBe(1);
     const row = before.txns.find(
       (t) => t.type === "refund" && t.amount === 7000,
     )!;
@@ -63,13 +68,13 @@ describe("linked refunds and atomic batch deletion", () => {
     f.repo.deleteTxn(row.id);
     f.repo.saveTxn(refund(source.id, 5000));
     expect(totals(f.repo.snapshot().txns).expense).toBe(0);
+    expect(totals(f.repo.snapshot().txns).income).toBe(1);
   });
   test("invalid source, dates, amounts, and incompatible edits leave the snapshot unchanged", () => {
     const source = purchase();
     const before = f.repo.snapshot();
     for (const input of [
       refund("missing", 1),
-      refund(source.id, 10001),
       refund(source.id, 0),
       refund(source.id, 0.5),
       { ...refund(source.id, 1), occurredAt: "2026-09-19" },
@@ -121,6 +126,72 @@ describe("linked refunds and atomic batch deletion", () => {
       `CREATE TRIGGER fail_second BEFORE INSERT ON outbox WHEN NEW.op_json LIKE '%"action":"delete"%' AND NEW.op_json LIKE '%"type":"refund"%' BEGIN SELECT RAISE(ABORT, 'disk failure'); END`,
     );
     expect(() => f.repo.deleteTxns(before.txns.map((t) => t.id))).toThrow();
+    expect(f.repo.snapshot()).toEqual(before);
+  });
+  test("120 received against 100 spent offsets 100 and books 20 income without double counting cash", () => {
+    const source = purchase();
+    f.repo.saveTxn(refund(source.id, 12000));
+    const s = f.repo.snapshot();
+    const row = s.txns.find((t) => t.type === "refund")!;
+    expect(row.amount).toBe(12000);
+    expect(row.refundIncome).toBe(2000);
+    expect(
+      s.categories.find((c) => c.id === row.refundIncomeCategoryId)?.kind,
+    ).toBe("income");
+    expect(totals(s.txns)).toEqual({ expense: 0, income: 2000, balance: 2000 });
+    expect(accountBalance(s.accounts[1]!, s.txns)).toBe(12000);
+    const month = s.txns.filter((t) => t.occurredAt.startsWith("2026-10"));
+    expect(totals(month)).toEqual({
+      expense: -10000,
+      income: 2000,
+      balance: 12000,
+    });
+    expect(
+      categoryAmounts(month, "income").get(row.refundIncomeCategoryId!),
+    ).toBe(2000);
+    expect(categoryAmounts(month, "expense").get(source.categoryId!)).toBe(
+      -10000,
+    );
+    expect(f.repo.pendingOperations().at(-1)!.record).toEqual(row);
+  });
+  test("multiple refunds allocate only remaining principal and retain their income split on note edits", () => {
+    const source = purchase();
+    f.repo.saveTxn(refund(source.id, 6000));
+    const first = f.repo.snapshot().txns.find((t) => t.type === "refund")!;
+    f.repo.saveTxn(refund(source.id, 7000));
+    const second = f.repo
+      .snapshot()
+      .txns.find((t) => t.type === "refund" && t.id !== first.id)!;
+    expect(second.refundIncome).toBe(3000);
+    f.repo.deleteTxn(first.id);
+    f.repo.saveTxn({ ...second, note: "edited note" });
+    expect(
+      f.repo.snapshot().txns.find((t) => t.id === second.id)!.refundIncome,
+    ).toBe(3000);
+    f.repo.saveTxn({ ...second, amount: 8000 });
+    expect(
+      f.repo.snapshot().txns.find((t) => t.id === second.id)!.refundIncome,
+    ).toBe(0);
+    f.repo.saveTxn({ ...second, amount: 13000 });
+    expect(totals(f.repo.snapshot().txns)).toEqual({
+      expense: 0,
+      income: 3000,
+      balance: 3000,
+    });
+    f.repo.deleteTxn(second.id);
+    expect(totals(f.repo.snapshot().txns)).toEqual({
+      expense: 10000,
+      income: 0,
+      balance: -10000,
+    });
+  });
+  test("a failed excess receipt rolls back its new income category and outbox too", () => {
+    const source = purchase();
+    const before = f.repo.snapshot();
+    f.sqlite.exec(
+      `CREATE TRIGGER fail_refund BEFORE INSERT ON txn WHEN NEW.type = 'refund' BEGIN SELECT RAISE(ABORT, 'disk failure'); END`,
+    );
+    expect(() => f.repo.saveTxn(refund(source.id, 12000))).toThrow();
     expect(f.repo.snapshot()).toEqual(before);
   });
 });

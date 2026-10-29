@@ -40,6 +40,8 @@ const keys: Record<string, string> = {
   recorderMemberId: "recorder_member_id",
   forWhom: "for_whom",
   refundOfId: "refund_of_id",
+  refundIncome: "refund_income",
+  refundIncomeCategoryId: "refund_income_category_id",
 };
 const reverseKeys = Object.fromEntries(
   Object.entries(keys).map(([a, b]) => [b, a]),
@@ -377,7 +379,11 @@ export class LedgerRepository {
       if (
         refunds.length &&
         (input.type !== "expense" ||
-          input.amount < refunds.reduce((sum, t) => sum + t.amount, 0) ||
+          input.amount <
+            refunds.reduce(
+              (sum, t) => sum + (t.amount - (t.refundIncome ?? 0)),
+              0,
+            ) ||
           input.categoryId !== previous?.categoryId ||
           refunds.some((t) => t.occurredAt < input.occurredAt))
       )
@@ -398,6 +404,8 @@ export class LedgerRepository {
       if (!account) throw new Error(zh.errors.account);
       let toAccountId: string | null = null;
       let categoryId: string | null = null;
+      let refundIncome = 0;
+      let refundIncomeCategoryId: string | null = null;
       if (input.type === "transfer") {
         const to = s.accounts.find(
           (a) =>
@@ -427,12 +435,45 @@ export class LedgerRepository {
               t.refundOfId === source.id &&
               t.id !== previous?.id,
           )
-          .reduce((sum, t) => sum + t.amount, 0);
-        if (input.amount > source.amount - refunded)
-          throw new Error(zh.errors.refundAmount);
+          .reduce((sum, t) => sum + (t.amount - (t.refundIncome ?? 0)), 0);
+        // Keep a saved allocation stable on note/date/account edits. Changing
+        // the amount reallocates this receipt against the other saved refunds.
+        refundIncome =
+          previous?.amount === input.amount
+            ? (previous.refundIncome ?? 0)
+            : Math.max(0, input.amount - Math.max(0, source.amount - refunded));
         if (input.occurredAt < source.occurredAt)
           throw new Error(zh.errors.refundDate);
         categoryId = source.categoryId;
+        if (refundIncome > 0) {
+          let incomeCategory =
+            s.categories.find(
+              (c) =>
+                c.id === previous?.refundIncomeCategoryId &&
+                !c.deleted &&
+                c.kind === "income",
+            ) ??
+            s.categories.find(
+              (c) =>
+                c.name === zh.refundExcess && c.kind === "income" && !c.deleted,
+            );
+          if (!incomeCategory) {
+            incomeCategory = {
+              ...this.stamp(),
+              name: zh.refundExcess,
+              kind: "income",
+              parentId: null,
+              icon: "banknote.fill",
+              color: "#6F9C80",
+              sort: s.categories.length,
+              hidden: false,
+              mergedInto: null,
+              deleteAction: null,
+            };
+            this.write("category", incomeCategory);
+          }
+          refundIncomeCategoryId = incomeCategory.id;
+        }
       } else {
         const category = s.categories.find(
           (c) =>
@@ -457,6 +498,8 @@ export class LedgerRepository {
         forWhom: input.forWhom,
         discarded: previous?.discarded ?? false,
         refundOfId: input.type === "refund" ? input.refundOfId! : null,
+        refundIncome,
+        refundIncomeCategoryId,
       };
       this.write("txn", record);
       if (categoryId && input.type !== "refund")

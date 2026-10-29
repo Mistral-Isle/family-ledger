@@ -46,9 +46,9 @@ export default function Refund() {
             x.refundOfId === source.id &&
             x.id !== existing?.id,
         )
-        .reduce((sum, x) => sum + x.amount, 0)
+        .reduce((sum, x) => sum + (x.amount - (x.refundIncome ?? 0)), 0)
     : 0;
-  const remaining = (source?.amount ?? 0) - refunded;
+  const remaining = Math.max(0, (source?.amount ?? 0) - refunded);
   const accounts = data.accounts.filter(
     (a) =>
       !a.deleted &&
@@ -56,7 +56,11 @@ export default function Refund() {
       (!a.archived || a.id === existing?.accountId),
   );
   const [amount, setAmount] = useState(
-    moneyInput(existing?.amount ?? remaining),
+    existing
+      ? moneyInput(existing.amount)
+      : remaining
+        ? moneyInput(remaining)
+        : "",
   );
   const [accountId, setAccountId] = useState(
     existing?.accountId ??
@@ -67,6 +71,19 @@ export default function Refund() {
   const [date, setDate] = useState(existing?.occurredAt ?? today());
   const [note, setNote] = useState(existing?.note ?? "");
   const [error, setError] = useState("");
+  let split: { offset: number; income: number } | undefined;
+  try {
+    const total = calculate(amount);
+    if (total > 0) {
+      const income =
+        existing?.amount === total
+          ? (existing.refundIncome ?? 0)
+          : Math.max(0, total - remaining);
+      split = { offset: total - income, income };
+    }
+  } catch {
+    /* Incomplete amount input has no preview yet. */
+  }
   const save = () => {
     try {
       if (!source || (id && !existing)) throw new Error(zh.errors.refundSource);
@@ -120,11 +137,21 @@ export default function Refund() {
             {zh.refundHint}
           </Txt>
           <Field
-            label={zh.amount}
+            label={zh.refundReceived}
             value={amount}
             onChangeText={setAmount}
             keyboardType="decimal-pad"
           />
+          {split && (
+            <Card style={{ gap: 8 }}>
+              <Txt>
+                {zh.refundOffset} {formatMoney(split.offset)}
+              </Txt>
+              <Txt color={t.green}>
+                {zh.refundExcess} {formatMoney(split.income)}
+              </Txt>
+            </Card>
+          )}
           <Txt size={12}>{zh.refundAccount}</Txt>
           <HorizontalStrip>
             {accounts.map((a) => (

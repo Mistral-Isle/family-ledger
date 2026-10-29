@@ -65,6 +65,8 @@ export const txns = sqliteTable(
       .notNull()
       .default(false),
     refundOfId: text("refund_of_id"),
+    refundIncome: integer("refund_income").notNull().default(0),
+    refundIncomeCategoryId: text("refund_income_category_id"),
   },
   (t) => [
     index("txn_date_idx").on(t.occurredAt),
