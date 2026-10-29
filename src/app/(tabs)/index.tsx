@@ -1,9 +1,11 @@
-import { useMemo, useRef, useState } from "react";
-import { PanResponder, Pressable, TextInput, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { Pressable, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useLedger } from "../../components/LedgerProvider";
 import {
   Button,
+  Chip,
+  ErrorText,
   Card,
   Heading,
   Icon,
@@ -16,6 +18,7 @@ import {
   coral,
   confirmAction,
 } from "../../components/ui";
+import { SwipeActions } from "../../components/SwipeActions";
 import { MonthPicker } from "../../components/MonthPicker";
 import { useUi } from "../../state/ui";
 import { totals, visibleTxns } from "../../domain/selectors";
@@ -24,142 +27,201 @@ import { today } from "../../domain/date";
 import { zh } from "../../i18n/zh";
 import type { Txn } from "../../domain/types";
 
-function TransactionRow({ txn }: { txn: Txn }) {
+function TransactionRow({
+  txn,
+  selecting,
+  selected,
+  onToggle,
+  onSelect,
+}: {
+  txn: Txn;
+  selecting: boolean;
+  selected: boolean;
+  onToggle: () => void;
+  onSelect: () => void;
+}) {
   const { data, repo, run } = useLedger();
   const t = useTheme();
   const router = useRouter();
-  const [actions, setActions] = useState(false);
   const [notice, setNotice] = useState("");
-  const gesture = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) =>
-        Math.abs(g.dx) > 25 && Math.abs(g.dy) < 15,
-      onPanResponderRelease: (_, g) => {
-        if (g.dx < -45) setActions(true);
-        if (g.dx > 45) setActions(false);
-      },
-    }),
-  ).current;
   const category = data.categories.find((c) => c.id === txn.categoryId);
   const account = data.accounts.find((a) => a.id === txn.accountId);
   const member = data.members.find((m) => m.id === txn.recorderMemberId);
-  const title = category?.name ?? zh[txn.type];
-  const income = txn.type === "income";
+  const title =
+    txn.type === "refund"
+      ? `${zh.refund} · ${category?.name ?? ""}`
+      : (category?.name ?? zh[txn.type]);
+  const income = txn.type === "income" || txn.type === "refund";
   const transfer = txn.type === "transfer";
-  const favorite = () => {
-    if (!category) return;
-    try {
-      run(() =>
-        repo.saveFavorite({
-          categoryId: category.id,
-          label: txn.note || title,
-          accountId: txn.accountId,
-          amount: txn.amount,
-          note: txn.note,
-        }),
-      );
-      setNotice(zh.favoriteSaved);
-    } catch (error) {
-      setNotice((error as Error).message);
-    }
-  };
+  const open = () =>
+    router.push({
+      pathname: txn.type === "refund" ? "/refund" : "/entry",
+      params: { id: txn.id },
+    });
+  const canRefund =
+    txn.type === "expense" &&
+    data.txns
+      .filter(
+        (x) => !x.deleted && x.type === "refund" && x.refundOfId === txn.id,
+      )
+      .reduce((sum, x) => sum + x.amount, 0) < txn.amount;
   return (
-    <View {...gesture.panHandlers}>
-      {!!notice && (
-        <Txt size={11} color={t.blue}>
-          {notice}
-        </Txt>
-      )}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${title} ${formatMoney(txn.amount)}`}
-        onPress={() =>
-          router.push({ pathname: "/entry", params: { id: txn.id } })
-        }
-        onLongPress={favorite}
-        style={({ pressed }) => ({
-          paddingVertical: 16,
-          backgroundColor: pressed ? t.soft : "transparent",
-        })}
-      >
-        <Row>
-          <View
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 14,
-              backgroundColor: t.dark ? t.soft : `${category?.color ?? blue}18`,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Icon
-              name={category?.icon ?? "arrow.left.arrow.right"}
-              color={category?.color ?? blue}
-              size={21}
-            />
-          </View>
-          <View style={{ flex: 1, gap: 3 }}>
-            <Row style={{ gap: 7 }}>
-              <Txt bold>{title}</Txt>
-              <View
-                style={{
-                  width: 5,
-                  height: 5,
-                  borderRadius: 3,
-                  backgroundColor: member?.color ?? blue,
-                }}
-              />
-            </Row>
-            <Txt size={11} color={t.muted} style={{ flexShrink: 1 }}>
-              {account?.name}
-              {account?.last4 ? ` · ${account.last4}` : ""}
-              {txn.note ? ` · ${txn.note}` : ""}
-              {transfer
-                ? ` → ${data.accounts.find((a) => a.id === txn.toAccountId)?.name ?? ""}`
-                : ""}
-            </Txt>
-          </View>
-          <Txt
-            size={17}
-            bold
-            color={income ? t.green : transfer ? t.muted : t.text}
-          >
-            {income ? "+" : transfer ? "" : "−"}
-            {formatMoney(txn.amount, false)}
-          </Txt>
-        </Row>
-      </Pressable>
-      {actions && (
-        <Row style={{ justifyContent: "flex-end", paddingBottom: 12 }}>
-          <IconButton
-            name="pencil"
-            label={zh.edit}
+    <SwipeActions
+      key={selecting ? "select" : "swipe"}
+      disabled={selecting}
+      startActions={
+        canRefund ? (
+          <Button
+            secondary
+            label={zh.refund}
             onPress={() =>
-              router.push({ pathname: "/entry", params: { id: txn.id } })
+              router.push({ pathname: "/refund", params: { sourceId: txn.id } })
             }
           />
+        ) : undefined
+      }
+      actions={
+        <Row style={{ justifyContent: "flex-end" }}>
           <IconButton
             name="trash"
             color={coral}
             label={zh.remove}
             onPress={() =>
-              confirmAction(zh.deleteEntry, zh.deleteEntryHint, () =>
-                run(() => repo.deleteTxn(txn.id)),
-              )
+              confirmAction(zh.deleteEntry, zh.deleteEntryHint, () => {
+                try {
+                  run(() => repo.deleteTxn(txn.id));
+                } catch (e) {
+                  setNotice((e as Error).message);
+                }
+              })
             }
           />
         </Row>
-      )}
-    </View>
+      }
+    >
+      <View style={{ backgroundColor: t.card }}>
+        {!!notice && (
+          <Txt size={11} color={t.blue}>
+            {notice}
+          </Txt>
+        )}
+        <Pressable
+          accessibilityRole={selecting ? "checkbox" : "button"}
+          accessibilityState={selecting ? { checked: selected } : undefined}
+          accessibilityLabel={`${title} ${formatMoney(txn.amount)}`}
+          onPress={selecting ? onToggle : open}
+          onLongPress={onSelect}
+          style={({ pressed }) => ({
+            paddingVertical: 16,
+            backgroundColor: pressed ? t.soft : "transparent",
+          })}
+        >
+          <Row>
+            {selecting && (
+              <View
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: 12,
+                  borderWidth: 2,
+                  borderColor: selected ? t.blue : t.line,
+                  backgroundColor: selected ? t.blue : t.card,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {selected && <Txt color="#fff">✓</Txt>}
+              </View>
+            )}
+            <View
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 14,
+                backgroundColor: t.dark
+                  ? t.soft
+                  : `${category?.color ?? blue}18`,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Icon
+                name={category?.icon ?? "arrow.left.arrow.right"}
+                color={category?.color ?? blue}
+                size={21}
+              />
+            </View>
+            <View style={{ flex: 1, gap: 3 }}>
+              <Row style={{ gap: 7 }}>
+                <Txt bold>{title}</Txt>
+                <View
+                  style={{
+                    width: 5,
+                    height: 5,
+                    borderRadius: 3,
+                    backgroundColor: member?.color ?? blue,
+                  }}
+                />
+              </Row>
+              <Txt size={11} color={t.muted} style={{ flexShrink: 1 }}>
+                {account?.name}
+                {account?.last4 ? ` · ${account.last4}` : ""}
+                {txn.note ? ` · ${txn.note}` : ""}
+                {transfer
+                  ? ` → ${data.accounts.find((a) => a.id === txn.toAccountId)?.name ?? ""}`
+                  : ""}
+              </Txt>
+            </View>
+            <Txt
+              size={17}
+              bold
+              color={income ? t.green : transfer ? t.muted : t.text}
+            >
+              {income ? "+" : transfer ? "" : "−"}
+              {formatMoney(txn.amount, false)}
+            </Txt>
+          </Row>
+        </Pressable>
+      </View>
+    </SwipeActions>
   );
 }
 export default function Details() {
-  const { data } = useLedger();
+  const { data, repo, run } = useLedger();
   const t = useTheme();
   const router = useRouter();
   const month = useUi((s) => s.month);
   const [query, setQuery] = useState("");
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    setSelected([]);
+    setSelecting(false);
+    setError("");
+  }, [month, query]);
+  const exitSelection = () => {
+    setSelecting(false);
+    setSelected([]);
+    setError("");
+  };
+  const toggle = (id: string) =>
+    setSelected((ids) =>
+      ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id],
+    );
+  const removeSelected = () =>
+    confirmAction(
+      zh.batchDeleteTitle(selected.length),
+      zh.deleteEntryHint,
+      () => {
+        try {
+          run(() => repo.deleteTxns(selected));
+          exitSelection();
+        } catch (e) {
+          setError((e as Error).message);
+        }
+      },
+    );
   const monthTxns = visibleTxns(data.txns).filter((txn) =>
     txn.occurredAt.startsWith(month),
   );
@@ -288,6 +350,36 @@ export default function Details() {
           />
         )}
       </Row>
+      {selecting ? (
+        <Card style={{ gap: 12 }}>
+          <Row style={{ justifyContent: "space-between" }}>
+            <Txt bold>{zh.selectedEntries(selected.length)}</Txt>
+            <Chip label={zh.cancel} onPress={exitSelection} />
+          </Row>
+          <Row style={{ flexWrap: "wrap" }}>
+            <Chip
+              label={zh.selectAll}
+              onPress={() => setSelected(filtered.map((x) => x.id))}
+            />
+            <Chip label={zh.clearSelection} onPress={() => setSelected([])} />
+            {!!selected.length && (
+              <Button
+                secondary
+                label={zh.batchDelete}
+                onPress={removeSelected}
+              />
+            )}
+          </Row>
+          <ErrorText message={error} />
+        </Card>
+      ) : (
+        <Row style={{ justifyContent: "space-between", flexWrap: "wrap" }}>
+          <Txt size={11} color={t.muted}>
+            {zh.gestureHint}
+          </Txt>
+          <Chip label={zh.selectEntries} onPress={() => setSelecting(true)} />
+        </Row>
+      )}
       {groups.length === 0 ? (
         <Card style={{ alignItems: "center", paddingVertical: 40, gap: 12 }}>
           <View
@@ -344,7 +436,18 @@ export default function Details() {
                     key={txn.id}
                     style={{ borderTopWidth: i ? 1 : 0, borderColor: t.line }}
                   >
-                    <TransactionRow txn={txn} />
+                    <TransactionRow
+                      txn={txn}
+                      selecting={selecting}
+                      selected={selected.includes(txn.id)}
+                      onToggle={() => toggle(txn.id)}
+                      onSelect={() => {
+                        setSelecting(true);
+                        setSelected((ids) =>
+                          ids.includes(txn.id) ? ids : [...ids, txn.id],
+                        );
+                      }}
+                    />
                   </View>
                 ))}
               </Card>

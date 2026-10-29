@@ -154,6 +154,7 @@ export function Icon({
         name={valid}
         tintColor={color}
         size={size}
+        weight="semibold"
         style={{ width: size, height: size }}
       />
     );
@@ -169,7 +170,7 @@ export function Icon({
       <Path
         d={d}
         stroke={color}
-        strokeWidth={1.7}
+        strokeWidth={2.3}
         strokeLinecap="round"
         strokeLinejoin="round"
         fill="none"

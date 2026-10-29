@@ -360,13 +360,33 @@ export class LedgerRepository {
     occurredAt: string;
     note: string;
     forWhom: Txn["forWhom"];
+    refundOfId?: string | null;
   }) {
     this.db.withTransactionSync(() => {
       const s = this.snapshot();
       const previous = s.txns.find((t) => t.id === input.id && !t.deleted);
       if (input.id && !previous) throw new Error(zh.errors.missing);
-      if (!["expense", "income", "transfer"].includes(input.type))
+      if (!["expense", "income", "transfer", "refund"].includes(input.type))
         throw new Error(zh.errors.future);
+      if (previous && previous.type !== "refund" && input.type === "refund")
+        throw new Error(zh.errors.refundSource);
+      const refunds = s.txns.filter(
+        (t) =>
+          !t.deleted && t.refundOfId === previous?.id && t.type === "refund",
+      );
+      if (
+        refunds.length &&
+        (input.type !== "expense" ||
+          input.amount < refunds.reduce((sum, t) => sum + t.amount, 0) ||
+          input.categoryId !== previous?.categoryId ||
+          refunds.some((t) => t.occurredAt < input.occurredAt))
+      )
+        throw new Error(zh.errors.refundConflict);
+      if (
+        previous?.type === "refund" &&
+        (input.type !== "refund" || input.refundOfId !== previous.refundOfId)
+      )
+        throw new Error(zh.errors.refundSource);
       if (assertMoney(input.amount) <= 0) throw new Error(zh.errors.amount);
       validDate(input.occurredAt);
       const account = s.accounts.find(
@@ -389,6 +409,30 @@ export class LedgerRepository {
         if (to.id === account.id) throw new Error(zh.errors.destination);
         if (to.scope !== account.scope) throw new Error(zh.errors.scope);
         toAccountId = to.id;
+      } else if (input.type === "refund") {
+        const source = s.txns.find(
+          (t) =>
+            t.id === input.refundOfId &&
+            !t.deleted &&
+            !t.discarded &&
+            t.type === "expense",
+        );
+        if (!source || source.scope !== account.scope)
+          throw new Error(zh.errors.refundSource);
+        const refunded = s.txns
+          .filter(
+            (t) =>
+              !t.deleted &&
+              t.type === "refund" &&
+              t.refundOfId === source.id &&
+              t.id !== previous?.id,
+          )
+          .reduce((sum, t) => sum + t.amount, 0);
+        if (input.amount > source.amount - refunded)
+          throw new Error(zh.errors.refundAmount);
+        if (input.occurredAt < source.occurredAt)
+          throw new Error(zh.errors.refundDate);
+        categoryId = source.categoryId;
       } else {
         const category = s.categories.find(
           (c) =>
@@ -412,10 +456,10 @@ export class LedgerRepository {
         recorderMemberId: previous?.recorderMemberId ?? s.meId,
         forWhom: input.forWhom,
         discarded: previous?.discarded ?? false,
-        refundOfId: null,
+        refundOfId: input.type === "refund" ? input.refundOfId! : null,
       };
       this.write("txn", record);
-      if (categoryId)
+      if (categoryId && input.type !== "refund")
         this.setPref("preferences", {
           ...s.preferences,
           lastAccount: {
@@ -430,12 +474,23 @@ export class LedgerRepository {
     });
   }
   deleteTxn(id: string) {
+    this.deleteTxns([id]);
+  }
+  deleteTxns(ids: string[]) {
     this.db.withTransactionSync(() => {
-      const record = this.snapshot().txns.find(
-        (t) => t.id === id && !t.deleted,
-      );
-      if (!record) throw new Error(zh.errors.missing);
-      this.write("txn", { ...record, ...this.stamp(record), deleted: true });
+      const unique = new Set(ids);
+      const txns = this.snapshot().txns.filter((t) => !t.deleted);
+      const records = txns.filter((t) => unique.has(t.id));
+      if (!unique.size || records.length !== unique.size)
+        throw new Error(zh.errors.missing);
+      if (
+        txns.some(
+          (t) => t.refundOfId && unique.has(t.refundOfId) && !unique.has(t.id),
+        )
+      )
+        throw new Error(zh.errors.deleteRefundSource);
+      for (const record of records)
+        this.write("txn", { ...record, ...this.stamp(record), deleted: true });
     });
   }
   saveFavorite(input: Omit<Preferences["favorites"][number], "id">) {

@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Pressable, ScrollView, TextInput, View } from "react-native";
+import { Pressable, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { HorizontalStrip } from "../components/HorizontalStrip";
 import { useLedger } from "../components/LedgerProvider";
 import {
   Button,
@@ -217,11 +218,7 @@ export default function Entry() {
               : zh.from
             : zh.accountHint}
         </Txt>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 8, paddingBottom: 2 }}
-        >
+        <HorizontalStrip>
           {visibleAccounts.map((account) => (
             <Chip
               key={account.id}
@@ -244,7 +241,7 @@ export default function Entry() {
               onPress={() => router.push("/account")}
             />
           )}
-        </ScrollView>
+        </HorizontalStrip>
       </View>
     );
   }
@@ -586,8 +583,12 @@ export default function Entry() {
           label={zh.remove}
           onPress={() =>
             confirmAction(zh.deleteEntry, zh.deleteEntryHint, () => {
-              run(() => repo.deleteTxn(existing.id));
-              router.back();
+              try {
+                run(() => repo.deleteTxn(existing.id));
+                router.back();
+              } catch (e) {
+                setError((e as Error).message);
+              }
             })
           }
         />

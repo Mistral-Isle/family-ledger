@@ -28,12 +28,16 @@ export default function Stats() {
   const summary = totals(rows);
   const amounts = new Map<string, number>();
   rows
-    .filter((txn) => txn.type === kind)
+    .filter(
+      (txn) =>
+        txn.type === kind || (kind === "expense" && txn.type === "refund"),
+    )
     .forEach((txn) => {
       if (txn.categoryId)
         amounts.set(
           txn.categoryId,
-          (amounts.get(txn.categoryId) ?? 0) + txn.amount,
+          (amounts.get(txn.categoryId) ?? 0) +
+            (txn.type === "refund" ? -txn.amount : txn.amount),
         );
     });
   const categories = Array.from(amounts.entries())
@@ -43,6 +47,10 @@ export default function Stats() {
     }))
     .sort((a, b) => b.amount - a.amount);
   const total = categories.reduce((sum, c) => sum + c.amount, 0);
+  const positiveTotal = categories.reduce(
+    (sum, c) => sum + Math.max(0, c.amount),
+    0,
+  );
   const circumference = 2 * Math.PI * 67;
   let offset = 0;
   return (
@@ -104,7 +112,9 @@ export default function Stats() {
               fill="none"
             />
             {categories.map(({ category, amount }, i) => {
-              const length = total ? (amount / total) * circumference : 0;
+              const length = positiveTotal
+                ? (Math.max(0, amount) / positiveTotal) * circumference
+                : 0;
               const start = offset;
               offset += length;
               return (
@@ -156,7 +166,9 @@ export default function Stats() {
                   </View>
                   <Txt style={{ flex: 1 }}>{category?.name}</Txt>
                   <Txt size={11} color={t.muted}>
-                    {total ? Math.round((amount * 100) / total) : 0}%
+                    {amount > 0 && positiveTotal
+                      ? `${Math.round((amount * 100) / positiveTotal)}%`
+                      : "—"}
                   </Txt>
                   <Txt bold>{formatMoney(amount)}</Txt>
                 </Row>
@@ -171,7 +183,7 @@ export default function Stats() {
                   <View
                     style={{
                       height: 4,
-                      width: `${total ? (amount * 100) / total : 0}%`,
+                      width: `${positiveTotal ? (Math.max(0, amount) * 100) / positiveTotal : 0}%`,
                       backgroundColor: category?.color,
                       borderRadius: 2,
                     }}
@@ -182,6 +194,11 @@ export default function Stats() {
           </View>
         )}
       </Card>
+      {kind === "expense" && categories.some((c) => c.amount < 0) && (
+        <Txt size={11} color={t.muted}>
+          {zh.refundChartHint}
+        </Txt>
+      )}
     </Page>
   );
 }
