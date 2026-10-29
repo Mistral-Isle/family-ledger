@@ -107,3 +107,47 @@ test("optional time and allocations survive backup and merge with legacy logs", 
     g.sqlite.close();
   }
 });
+
+test("new budgets and optional time synchronize; moving a budgeted child cannot break its limit", () => {
+  const a = fixture(),
+    b = fixture();
+  try {
+    b.repo.prepareJoin("另一位");
+    b.repo.mergeOperations(a.repo.pendingOperations());
+    const s = a.repo.snapshot(),
+      child = s.categories.find((c) => c.kind === "expense" && c.parentId)!,
+      other = s.categories.find(
+        (c) => c.kind === "expense" && !c.parentId && c.id !== child.parentId,
+      )!;
+    a.repo.setMonthBudget("2026-10", 10000, {
+      [child.parentId!]: 8000,
+      [child.id]: 5000,
+    });
+    a.repo.saveTxn({
+      type: "expense",
+      amount: 50,
+      accountId: s.accounts[0]!.id,
+      categoryId: child.id,
+      occurredAt: "2026-10-30",
+      occurredTime: "09:20",
+      note: "同步时间",
+      forWhom: "both",
+    });
+    b.repo.mergeOperations(a.repo.pendingOperations());
+    expect(b.repo.monthAllocations("2026-10")).toEqual(
+      a.repo.monthAllocations("2026-10"),
+    );
+    expect(
+      b.repo.snapshot().txns.find((t) => t.note === "同步时间")?.occurredTime,
+    ).toBe("09:20");
+    expect(() => a.repo.saveCategory({ ...child, parentId: other.id })).toThrow(
+      "一级预算",
+    );
+    expect(
+      a.repo.snapshot().categories.find((c) => c.id === child.id)?.parentId,
+    ).toBe(child.parentId);
+  } finally {
+    a.sqlite.close();
+    b.sqlite.close();
+  }
+});

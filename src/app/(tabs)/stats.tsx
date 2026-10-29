@@ -66,18 +66,21 @@ export default function Stats() {
   const rows = rangeTxns(reportData.txns, range);
   const summary = totals(rows);
   const prior = previous ? totals(rangeTxns(reportData.txns, previous)) : null;
-  const allLeaves = categoryReport(reportData, range, kind, "leaf");
-  const categories = categoryReport(reportData, range, kind, level).filter(
-    (c) =>
-      !categoryId ||
-      c.id === categoryId ||
-      c.category?.parentId === categoryId ||
-      (level === "root" &&
-        data.categories.find((x) => x.id === categoryId)?.parentId === c.id),
-  );
+  const chartData = {
+    ...reportData,
+    txns: reportData.txns.filter(
+      (txn) =>
+        !categoryId ||
+        txn.categoryId === categoryId ||
+        data.categories.find((c) => c.id === txn.categoryId)?.parentId ===
+          categoryId,
+    ),
+  };
+  const allLeaves = categoryReport(chartData, range, kind, "leaf");
+  const categories = categoryReport(chartData, range, kind, level);
   const previousCategories = new Map(
     previous
-      ? categoryReport(reportData, previous, kind, level).map((c) => [
+      ? categoryReport(chartData, previous, kind, level).map((c) => [
           c.id,
           c.amount,
         ])

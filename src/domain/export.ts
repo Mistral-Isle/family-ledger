@@ -52,6 +52,7 @@ export function exportSheets(s: Snapshot, range: DateRange): ExportSheet[] {
           currency(t.type === "refund" ? t.amount - (t.refundIncome ?? 0) : 0),
           currency(t.refundIncome ?? 0),
           category(t.refundIncomeCategoryId),
+          t.occurredTime ?? "",
         ]),
       ],
     },

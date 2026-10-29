@@ -1,13 +1,13 @@
 # 两个人的账本
 
-离线优先的双人家庭记账 App，使用 Expo / React Native / TypeScript、SQLite 和整数分金额。当前为开发预览，Bundle ID 固定为 `com.dwigh.familyledger`。
+离线优先的双人家庭记账 App，使用 Expo / React Native / TypeScript、SQLite 和整数分金额。Bundle ID 固定为 `com.dwigh.familyledger`。
 
 ## 当前能力
 
-- 家庭支出、收入、退款、账户间转账、分类管理、常用预设、多选删除。
-- 周／月／年／全部／自定义统计、分类环图与环比、成员筛选与占比、预算、收支日历、五工作表 Excel 与 CSV。
+- 家庭支出、收入、退款、账户间转账、分类管理、常用预设、单笔滑动删除。
+- 周／月／年／全部／自定义统计、分类环图与环比、成员筛选、可展开的一级／二级环图、分层预算、收支日历、五工作表 Excel 与 CSV。
 - 分类迁移／丢弃、影响预览、批次恢复和已丢弃记录逐笔恢复，实际账户余额保持不变。
-- 完整 JSON 备份／恢复；数据格式 v3，兼容 v1／v2，外层 SHA-256 完整性校验。文件包含私有数据且未加密。
+- 完整 JSON 备份／恢复；数据格式 v4，兼容 v1／v2／v3，外层 SHA-256 完整性校验。文件包含私有数据且未加密。
 - 小金库：设备身份验证、后台锁定、私有账户与流水、家庭互转金额外壳；网页预览保持锁定。
 - 简易贷款、还款／结清／本金校准、押金退款与扣除、预付按月分摊、租房快捷设置、本地提醒。
 - 加密 WebDAV 日志、前台自动同步与重试、成员配对二维码／恢复码、加密同步包。默认坚果云；实际凭据只在 App 中填写。
@@ -39,9 +39,11 @@ npm run export:ios
 
 ## 验证与安装
 
-当前完整检查通过 113 项自动测试；Web 和 iOS 资源导出通过。浏览器实测备份往返、预算、导出、财务操作、配对校验与网页私有区锁定。详见 [验证记录](docs/verification.md)。
+当前完整检查通过 117 项自动测试；Web 和 iOS 资源导出通过。浏览器实测备份往返、预算、导出、财务操作、配对校验与网页私有区锁定。详见 [验证记录](docs/verification.md)。
 
-已准备手动触发的 [未签名 iOS 构建工作流](.github/workflows/ios-unsigned.yml)；尚未在 macOS/GitHub Actions 执行，也没有生成 IPA。仓库目前没有 GitHub remote。后续步骤见 [iOS 构建与真机验收](docs/ios-build-and-acceptance.md)。
+已连接 GitHub 仓库并启动 [未签名 iOS 构建工作流](.github/workflows/ios-unsigned.yml)。安装包状态以 Actions 成功产物为准。SideStore 安装、刷新和升级保留数据的步骤见 [iPhone 安装说明](docs/ios-build-and-acceptance.md)。
+
+0.2.0 新增三种圆润外观、下拉搜索、悬浮记账按钮、原生日期与时间选择器、可选时间、分类筛选和分层预算校验。[外观对照](docs/ui-styles.html) · [设计技能与原生组件](docs/design-skills.md)。
 
 ## 维护入口
 

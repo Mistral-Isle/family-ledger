@@ -500,6 +500,20 @@ export class LedgerRepository {
         )
       )
         throw new Error(zh.errors.hiddenLast);
+      if (previous && previous.parentId !== record.parentId) {
+        const updated = categories.map((c) =>
+          c.id === record.id ? record : c,
+        );
+        for (const month of new Set(
+          this.all<Budget>("budget").map((b) => b.month),
+        )) {
+          validateBudgetAllocation(
+            this.monthBudget(month),
+            this.monthAllocations(month),
+            updated,
+          );
+        }
+      }
       this.write("category", record);
     });
   }

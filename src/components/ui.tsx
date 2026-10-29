@@ -267,7 +267,7 @@ export function Page({
   const insets = useSafeAreaInsets();
   const scroller = useRef<ScrollView>(null);
   const searchPositioned = useRef(false);
-  const [viewportHeight,setViewportHeight] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(0);
   const content = (
     <View
       style={{
@@ -288,9 +288,14 @@ export function Page({
       {scroll ? (
         <ScrollView
           ref={scroller}
-          onLayout={e=>setViewportHeight(e.nativeEvent.layout.height)}
-          onContentSizeChange={(_,height) => {
-            if (revealSearch && viewportHeight > 0 && height >= viewportHeight + 63 && !searchPositioned.current) {
+          onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}
+          onContentSizeChange={(_, height) => {
+            if (
+              revealSearch &&
+              viewportHeight > 0 &&
+              height >= viewportHeight + 63 &&
+              !searchPositioned.current
+            ) {
               searchPositioned.current = true;
               scroller.current?.scrollTo({
                 y: searchActive ? 0 : 64,
@@ -302,7 +307,10 @@ export function Page({
             revealSearch && !searchActive ? { x: 0, y: 64 } : undefined
           }
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ flexGrow: 1, minHeight: revealSearch ? viewportHeight + 64 : undefined }}
+          contentContainerStyle={{
+            flexGrow: 1,
+            minHeight: revealSearch ? viewportHeight + 64 : undefined,
+          }}
           style={{ flex: 1 }}
         >
           {revealSearch && (
