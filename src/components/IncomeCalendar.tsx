@@ -9,9 +9,11 @@ import { zh } from "../i18n/zh";
 export function IncomeCalendar({
   month,
   txns,
+  includeRepayments = false,
 }: {
   month: string;
   txns?: Txn[];
+  includeRepayments?: boolean;
 }) {
   const { data } = useLedger(),
     t = useTheme();
@@ -63,7 +65,7 @@ export function IncomeCalendar({
       <Txt>{day.date}</Txt>
       <Row>
         <Txt>
-          {zh.expense} {formatMoney(day.expense)}
+          {includeRepayments ? "流出" : zh.expense} {formatMoney(day.expense)}
         </Txt>
         <Txt>
           {zh.income} {formatMoney(day.income)}

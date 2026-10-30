@@ -79,8 +79,27 @@ export function categoryReport(
   kind: CategoryKind,
   level: "root" | "leaf",
 ) {
-  const amounts = categoryAmounts(rangeTxns(s.txns, range), kind);
+  const transactions = rangeTxns(s.txns, range);
+  const amounts = categoryAmounts(transactions, kind);
   const grouped = new Map<string, number>();
+  const counts = new Map<string, number>();
+  for (const txn of transactions) {
+    const contributes =
+      txn.type === kind ||
+      (txn.type === "refund" &&
+        (kind === "expense"
+          ? txn.amount - (txn.refundIncome ?? 0) > 0
+          : (txn.refundIncome ?? 0) > 0));
+    if (!contributes) continue;
+    const id =
+      txn.type === "refund" && kind === "income"
+        ? txn.refundIncomeCategoryId
+        : txn.categoryId;
+    if (!id) continue;
+    const c = s.categories.find((category) => category.id === id);
+    const key = level === "root" ? (c?.parentId ?? id) : id;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
   for (const [id, amount] of amounts) {
     const c = s.categories.find((c) => c.id === id);
     const key = level === "root" ? (c?.parentId ?? id) : id;
@@ -91,6 +110,7 @@ export function categoryReport(
       category: s.categories.find((c) => c.id === id),
       id,
       amount,
+      count: counts.get(id) ?? 0,
     }))
     .sort((a, b) => b.amount - a.amount);
 }
@@ -131,7 +151,7 @@ export function reportingSnapshot(
         ? [
             {
               id,
-              name: "贷款本金",
+              name: "还款本金",
               kind: "expense" as const,
               parentId: null,
               icon: "building.columns.fill",

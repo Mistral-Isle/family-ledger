@@ -3,7 +3,7 @@ export const zh = {
   memberAll: "全部成员",
   memberShare: "本月成员支出",
   addPlan: "新增",
-  includeRepayments: "贷款本金计入本页支出",
+  includeRepayments: "计入还款本金",
   reportScopeHint:
     "成员与还款口径仅影响本页报表和日历。预算及文件导出保持家庭口径，本金不计支出。",
   sync: {
@@ -281,7 +281,7 @@ export const zh = {
   member: "记录人",
   forWhom: "为谁",
   noTransactions: "日子从第一笔开始",
-  noTransactionsHint: "记下一顿早餐，或今天的小确幸。",
+  noTransactionsHint: "把小日子，记成好日子",
   firstEntry: "记下第一笔",
   noResults: "没有符合条件的记录",
   search: "搜索备注、分类或账户",

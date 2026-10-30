@@ -22,6 +22,7 @@ import Svg, { Path } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useUi } from "../state/ui";
 import { zh } from "../i18n/zh";
+import { isBudgetDemo } from "../demo/config";
 export const blue = "#007AFF";
 export const coral = "#D9363E";
 export function useTheme() {
@@ -45,6 +46,8 @@ export function useTheme() {
   };
 }
 const symbols = [
+  "calendar",
+  "questionmark.circle",
   "book.closed.fill",
   "list.bullet",
   "chart.bar.fill",
@@ -105,6 +108,12 @@ const symbols = [
 ] as const;
 export type IconName = (typeof symbols)[number];
 const paths: Record<string, string> = {
+  "sun.max.fill":
+    "M16 12a4 4 0 11-8 0 4 4 0 018 0M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5",
+  calendar:
+    "M4 5h16v16H4zM4 10h16M8 3v4M16 3v4M8 14h.1M12 14h.1M16 14h.1M8 18h.1M12 18h.1",
+  "questionmark.circle":
+    "M22 12a10 10 0 11-20 0 10 10 0 0120 0M9 8a3 3 0 016 0c0 2-3 2-3 5M12 17h.1",
   plus: "M12 5v14M5 12h14",
   xmark: "M6 6l12 12M6 18L18 6",
   ellipsis: "M4 12h.1M12 12h.1M20 12h.1",
@@ -280,6 +289,23 @@ export function Page({
         gap: 20,
       }}
     >
+      {isBudgetDemo && (
+        <View
+          style={{
+            padding: 12,
+            borderRadius: 14,
+            backgroundColor: t.soft,
+            gap: 4,
+          }}
+        >
+          <Txt bold size={12} color={t.blue}>
+            示例账本 · 可放心体验
+          </Txt>
+          <Txt size={12} color={t.muted}>
+            包含固定支出与日常消费，数据独立保存。
+          </Txt>
+        </View>
+      )}
       {children}
     </View>
   );
@@ -483,6 +509,7 @@ export function Chip({
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected: !!selected }}
+      aria-selected={!!selected}
       onPress={onPress}
       style={({ pressed }) => ({
         backgroundColor: selected ? t.blue : pressed ? t.soft : t.card,

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { Animated, PanResponder, Pressable, View } from "react-native";
 import { Txt, useTheme, Icon } from "./ui";
 import { useReducedMotion } from "./useReducedMotion";
-import { GlassSurface } from "./GlassSurface";
 export function Segmented<T extends string>({
   value,
   options,
@@ -54,7 +53,7 @@ export function Segmented<T extends string>({
     onPanResponderTerminate: () => x.setValue(index * step),
   });
   return (
-    <GlassSurface>
+    <View style={{ backgroundColor: t.soft, borderRadius: 28, padding: 4 }}>
       <View
         onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
         {...pan.panHandlers}
@@ -70,7 +69,8 @@ export function Segmented<T extends string>({
               left: 0,
               width: step,
               borderRadius: 25,
-              backgroundColor: t.soft,
+              backgroundColor: t.card,
+              boxShadow: "0 2px 5px rgba(0,0,0,0.07)",
               transform: [{ translateX: x }],
             }}
           />
@@ -81,6 +81,7 @@ export function Segmented<T extends string>({
             accessibilityRole="tab"
             accessibilityLabel={o.label}
             accessibilityState={{ selected: value === o.value }}
+            aria-selected={value === o.value}
             onPress={() => onChange(o.value)}
             style={({ pressed }) => ({
               flex: 1,
@@ -101,15 +102,15 @@ export function Segmented<T extends string>({
               />
             )}
             <Txt
-              size={o.icon ? 10 : 13}
+              size={o.icon ? 10 : 15}
               bold={o.value === value}
-              color={value === o.value ? t.blue : t.muted}
+              color={value === o.value ? t.text : t.muted}
             >
               {o.label}
             </Txt>
           </Pressable>
         ))}
       </View>
-    </GlassSurface>
+    </View>
   );
 }

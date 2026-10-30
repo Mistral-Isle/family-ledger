@@ -3,6 +3,7 @@ import { Modal, Platform, Pressable, ScrollView, View } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Button, Row, Txt, useTheme } from "./ui";
 import { today } from "../domain/date";
+import { MonthField } from "./MonthField";
 export type DateFieldProps = {
   label: string;
   value: string;
@@ -41,6 +42,15 @@ export function DateField({
     );
     setOpen(false);
   }
+  if (mode === "month")
+    return (
+      <MonthField
+        label={label}
+        value={value}
+        onChange={onChange}
+        compact={compact}
+      />
+    );
   return (
     <View style={{ gap: 6, flexShrink: 1 }}>
       {!compact && (
@@ -55,14 +65,16 @@ export function DateField({
         style={{
           minHeight: 44,
           paddingHorizontal: compact ? 6 : 14,
-          paddingVertical: 12,
+          paddingVertical: compact ? 4 : 12,
           borderRadius: 16,
-          backgroundColor: t.card,
+          backgroundColor: compact ? "transparent" : t.card,
         }}
       >
-        <Txt size={compact ? 12 : 15}>
-          {value || (mode === "time" ? "不记录时间" : "选择日期")}
-        </Txt>
+        <Row style={{ gap: 8 }}>
+          <Txt size={15} bold={compact}>
+            {value || (mode === "time" ? "不记录时间" : "选择日期")}
+          </Txt>
+        </Row>
       </Pressable>
       {open &&
         (Platform.OS === "android" ? (

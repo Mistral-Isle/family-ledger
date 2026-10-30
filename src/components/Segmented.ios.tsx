@@ -6,7 +6,7 @@ export function Segmented<T extends string>({
   onChange,
 }: {
   value: T;
-  options: { value: T; label: string }[];
+  options: { value: T; label: string; icon?: string }[];
   onChange: (value: T) => void;
 }) {
   const t = useTheme();
@@ -18,7 +18,11 @@ export function Segmented<T extends string>({
         onChange(options[event.nativeEvent.selectedSegmentIndex]!.value)
       }
       appearance={t.dark ? "dark" : "light"}
-      style={{ height: 44 }}
+      backgroundColor={t.soft}
+      tintColor={t.card}
+      fontStyle={{ color: t.muted, fontSize: 15 }}
+      activeFontStyle={{ color: t.text, fontWeight: "600", fontSize: 15 }}
+      style={{ height: 48, borderRadius: 24, overflow: "hidden" }}
     />
   );
 }

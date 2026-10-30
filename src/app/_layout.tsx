@@ -1,4 +1,5 @@
 import { SyncRunner } from "../components/SyncRunner";
+import { isBudgetDemo } from "../demo/config";
 import { useEffect } from "react";
 import { AppState } from "react-native";
 import { useVault } from "../state/vault";
@@ -18,7 +19,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <LedgerProvider>
-        <SyncRunner />
+        {!isBudgetDemo && <SyncRunner />}
         <StatusBar style={t.dark ? "light" : "dark"} />
         <Stack
           screenOptions={{

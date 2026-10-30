@@ -1,6 +1,7 @@
 import { View } from "react-native";
 import { Txt, useTheme } from "./ui";
 import type { DateFieldProps } from "./DateField";
+import { MonthField } from "./MonthField";
 export function DateField({
   label,
   value,
@@ -10,6 +11,15 @@ export function DateField({
   compact,
 }: DateFieldProps) {
   const t = useTheme();
+  if (mode === "month")
+    return (
+      <MonthField
+        label={label}
+        value={value}
+        onChange={onChange}
+        compact={compact}
+      />
+    );
   return (
     <View style={{ gap: 6, flexShrink: 1 }}>
       {!compact && (
@@ -21,7 +31,9 @@ export function DateField({
         aria-label={label}
         type={mode}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          if (e.target.value || optional) onChange(e.target.value);
+        }}
         onClick={(e) => {
           try {
             e.currentTarget.showPicker();
@@ -31,15 +43,17 @@ export function DateField({
           boxSizing: "border-box",
           colorScheme: t.dark ? "dark" : "light",
           minHeight: 44,
-          width: compact ? (mode === "time" ? 100 : 132) : "100%",
+          width: compact ? (mode === "time" ? 100 : 196) : "100%",
           maxWidth: "100%",
           border: "none",
           borderRadius: 16,
           padding: compact ? 4 : 14,
-          font: "inherit",
-          fontSize: compact ? 12 : 15,
+          fontFamily:
+            '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+          fontSize: 15,
+          fontWeight: compact ? 600 : 400,
           color: t.text,
-          background: t.card,
+          background: compact ? "transparent" : t.card,
         }}
       />
       {optional && (

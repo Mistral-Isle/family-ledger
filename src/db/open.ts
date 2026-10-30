@@ -6,6 +6,8 @@ import { LedgerRepository } from "./repository";
 import { migrations } from "./migration";
 import { acquireDatabaseLease } from "./databaseLease";
 import * as schema from "./schema";
+import { isBudgetDemo } from "../demo/config";
+import { thisMonth } from "../domain/date";
 
 let repository: LedgerRepository | undefined;
 let opening: Promise<LedgerRepository> | undefined;
@@ -21,7 +23,9 @@ export function openLedger(): Promise<LedgerRepository> {
 }
 async function initialize(): Promise<LedgerRepository> {
   await acquireDatabaseLease();
-  const sqlite = await openDatabaseAsync("family-ledger.db");
+  const sqlite = await openDatabaseAsync(
+    isBudgetDemo ? "budget-preview-demo.db" : "family-ledger.db",
+  );
   try {
     await sqlite.execAsync(
       "PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;",
@@ -29,6 +33,10 @@ async function initialize(): Promise<LedgerRepository> {
     await migrate(drizzle(sqlite, { schema }), migrations);
     const next = new LedgerRepository(sqlite, randomUUID);
     next.initialize();
+    if (isBudgetDemo) {
+      const { seedBudgetDemo } = await import("../demo/seedBudgetDemo");
+      seedBudgetDemo(next, thisMonth());
+    }
     repository = next;
     return next;
   } catch (error) {

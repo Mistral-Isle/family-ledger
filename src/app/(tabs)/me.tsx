@@ -1,26 +1,77 @@
 import { Pressable, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { useLedger } from "../../components/LedgerProvider";
 import {
-  Button,
   Card,
-  Chip,
-  Heading,
   Icon,
   IconButton,
   Page,
   Row,
   Txt,
   useTheme,
-  styles,
 } from "../../components/ui";
-import { useUi } from "../../state/ui";
+import { HelpBubble } from "../../components/HelpBubble";
 import { zh } from "../../i18n/zh";
+
+function SettingsRow({
+  title,
+  icon,
+  color,
+  href,
+  last = false,
+}: {
+  title: string;
+  icon: string;
+  color: string;
+  href: Href;
+  last?: boolean;
+}) {
+  const t = useTheme();
+  const router = useRouter();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      onPress={() => router.push(href)}
+      style={({ pressed }) => ({
+        backgroundColor: pressed ? t.soft : "transparent",
+        paddingLeft: 16,
+      })}
+    >
+      <Row style={{ minHeight: 60, paddingRight: 16 }}>
+        <View
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: 8,
+            backgroundColor: color,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Icon name={icon} size={18} color="#FFFFFF" />
+        </View>
+        <Row
+          style={{
+            flex: 1,
+            minHeight: 60,
+            borderBottomWidth: last ? 0 : 0.5,
+            borderBottomColor: t.line,
+            justifyContent: "space-between",
+          }}
+        >
+          <Txt size={16}>{title}</Txt>
+          <Icon name="chevron.right" size={14} color={t.muted} />
+        </Row>
+      </Row>
+    </Pressable>
+  );
+}
+
 export default function Me() {
   const { data, repo, run } = useLedger();
   const t = useTheme();
-  const router = useRouter();
-  const { theme, setTheme, appearance, setAppearance } = useUi();
+  const me = data.members.find((m) => m.id === data.meId);
   function moveFavorite(index: number, delta: number) {
     const favorites = [...data.preferences.favorites];
     const target = index + delta;
@@ -31,196 +82,115 @@ export default function Me() {
     ];
     run(() => repo.updatePreferences({ favorites }));
   }
+
   return (
     <Page>
-      <Heading title={zh.tabs.me} subtitle={zh.profileHint} />
-      <Row style={{ paddingVertical: 8 }}>
+      <Txt size={34} bold>
+        我的
+      </Txt>
+      <Card style={{ paddingVertical: 28, gap: 16, alignItems: "center" }}>
         <View
           style={{
-            width: 64,
-            height: 64,
-            borderRadius: 23,
+            width: 80,
+            height: 80,
+            borderRadius: 40,
             backgroundColor: t.soft,
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          <Txt size={25} bold color={t.blue}>
-            {zh.me}
+          <Txt size={32} bold color={t.blue}>
+            {me?.name.slice(0, 1) || "我"}
           </Txt>
         </View>
-        <View style={{ gap: 5 }}>
-          <Txt size={22} bold>
-            {zh.appName}
+        <View style={{ alignItems: "center", gap: 5 }}>
+          <Txt size={24} bold>
+            {me?.name || "家庭成员"}
           </Txt>
-          <Txt size={12} color={t.muted}>
-            {zh.progress}
+          <Txt size={14} color={t.muted}>
+            {zh.family}
           </Txt>
-        </View>
-      </Row>
-      <Txt size={12} color={t.muted}>
-        {zh.settings}
-      </Txt>
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => router.push("/categories")}
-      >
-        <Card>
-          <Row>
-            <Icon name="list.bullet" />
-            <View style={{ flex: 1, gap: 4 }}>
-              <Txt bold>{zh.categoryManagement}</Txt>
-              <Txt size={11} color={t.muted}>
-                {zh.categoryHint}
-              </Txt>
-            </View>
-            <Icon name="chevron.right" color={t.muted} size={15} />
-          </Row>
-        </Card>
-      </Pressable>
-      <Button
-        secondary
-        label={zh.sync.title}
-        onPress={() => router.push("/sync")}
-      />
-      <Button
-        secondary
-        label={zh.finance.title}
-        onPress={() => router.push("/finance")}
-      />
-      <Button
-        secondary
-        label={zh.vault.title}
-        onPress={() => router.push("/vault")}
-      />
-      <Button
-        secondary
-        label={zh.discarded.title}
-        onPress={() => router.push("/discarded")}
-      />
-      <Button
-        secondary
-        label={zh.backup.title}
-        onPress={() => router.push("/backup")}
-      />
-      <Card style={{ gap: 14 }}>
-        <Txt bold>{zh.preferences}</Txt>
-        <Txt size={12} color={t.muted}>
-          界面风格
-        </Txt>
-        <View style={{ gap: 12 }}>
-          {(
-            [
-              {
-                id: "classic",
-                name: "系统白",
-                bg: "#F2F2F7",
-                card: "#FFFFFF",
-                accent: "#007AFF",
-              },
-              {
-                id: "warm",
-                name: "暖白",
-                bg: "#F5F1EA",
-                card: "#FFFDFA",
-                accent: "#8B6844",
-              },
-              {
-                id: "ink",
-                name: "深色",
-                bg: "#101114",
-                card: "#1D2026",
-                accent: "#9CBFFF",
-              },
-            ] as const
-          ).map((item) => (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={item.name}
-              accessibilityState={{ selected: appearance === item.id }}
-              key={item.id}
-              onPress={() => {
-                repo.setAppearance(item.id);
-                setAppearance(item.id);
-              }}
-              style={{
-                backgroundColor: item.bg,
-                borderRadius: 24,
-                padding: 16,
-                borderWidth: 2,
-                borderColor:
-                  appearance === item.id ? item.accent : "transparent",
-                gap: 10,
-              }}
-            >
-              <Row>
-                <Txt bold color={item.accent} style={{ flex: 1 }}>
-                  {item.name}
-                </Txt>
-                {appearance === item.id && (
-                  <Icon name="checkmark" color={item.accent} />
-                )}
-              </Row>
-              <View
-                style={{
-                  backgroundColor: item.card,
-                  borderRadius: 18,
-                  padding: 16,
-                  gap: 8,
-                }}
-              >
-                <Txt size={11} color={item.accent}>
-                  本月支出
-                </Txt>
-                <Txt
-                  bold
-                  size={24}
-                  color={item.id === "ink" ? "#F5F5F7" : "#1C1C1E"}
-                >
-                  ¥ 2,680.00
-                </Txt>
-                <View
-                  style={{
-                    height: 5,
-                    borderRadius: 3,
-                    width: "60%",
-                    backgroundColor: item.accent,
-                  }}
-                />
-              </View>
-            </Pressable>
-          ))}
-        </View>
-        <View style={styles.wrap}>
-          {(["system", "light", "dark"] as const).map((mode) => (
-            <Chip
-              key={mode}
-              label={zh[mode]}
-              selected={theme === mode}
-              onPress={() => {
-                repo.setTheme(mode);
-                setTheme(mode);
-              }}
-            />
-          ))}
         </View>
       </Card>
-      <Card style={{ gap: 12 }}>
-        <Row>
-          <Icon name="cloud" color={t.muted} />
-          <Txt bold>{zh.localData}</Txt>
+      <View style={{ gap: 8 }}>
+        <Txt size={13} color={t.muted} style={{ paddingLeft: 16 }}>
+          账本管理
+        </Txt>
+        <Card
+          style={{ padding: 0, gap: 0, borderRadius: 20, overflow: "hidden" }}
+        >
+          <SettingsRow
+            title="预算设置"
+            icon="chart.bar.fill"
+            color="#397B68"
+            href="/budget"
+          />
+          <SettingsRow
+            title={zh.categoryManagement}
+            icon="list.bullet"
+            color="#4B82C5"
+            href="/categories"
+          />
+          <SettingsRow
+            title={zh.finance.title}
+            icon="building.columns.fill"
+            color="#B9824C"
+            href="/finance"
+          />
+          <SettingsRow
+            title={zh.vault.title}
+            icon="lock.fill"
+            color="#7B72AF"
+            href="/vault"
+            last
+          />
+        </Card>
+      </View>
+      <View style={{ gap: 8 }}>
+        <Txt size={13} color={t.muted} style={{ paddingLeft: 16 }}>
+          偏好与数据
+        </Txt>
+        <Card
+          style={{ padding: 0, gap: 0, borderRadius: 20, overflow: "hidden" }}
+        >
+          <SettingsRow
+            title="外观"
+            icon="sun.max.fill"
+            color="#687C9E"
+            href="/appearance"
+          />
+          <SettingsRow
+            title={zh.sync.title}
+            icon="cloud"
+            color="#4E91AD"
+            href="/sync"
+          />
+          <SettingsRow
+            title={zh.backup.title}
+            icon="shippingbox.fill"
+            color="#78916A"
+            href="/backup"
+          />
+          <SettingsRow
+            title={zh.discarded.title}
+            icon="trash"
+            color="#8C8C94"
+            href="/discarded"
+            last
+          />
+        </Card>
+      </View>
+      <Row style={{ paddingHorizontal: 16, justifyContent: "space-between" }}>
+        <Row style={{ gap: 0 }}>
+          <Txt size={13} color={t.muted}>
+            {zh.localData}
+          </Txt>
+          <HelpBubble label="数据保存">{zh.dataDescription}</HelpBubble>
         </Row>
         <Txt size={12} color={t.muted}>
-          {zh.dataDescription}
+          {zh.queued(data.pending)}
         </Txt>
-        <View
-          style={{ backgroundColor: t.soft, padding: 12, borderRadius: 12 }}
-        >
-          <Txt size={11} color={t.blue}>
-            {zh.queued(data.pending)}
-          </Txt>
-        </View>
-      </Card>
+      </Row>
       {data.preferences.favorites.length > 0 && (
         <Card style={{ gap: 10 }}>
           <Txt bold>{zh.favorites}</Txt>
@@ -254,13 +224,12 @@ export default function Me() {
           ))}
         </Card>
       )}
-
       <Txt
-        size={11}
+        size={12}
         color={t.muted}
-        style={{ textAlign: "center", marginTop: 12 }}
+        style={{ textAlign: "center", marginTop: 8 }}
       >
-        {zh.version} · {zh.localOnly}
+        {zh.version}
       </Txt>
     </Page>
   );

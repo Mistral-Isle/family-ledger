@@ -3,7 +3,13 @@ const path = require("node:path");
 // Keep CLI caches in this workspace and avoid writing anonymous telemetry IDs.
 const child = spawn(
   process.execPath,
-  [require.resolve("expo/bin/cli"), ...process.argv.slice(2)],
+  [
+    ...(process.argv[2] === "start"
+      ? ["--require", path.join(__dirname, "dev-isolation.cjs")]
+      : []),
+    require.resolve("expo/bin/cli"),
+    ...process.argv.slice(2),
+  ],
   {
     stdio: "inherit",
     env: {

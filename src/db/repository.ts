@@ -1,5 +1,8 @@
 import { validatePlanData } from "../domain/finance";
-import { validateBudgetAllocation } from "../domain/budgets";
+import {
+  validateBudgetAllocation,
+  type DetailBudgetPreferences,
+} from "../domain/budgets";
 import { accountBalance } from "../domain/selectors";
 import { today } from "../domain/date";
 import {
@@ -163,6 +166,41 @@ export class LedgerRepository {
   }
   getTheme(): "system" | "light" | "dark" {
     return this.pref("theme", "system");
+  }
+  getIncludeRepayments(): boolean {
+    return this.pref("includeRepayments", false);
+  }
+  getShowIncomeCalendar(): boolean {
+    return this.pref("showIncomeCalendar", true);
+  }
+  setShowIncomeCalendar(value: boolean) {
+    this.db.withTransactionSync(() =>
+      this.setPref("showIncomeCalendar", value),
+    );
+  }
+  getDetailBudgetPreferences(): DetailBudgetPreferences {
+    return this.pref("detailBudgetPreferences", {
+      excludedCategoryIds: [],
+      title: "",
+    });
+  }
+  setDetailBudgetPreferences(value: DetailBudgetPreferences) {
+    const title = value.title.trim();
+    if (title.length > 30) throw new Error("预算名称最多 30 个字");
+    const ids = new Set(
+      this.all<Category>("category")
+        .filter((c) => !c.deleted && c.kind === "expense")
+        .map((c) => c.id),
+    );
+    const excludedCategoryIds = [...new Set(value.excludedCategoryIds)].filter(
+      (id) => ids.has(id),
+    );
+    this.db.withTransactionSync(() =>
+      this.setPref("detailBudgetPreferences", { title, excludedCategoryIds }),
+    );
+  }
+  setIncludeRepayments(value: boolean) {
+    this.db.withTransactionSync(() => this.setPref("includeRepayments", value));
   }
   getAppearance(): "classic" | "warm" | "ink" {
     return this.pref("appearance", "classic");

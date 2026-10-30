@@ -2,8 +2,9 @@ const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
-const root = path.resolve("dist-web");
-const port = Number(process.env.PORT || 4173);
+const demo = process.argv.includes("--demo");
+const root = path.resolve(demo ? "tmp/budget-demo-web" : "dist-web");
+const port = Number(process.env.PORT || (demo ? 4175 : 4173));
 const build = spawn(
   process.execPath,
   [
@@ -56,6 +57,17 @@ build.on("exit", (code) => {
         "Content-Type",
         mime[path.extname(file)] || "application/octet-stream",
       );
+      if (demo && path.extname(file) === ".html") {
+        res.end(
+          fs
+            .readFileSync(file, "utf8")
+            .replace(
+              "<head>",
+              '<head><meta name="ledger-preview" content="budget-demo">',
+            ),
+        );
+        return;
+      }
       fs.createReadStream(file)
         .on("error", () => {
           res.writeHead(500);

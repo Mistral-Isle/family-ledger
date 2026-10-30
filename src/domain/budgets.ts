@@ -1,5 +1,129 @@
-import type { Category } from "./types";
+import type { Category, Txn } from "./types";
 import { assertMoney } from "./money";
+import { categoryAmounts, totals } from "./selectors";
+import { today, validDate } from "./date";
+import { averageExpense } from "./reports";
+
+export type DetailBudgetPreferences = {
+  excludedCategoryIds: string[];
+  title: string;
+};
+
+/** A display projection only: never modifies transactions or the full budget. */
+export function detailBudget(
+  txns: Txn[],
+  categories: Category[],
+  month: string,
+  total: number | null,
+  allocations: Record<string, number>,
+  preferences: DetailBudgetPreferences,
+) {
+  const excluded = new Set(preferences.excludedCategoryIds);
+  const byId = new Map(categories.map((c) => [c.id, c]));
+  const includes = (id: string | null): boolean => {
+    if (!id) return true;
+    const parent = byId.get(id)?.parentId;
+    return !excluded.has(id) && (!parent || !excluded.has(parent));
+  };
+  const cats = categories.filter((c) => !c.deleted && c.kind === "expense");
+  const included = cats.filter((c) => includes(c.id));
+  const omitted = cats.filter((c) => !includes(c.id));
+  const filtered = omitted.length > 0;
+  const none = cats.length > 0 && included.length === 0;
+  // A parent's allocation already contains its children. Subtract it only once.
+  const excludedAmount = Object.entries(allocations).reduce(
+    (sum, [id, amount]) => {
+      const parent = byId.get(id)?.parentId;
+      return excluded.has(id) && (!parent || !excluded.has(parent))
+        ? assertMoney(sum + amount)
+        : sum;
+    },
+    0,
+  );
+  const budget =
+    total === null
+      ? null
+      : none
+        ? 0
+        : Math.max(0, assertMoney(total - excludedAmount));
+  const expense = none
+    ? 0
+    : totals(
+        txns.filter(
+          (txn) => txn.occurredAt.startsWith(month) && includes(txn.categoryId),
+        ),
+      ).expense;
+  const name = (c: Category) =>
+    c.parentId ? `${byId.get(c.parentId)?.name ?? "分类"} / ${c.name}` : c.name;
+  return {
+    budget,
+    expense,
+    remaining: budget === null ? null : assertMoney(budget - expense),
+    progress:
+      budget === null
+        ? 0
+        : budget > 0
+          ? Math.min(1, Math.max(0, expense) / budget)
+          : expense > 0
+            ? 1
+            : 0,
+    title: preferences.title.trim() || (filtered ? "所选分类预算" : "本月预算"),
+    filtered,
+    included,
+    omitted,
+    explanation: `包含：${included.map(name).join("、") || "无"}。\n\n排除：${omitted.map(name).join("、") || "无"}。\n\n仅影响明细页预算和预算日均剩余。未单独分配的额度保留在上级或总预算中；未分配预算的分类关闭后仅排除其支出。可在完整预算中调整分类额度。`,
+  };
+}
+
+export function monthDailyMetrics(
+  month: string,
+  expense: number,
+  budget: number | null,
+  now = today(),
+) {
+  validDate(month + "-01");
+  validDate(now);
+  const days = new Date(
+    Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)), 0),
+  ).getUTCDate();
+  const current = now.slice(0, 7);
+  const elapsed =
+    month === current ? Number(now.slice(8)) : month < current ? days : 0;
+  const remaining =
+    month === current
+      ? days - Number(now.slice(8)) + 1
+      : month > current
+        ? days
+        : 0;
+  return {
+    elapsed,
+    remaining,
+    dailyExpense: elapsed ? averageExpense(expense, elapsed) : null,
+    dailyRemaining:
+      budget !== null && remaining
+        ? averageExpense(assertMoney(budget - expense), remaining)
+        : null,
+  };
+}
+
+/** Parent allocations include their children; refunds offset the original category. */
+export function categoryBudgetUsage(
+  txns: Txn[],
+  categories: Category[],
+  month: string,
+): Map<string, number> {
+  const amounts = categoryAmounts(
+    txns.filter((txn) => txn.occurredAt.startsWith(month)),
+    "expense",
+  );
+  const usage = new Map(amounts);
+  for (const [id, amount] of amounts) {
+    const parent = categories.find((c) => c.id === id)?.parentId;
+    if (parent)
+      usage.set(parent, assertMoney((usage.get(parent) ?? 0) + amount));
+  }
+  return usage;
+}
 
 export function validateBudgetAllocation(
   total: number | null,
