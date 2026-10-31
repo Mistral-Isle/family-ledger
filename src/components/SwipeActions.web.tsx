@@ -6,11 +6,15 @@ export function SwipeActions({
   actions,
   startActions,
   disabled = false,
+  actionWidth = 80,
+  startWidth = 80,
 }: {
   children: ReactNode;
   actions: ReactNode;
   startActions?: ReactNode;
   disabled?: boolean;
+  actionWidth?: number;
+  startWidth?: number;
 }) {
   const [offset, setOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -18,7 +22,7 @@ export function SwipeActions({
   const current = useRef(0),
     frame = useRef(0),
     consumed = useRef(false);
-  const max = startActions ? swipeWidth : 0;
+  const max = startActions ? startWidth : 0;
   const gesture = useRef({
     x: 0,
     y: 0,
@@ -60,6 +64,12 @@ export function SwipeActions({
     };
     frame.current = requestAnimationFrame(tick);
   };
+  useEffect(() => {
+    if (disabled) {
+      stop();
+      show(0);
+    }
+  }, [disabled]);
   return (
     <div style={{ position: "relative", overflow: "hidden" }}>
       <div
@@ -69,7 +79,7 @@ export function SwipeActions({
           right: 0,
           top: 0,
           bottom: 0,
-          width: swipeWidth,
+          width: actionWidth,
           display: "flex",
           alignItems: "center",
           justifyContent: "flex-end",
@@ -85,7 +95,7 @@ export function SwipeActions({
           left: 0,
           top: 0,
           bottom: 0,
-          width: swipeWidth,
+          width: startWidth,
           display: "flex",
           alignItems: "center",
           visibility: offset <= 0 ? "hidden" : "visible",
@@ -126,7 +136,7 @@ export function SwipeActions({
           if (!g.horizontal) {
             if (Math.abs(dy) > 8 && Math.abs(dy) > Math.abs(dx)) {
               g.vertical = true;
-              settle(swipeTarget(current.current, 0, max));
+              settle(swipeTarget(current.current, 0, max, actionWidth));
               return;
             }
             if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
@@ -143,7 +153,7 @@ export function SwipeActions({
             );
           g.lastX = e.clientX;
           g.time = e.timeStamp;
-          show(resistedPosition(g.base + dx, max));
+          show(resistedPosition(g.base + dx, max, actionWidth));
         }}
         onPointerUp={(e) => {
           const g = gesture.current;
@@ -151,7 +161,10 @@ export function SwipeActions({
           g.active = false;
           setDragging(false);
           const velocity = e.timeStamp - g.time < 80 ? g.velocity : 0;
-          settle(swipeTarget(current.current, velocity, max), velocity);
+          settle(
+            swipeTarget(current.current, velocity, max, actionWidth),
+            velocity,
+          );
           if (e.currentTarget.hasPointerCapture(e.pointerId))
             e.currentTarget.releasePointerCapture(e.pointerId);
         }}
@@ -159,13 +172,13 @@ export function SwipeActions({
           const g = gesture.current;
           if (!g.horizontal && g.active) {
             g.active = false;
-            settle(swipeTarget(current.current, 0, max));
+            settle(swipeTarget(current.current, 0, max, actionWidth));
           }
         }}
         onPointerCancel={() => {
           gesture.current.active = false;
           setDragging(false);
-          settle(swipeTarget(gesture.current.base, 0, max));
+          settle(swipeTarget(gesture.current.base, 0, max, actionWidth));
         }}
         onClickCapture={(e) => {
           if (consumed.current) {

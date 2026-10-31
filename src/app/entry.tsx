@@ -1,3 +1,4 @@
+import { FavoriteList } from "../components/FavoriteList";
 import {
   privacyAccountId,
   privacyMemberId,
@@ -77,7 +78,12 @@ function Entry() {
     null,
   );
   const router = useRouter();
-  const { id, scope: requestedScope } = useLocalSearchParams<{
+  const {
+    id,
+    scope: requestedScope,
+    account: requestedAccount,
+  } = useLocalSearchParams<{
+    account?: string;
     id?: string;
     scope?: string;
   }>();
@@ -106,13 +112,16 @@ function Entry() {
   );
   const [accountId, setAccountId] = useState(
     existing?.accountId ??
-      data.preferences.pinned.find((p) =>
-        data.accounts.some(
-          (a) => a.id === p && a.scope === scope && !a.deleted && !a.archived,
-        ),
-      ) ??
-      data.accounts.find((a) => a.scope === scope && !a.deleted && !a.archived)
-        ?.id ??
+      data.accounts.find(
+        (a) =>
+          a.id === requestedAccount &&
+          a.scope === scope &&
+          !a.deleted &&
+          !a.archived,
+      )?.id ??
+      [...data.accounts]
+        .sort((a, b) => a.sort - b.sort)
+        .find((a) => a.scope === scope && !a.deleted && !a.archived)?.id ??
       "",
   );
   // Keep historical attribution until the payment account is changed.
@@ -220,14 +229,7 @@ function Entry() {
     const last = data.preferences.lastAccount[id];
     if (last && accounts.some((a) => a.id === last && !a.archived))
       setAccountId(last);
-    else
-      setAccountId(
-        data.preferences.pinned.find((p) =>
-          accounts.some((a) => a.id === p && !a.archived),
-        ) ??
-          accounts[0]?.id ??
-          "",
-      );
+    else setAccountId(accounts[0]?.id ?? "");
   }
   function selectMode(next: "standard" | "daily") {
     if (scope === "private") return;
@@ -338,7 +340,7 @@ function Entry() {
           note,
         }),
       );
-      setMessage(zh.favoriteSaved);
+      setMessage("");
       setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -450,6 +452,7 @@ function Entry() {
                   onPress={() => setAccountPicker(false)}
                 />
               </Row>
+
               <ScrollView
                 keyboardShouldPersistTaps="handled"
                 contentContainerStyle={{ gap: 8 }}
@@ -744,6 +747,7 @@ function Entry() {
                         onPress={() => setTransferPicker(false)}
                       />
                     </Row>
+
                     <ScrollView keyboardShouldPersistTaps="handled">
                       {" "}
                       <View
@@ -763,6 +767,7 @@ function Entry() {
                               ) &&
                               (a.scope === scope || a.scope === "family"),
                           )
+                          .sort((a, b) => a.sort - b.sort)
                           .map((a) => (
                             <AccountChip
                               key={a.id}
@@ -827,45 +832,22 @@ function Entry() {
             </View>
           ) : mode === "daily" ? (
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {data.preferences.favorites
-                .filter((f) => {
-                  const c = data.categories.find((c) => c.id === f.categoryId);
-                  return (
-                    c &&
-                    !c.deleted &&
-                    !c.hidden &&
-                    c.kind === type &&
-                    !data.categories.find((p) => p.id === c.parentId)?.hidden
+              <FavoriteList
+                items={data.preferences.favorites.filter((f) => {
+                  const category = data.categories.find(
+                    (c) => c.id === f.categoryId,
                   );
-                })
-                .map((f) => (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={f.label}
-                    key={f.id}
-                    onPress={() => applyFavorite(f)}
-                    style={{
-                      padding: 12,
-                      borderRadius: 16,
-                      backgroundColor:
-                        categoryId === f.categoryId ? t.soft : t.card,
-                      minWidth: "45%",
-                    }}
-                  >
-                    <Row>
-                      <Icon
-                        name={
-                          data.categories.find((c) => c.id === f.categoryId)
-                            ?.icon ?? "star.fill"
-                        }
-                      />
-                      <Txt>{f.label}</Txt>
-                    </Row>
-                    <Txt size={12} color={t.muted}>
-                      {f.amount ? formatMoney(f.amount) : zh.amount}
-                    </Txt>
-                  </Pressable>
-                ))}
+                  return (
+                    !!category &&
+                    !category.deleted &&
+                    !category.hidden &&
+                    category.kind === type &&
+                    !data.categories.find((p) => p.id === category.parentId)
+                      ?.hidden
+                  );
+                })}
+                onPress={applyFavorite}
+              />
               <Button
                 secondary
                 icon="plus"
@@ -949,7 +931,11 @@ function Entry() {
                   backgroundColor: selectedTrip ? t.primary : t.soft,
                 }}
               >
-                <Icon name="suitcase.fill" size={17} color={selectedTrip ? "#FFFFFF" : t.blue} />
+                <Icon
+                  name="suitcase.fill"
+                  size={17}
+                  color={selectedTrip ? "#FFFFFF" : t.blue}
+                />
                 <Text
                   numberOfLines={1}
                   style={{

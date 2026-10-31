@@ -7,15 +7,31 @@ export function SwipeActions({
   actions,
   startActions,
   disabled = false,
+  actionWidth = 80,
+  startWidth = 80,
 }: {
   children: ReactNode;
   actions: ReactNode;
   startActions?: ReactNode;
   disabled?: boolean;
+  actionWidth?: number;
+  startWidth?: number;
 }) {
   const reduced = useReducedMotion();
-  const config = useRef({ disabled, start: !!startActions, reduced });
-  config.current = { disabled, start: !!startActions, reduced };
+  const config = useRef({
+    disabled,
+    start: !!startActions,
+    reduced,
+    actionWidth,
+    startWidth,
+  });
+  config.current = {
+    disabled,
+    start: !!startActions,
+    reduced,
+    actionWidth,
+    startWidth,
+  };
   const [side, setSide] = useState(0);
   const offset = useRef(new Animated.Value(0)).current;
   const base = useRef(0);
@@ -61,7 +77,8 @@ export function SwipeActions({
       onPanResponderMove: (_, g) => {
         current.current = resistedPosition(
           base.current + g.dx,
-          config.current.start ? 80 : 0,
+          config.current.start ? config.current.startWidth : 0,
+          config.current.actionWidth,
         );
         setSide(Math.sign(current.current));
         offset.setValue(current.current);
@@ -69,14 +86,33 @@ export function SwipeActions({
       onPanResponderRelease: (_, g) => {
         const velocity = Math.max(-1500, Math.min(1500, g.vx * 1000));
         settle(
-          swipeTarget(current.current, velocity, config.current.start ? 80 : 0),
+          swipeTarget(
+            current.current,
+            velocity,
+            config.current.start ? config.current.startWidth : 0,
+            config.current.actionWidth,
+          ),
           velocity,
         );
       },
       onPanResponderTerminate: () =>
-        settle(swipeTarget(base.current, 0, config.current.start ? 80 : 0)),
+        settle(
+          swipeTarget(
+            base.current,
+            0,
+            config.current.start ? config.current.startWidth : 0,
+            config.current.actionWidth,
+          ),
+        ),
     }),
   ).current;
+  useEffect(() => {
+    if (disabled) {
+      offset.stopAnimation();
+      offset.setValue(0);
+      base.current = 0;
+    }
+  }, [disabled, offset]);
   return (
     <View style={{ overflow: "hidden" }}>
       <View
@@ -88,7 +124,7 @@ export function SwipeActions({
           right: 0,
           top: 0,
           bottom: 0,
-          width: 80,
+          width: actionWidth,
           justifyContent: "center",
         }}
       >
@@ -103,7 +139,7 @@ export function SwipeActions({
           left: 0,
           top: 0,
           bottom: 0,
-          width: 80,
+          width: startWidth,
           justifyContent: "center",
         }}
       >

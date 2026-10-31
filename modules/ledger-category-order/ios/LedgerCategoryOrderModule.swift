@@ -5,7 +5,10 @@ public final class LedgerCategoryOrderModule: Module {
   public func definition() -> ModuleDefinition {
     Name("LedgerCategoryOrder")
     View(LedgerCategoryOrderView.self) {
-      Events("onOrderChange")
+      Events("onOrderChange", "onItemPress", "onItemAction")
+      Prop("interactive") { (view: LedgerCategoryOrderView, interactive: Bool) in
+        view.setInteractive(interactive)
+      }
       Prop("items") { (view: LedgerCategoryOrderView, items: [[String: String]]) in
         view.setItems(items)
       }
@@ -19,16 +22,21 @@ public final class LedgerCategoryOrderModule: Module {
   }
 }
 
-final class LedgerCategoryOrderView: ExpoView, UITableViewDataSource, UITableViewDelegate {
+final class LedgerCategoryOrderView: ExpoView, UITableViewDataSource, UITableViewDelegate, UITableViewDragDelegate, UITableViewDropDelegate {
   let onOrderChange = EventDispatcher()
+  let onItemPress = EventDispatcher()
+  let onItemAction = EventDispatcher()
   private let table = UITableView(frame: .zero, style: .plain)
   private var items: [[String: String]] = []
   private var surface: UIColor = .secondarySystemGroupedBackground
+  private var interactive = false
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
     table.dataSource = self
     table.delegate = self
+    table.dragDelegate = self
+    table.dropDelegate = self
     table.setEditing(true, animated: false)
     table.allowsSelection = false
     table.allowsSelectionDuringEditing = false
@@ -38,6 +46,15 @@ final class LedgerCategoryOrderView: ExpoView, UITableViewDataSource, UITableVie
     table.backgroundColor = surface
     table.register(UITableViewCell.self, forCellReuseIdentifier: "category")
     addSubview(table)
+  }
+
+  func setInteractive(_ value: Bool) {
+    interactive = value
+    table.setEditing(!value, animated: false)
+    table.allowsSelection = value
+    table.dragInteractionEnabled = value
+    table.rowHeight = value ? 82 : UITableView.automaticDimension
+    table.reloadData()
   }
 
   override func layoutSubviews() {
@@ -73,11 +90,80 @@ final class LedgerCategoryOrderView: ExpoView, UITableViewDataSource, UITableVie
     content.textProperties.font = .preferredFont(forTextStyle: .body)
     content.textProperties.adjustsFontForContentSizeCategory = true
     content.textProperties.color = .label
+    if interactive {
+      let item = items[indexPath.row]
+      content.secondaryText = [item["subtitle"], item["amount"]].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+      content.secondaryTextProperties.color = .secondaryLabel
+      content.secondaryTextProperties.numberOfLines = 2
+      content.image = UIImage(systemName: item["symbol"] ?? "circle.fill")
+      content.imageProperties.tintColor = .systemBlue
+      content.imageProperties.maximumSize = CGSize(width: 28, height: 28)
+      let handle = UIImageView(image: UIImage(systemName: "line.3.horizontal"))
+      handle.tintColor = .tertiaryLabel
+      handle.accessibilityLabel = "拖动调整顺序"
+      cell.accessoryView = handle
+    } else {
+      cell.accessoryView = nil
+    }
     cell.contentConfiguration = content
     cell.backgroundColor = surface
-    cell.showsReorderControl = true
+    cell.showsReorderControl = !interactive
     cell.selectionStyle = .none
     return cell
+  }
+
+  func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+    guard interactive, items.indices.contains(indexPath.row), let id = items[indexPath.row]["id"] else { return }
+    onItemPress(["id": id])
+  }
+
+  private func actions(at indexPath: IndexPath, key: String) -> UISwipeActionsConfiguration? {
+    guard interactive, items.indices.contains(indexPath.row), let id = items[indexPath.row]["id"] else { return nil }
+    let names = (items[indexPath.row][key] ?? "").split(separator: ",").map(String.init)
+    let labels = ["edit": "编辑", "delete": "删除", "balance": "调整余额", "remove": "移除"]
+    let actions = names.compactMap { name -> UIContextualAction? in
+      guard let label = labels[name] else { return nil }
+      let action = UIContextualAction(style: name == "delete" || name == "remove" ? .destructive : .normal, title: label) { [weak self] _, _, completion in
+        self?.onItemAction(["id": id, "action": name])
+        completion(false)
+        self?.table.setEditing(false, animated: true)
+      }
+      if name == "balance" { action.backgroundColor = .systemGreen }
+      else if name == "edit" { action.backgroundColor = .systemBlue }
+      return action
+    }
+    guard !actions.isEmpty else { return nil }
+    let configuration = UISwipeActionsConfiguration(actions: actions)
+    configuration.performsFirstActionWithFullSwipe = false
+    return configuration
+  }
+  func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? { actions(at: indexPath, key: "trailing") }
+  func tableView(_ tableView: UITableView, leadingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? { actions(at: indexPath, key: "leading") }
+
+  func tableView(_ tableView: UITableView, itemsForBeginning session: UIDragSession, at indexPath: IndexPath) -> [UIDragItem] {
+    guard interactive, items.count > 1, items.indices.contains(indexPath.row), let id = items[indexPath.row]["id"] else { return [] }
+    session.localContext = self
+    let item = UIDragItem(itemProvider: NSItemProvider(object: id as NSString))
+    item.localObject = id
+    return [item]
+  }
+  func tableView(_ tableView: UITableView, dragSessionIsRestrictedToDraggingApplication session: UIDragSession) -> Bool { true }
+  func tableView(_ tableView: UITableView, dropSessionDidUpdate session: UIDropSession, withDestinationIndexPath destinationIndexPath: IndexPath?) -> UITableViewDropProposal {
+    guard let source = session.localDragSession?.localContext as? LedgerCategoryOrderView, source === self else { return UITableViewDropProposal(operation: .cancel) }
+    return UITableViewDropProposal(operation: .move, intent: .insertAtDestinationIndexPath)
+  }
+  func tableView(_ tableView: UITableView, performDropWith coordinator: UITableViewDropCoordinator) {
+    guard let drop = coordinator.items.first, let id = drop.dragItem.localObject as? String,
+      let from = items.firstIndex(where: { $0["id"] == id }) else { return }
+    let to = min(max(0, coordinator.destinationIndexPath?.row ?? items.count - 1), items.count - 1)
+    let source = IndexPath(row: from, section: 0), target = IndexPath(row: to, section: 0)
+    tableView.performBatchUpdates {
+      let moved = items.remove(at: from)
+      items.insert(moved, at: to)
+      tableView.moveRow(at: source, to: target)
+    }
+    coordinator.drop(drop.dragItem, toRowAt: target)
+    onOrderChange(["ids": items.compactMap { $0["id"] }])
   }
 
   func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool { items.count > 1 }

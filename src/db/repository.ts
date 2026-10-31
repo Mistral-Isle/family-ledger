@@ -1,3 +1,4 @@
+import { accountDeletionRows } from "../domain/accountDetails";
 import { privacyAccountId, privacyMemberId } from "../domain/privacyTransfer";
 import { defaultCategoryIconUpdates } from "../domain/defaultCategoryIconUpdates";
 import {
@@ -397,7 +398,9 @@ export class LedgerRepository {
     return this.pref<boolean>("assetAmountsHidden", false) === true;
   }
   setAssetAmountsHidden(value: boolean) {
-    this.db.withTransactionSync(() => this.setPref("assetAmountsHidden", value));
+    this.db.withTransactionSync(() =>
+      this.setPref("assetAmountsHidden", value),
+    );
   }
   setShowIncomeCalendar(value: boolean) {
     this.db.withTransactionSync(() =>
@@ -764,6 +767,114 @@ export class LedgerRepository {
           ...snapshot.preferences,
           pinned: [...snapshot.preferences.pinned, record.id],
         });
+    });
+  }
+  reorderAccounts(ids: string[]) {
+    this.db.withTransactionSync(() => {
+      const accounts = this.snapshot().accounts.filter((a) => !a.deleted);
+      const selected = ids.map((id) => accounts.find((a) => a.id === id));
+      if (
+        !ids.length ||
+        new Set(ids).size !== ids.length ||
+        selected.some((a) => !a) ||
+        selected.some((a) => a!.scope !== selected[0]!.scope)
+      )
+        throw new Error("账户已变化，请重新调整。");
+      // Reorder the visible subset within its existing slots; preserve hidden/archived accounts.
+      const order = accounts
+        .filter((a) => a.scope === selected[0]!.scope)
+        .sort((a, b) => a.sort - b.sort);
+      const chosen = new Set(ids);
+      let next = 0;
+      const merged = order.map((a) =>
+        chosen.has(a.id) ? selected[next++]! : a,
+      );
+      merged.forEach((account, index) => {
+        if (account.sort !== index)
+          this.write("account", {
+            ...account,
+            ...this.stamp(account),
+            sort: index,
+          });
+      });
+    });
+  }
+  adjustAccountBalance(id: string, target: number, date: string) {
+    this.db.withTransactionSync(() => {
+      validDate(date);
+      assertMoney(target);
+      const data = this.snapshot(),
+        account = data.accounts.find((a) => a.id === id && !a.deleted);
+      if (!account) throw new Error(zh.errors.account);
+      if (
+        data.plans.some(
+          (p) => !p.deleted && JSON.parse(p.data).accountId === id,
+        )
+      )
+        throw new Error(zh.finance.managed);
+      const delta = assertMoney(
+        target - accountBalance(account, data.txns, date),
+      );
+      if (!delta) return;
+      const row: Txn = {
+        ...this.stamp(),
+        scope: account.scope,
+        type: "adjust",
+        amount: delta,
+        accountId: id,
+        toAccountId: null,
+        categoryId: null,
+        occurredAt: date,
+        occurredTime: null,
+        note: "余额调整",
+        recorderMemberId: data.meId,
+        forWhom: "both",
+        discarded: false,
+        refundOfId: null,
+        refundIncome: 0,
+        refundIncomeCategoryId: null,
+      };
+      this.write("txn", row);
+    });
+  }
+  deleteAccount(id: string, deleteRecords: boolean) {
+    this.db.withTransactionSync(() => {
+      const data = this.snapshot(),
+        account = data.accounts.find((a) => a.id === id && !a.deleted);
+      if (!account) throw new Error(zh.errors.account);
+      // Plans own their repayment/split history; don't leave an active plan with a missing account.
+      if (
+        data.plans.some((p) => {
+          if (p.deleted) return false;
+          const d = JSON.parse(p.data);
+          return d.accountId === id || (!d.closed && d.paymentAccountId === id);
+        })
+      )
+        throw new Error(
+          "此账户关联贷款、押金或分摊计划，请先在财务计划中处理后再删除。",
+        );
+      if (deleteRecords) {
+        const ids = accountDeletionRows(data, id);
+        if (ids.length) this.deleteTxnRecords(ids);
+      }
+      this.write("account", {
+        ...account,
+        ...this.stamp(account),
+        deleted: true,
+      });
+      const preferences = this.pref("preferences", emptyPrefs());
+      this.setPref("preferences", {
+        ...preferences,
+        pinned: preferences.pinned.filter((value: string) => value !== id),
+        favorites: preferences.favorites.filter(
+          (f: Preferences["favorites"][number]) => f.accountId !== id,
+        ),
+        lastAccount: Object.fromEntries(
+          Object.entries(preferences.lastAccount).filter(
+            ([, value]) => value !== id,
+          ),
+        ),
+      });
     });
   }
   togglePin(id: string) {
@@ -2969,62 +3080,61 @@ export class LedgerRepository {
     this.deleteTxns([id]);
   }
   deleteTxns(ids: string[]) {
-    this.db.withTransactionSync(() => {
-      const unique = new Set(ids);
-      const plans = this.snapshot().plans.filter((p) => !p.deleted);
-      if (
-        this.snapshot().txns.some(
-          (t) =>
-            unique.has(t.id) &&
-            (t.type === "repayment" ||
-              (t.type === "adjust" &&
-                plans.some(
-                  (p) => JSON.parse(p.data).accountId === t.accountId,
-                )) ||
-              plans.some((p) =>
-                (JSON.parse(p.data).txnIds ?? []).includes(t.id),
-              )),
-        )
+    this.db.withTransactionSync(() => this.deleteTxnRecords(ids));
+  }
+  private deleteTxnRecords(ids: string[]) {
+    const unique = new Set(ids);
+    const plans = this.snapshot().plans.filter((p) => !p.deleted);
+    if (
+      this.snapshot().txns.some(
+        (t) =>
+          unique.has(t.id) &&
+          (t.type === "repayment" ||
+            (t.type === "adjust" &&
+              plans.some(
+                (p) => JSON.parse(p.data).accountId === t.accountId,
+              )) ||
+            plans.some((p) =>
+              (JSON.parse(p.data).txnIds ?? []).includes(t.id),
+            )),
       )
-        throw new Error(zh.finance.managed);
-      const txns = this.snapshot().txns.filter((t) => !t.deleted);
-      const records = txns.filter((t) => unique.has(t.id));
-      if (!unique.size || records.length !== unique.size)
-        throw new Error(zh.errors.missing);
-      if (
-        txns.some(
-          (t) => t.refundOfId && unique.has(t.refundOfId) && !unique.has(t.id),
-        )
+    )
+      throw new Error(zh.finance.managed);
+    const txns = this.snapshot().txns.filter((t) => !t.deleted);
+    const records = txns.filter((t) => unique.has(t.id));
+    if (!unique.size || records.length !== unique.size)
+      throw new Error(zh.errors.missing);
+    if (
+      txns.some(
+        (t) => t.refundOfId && unique.has(t.refundOfId) && !unique.has(t.id),
       )
-        throw new Error(zh.errors.deleteRefundSource);
-      if (
-        records.some(
-          (t) =>
-            t.scope === "private" &&
-            (t.type === "scope_in" || t.type === "scope_out"),
-        )
+    )
+      throw new Error(zh.errors.deleteRefundSource);
+    if (
+      records.some(
+        (t) =>
+          t.scope === "private" &&
+          (t.type === "scope_in" || t.type === "scope_out"),
       )
-        throw new Error(zh.vault.editInVault);
-      for (const record of records) {
-        const next = { ...record, ...this.stamp(record), deleted: true };
-        this.write("txn", next);
-        const pair = this.scopeTransfers().find(
-            (p) => p.familyId === record.id,
-          ),
-          privateRow = txns.find((t) => t.id === pair?.privateId);
-        if (privateRow)
-          this.write(
-            "txn",
-            {
-              ...privateRow,
-              deleted: true,
-              hlc: next.hlc,
-              updatedAt: next.updatedAt,
-            },
-            false,
-          );
-      }
-    });
+    )
+      throw new Error(zh.vault.editInVault);
+    for (const record of records) {
+      const next = { ...record, ...this.stamp(record), deleted: true };
+      this.write("txn", next);
+      const pair = this.scopeTransfers().find((p) => p.familyId === record.id),
+        privateRow = txns.find((t) => t.id === pair?.privateId);
+      if (privateRow)
+        this.write(
+          "txn",
+          {
+            ...privateRow,
+            deleted: true,
+            hlc: next.hlc,
+            updatedAt: next.updatedAt,
+          },
+          false,
+        );
+    }
   }
   saveFavorite(input: Omit<Preferences["favorites"][number], "id">) {
     const { preferences, categories, accounts } = this.snapshot();

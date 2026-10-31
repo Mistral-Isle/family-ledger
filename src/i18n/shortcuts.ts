@@ -1,0 +1,18 @@
+export const shortcuts = {
+  favorites: "常用记账",
+  pinned: "置顶账户",
+  orderFavorites: "调整常用项顺序",
+  orderPinned: "调整置顶账户顺序",
+  orderList: "拖动排序列表",
+  dragHint: "拖动右侧把手调整顺序",
+  localHint: "仅保存在这台设备，记账时按此顺序显示。",
+  noPinned: "在账户设置中置顶账户后，可在这里调整顺序。",
+  changed: "列表已变化，请关闭后重新调整。",
+  saveFavorite: "存为常用",
+  favoriteName: "常用项名称",
+  saved: "已存为常用，可在记账页切换到常用查看。",
+  unavailable: "这笔账单暂不能存为常用，请选择分类和账户仍可用的普通收支账单。",
+  preview: "保存分类、账户、金额和备注，方便下次记账。",
+  close: "取消",
+  done: "完成",
+};

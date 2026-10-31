@@ -1,3 +1,5 @@
+import { SaveFavoriteSheet } from "../../components/SaveFavoriteSheet";
+import { favoriteFromTransaction } from "../../domain/localShortcuts";
 import {
   transferAccountName,
   transferDirection,
@@ -6,7 +8,7 @@ import { TxnMetadata } from "../../components/TxnMetadata";
 import { MonthlySummaryCard } from "../../components/MonthlySummaryCard";
 import { Popover } from "../../components/HelpBubble";
 import { filterMonthTransactions } from "../../domain/transactionFilters";
-import { useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Pressable, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useLedger } from "../../components/LedgerProvider";
@@ -32,6 +34,13 @@ import { today } from "../../domain/date";
 import { zh } from "../../i18n/zh";
 import type { Txn, TxnType } from "../../domain/types";
 import { financialRow, financialRowGroups } from "../../domain/financialRows";
+
+const SelectionContext = createContext({
+  active: false,
+  ids: new Set<string>(),
+  start: (_id: string) => {},
+  toggle: (_id: string) => {},
+});
 
 function FinancialGroup({ name, txns }: { name: string; txns: Txn[] }) {
   const { data } = useLedger();
@@ -151,6 +160,9 @@ function TransactionRow({ txn }: { txn: Txn }) {
   const t = useTheme();
   const router = useRouter();
   const [notice, setNotice] = useState("");
+  const [savingFavorite, setSavingFavorite] = useState(false);
+  const canFavorite = !!favoriteFromTransaction(data, txn.id);
+  const selection = useContext(SelectionContext);
   const category = data.categories.find((c) => c.id === txn.categoryId);
   const account = data.accounts.find((a) => a.id === txn.accountId);
   const financial = financialRow(data, txn);
@@ -167,130 +179,221 @@ function TransactionRow({ txn }: { txn: Txn }) {
   const open = () =>
     financial
       ? router.push("/finance")
-      : txn.type === "scope_in" || txn.type === "scope_out"
-        ? router.push({ pathname: "/scope-transfer", params: { id: txn.id } })
-        : router.push({
-            pathname: txn.type === "refund" ? "/refund" : "/entry",
-            params: { id: txn.id },
-          });
+      : txn.type === "adjust"
+        ? router.push({
+            pathname: "/account-detail",
+            params: { id: txn.accountId },
+          })
+        : txn.type === "scope_in" || txn.type === "scope_out"
+          ? router.push({ pathname: "/scope-transfer", params: { id: txn.id } })
+          : router.push({
+              pathname: txn.type === "refund" ? "/refund" : "/entry",
+              params: { id: txn.id },
+            });
   const canRefund = txn.type === "expense" && !financial;
+  const canSelect = !financial && txn.type !== "repayment";
   return (
-    <SwipeActions
-      startActions={
-        canRefund ? (
-          <Button
-            secondary
-            label={zh.refund}
-            onPress={() =>
-              router.push({ pathname: "/refund", params: { sourceId: txn.id } })
-            }
-          />
-        ) : undefined
-      }
-      actions={
-        <Row style={{ justifyContent: "flex-end" }}>
-          <IconButton
-            name="trash"
-            color={t.red}
-            label={zh.remove}
-            onPress={() =>
-              confirmAction(zh.deleteEntry, zh.deleteEntryHint, () => {
-                try {
-                  run(() => repo.deleteTxn(txn.id));
-                } catch (e) {
-                  setNotice((e as Error).message);
-                }
-              })
-            }
-          />
-        </Row>
-      }
-    >
-      <View style={{ backgroundColor: t.card }}>
-        {!!notice && (
-          <Txt size={11} color={t.blue}>
-            {notice}
-          </Txt>
-        )}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${title} ${formatMoney(txn.amount)}`}
-          onPress={open}
-          style={({ pressed }) => ({
-            paddingVertical: 10,
-            backgroundColor: pressed ? t.soft : "transparent",
-          })}
-        >
-          <Row>
-            <View
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 14,
-                backgroundColor: txn.type === "income" ? t.incomeIcon : txn.type === "expense" ? t.expenseIcon : t.transferIcon,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Icon
-                name={category?.icon ?? "arrow.left.arrow.right"}
-                color="#fff"
-                size={21}
-              />
-            </View>
-            <View style={{ flex: 1, gap: 3 }}>
-              <Row style={{ gap: 7 }}>
-                <Txt size={16} bold>
-                  {title}
-                </Txt>
-              </Row>
-              <Txt size={13} color={t.muted} style={{ flexShrink: 1 }}>
-                {txn.type === "transfer"
-                  ? transferAccountName(data, txn.accountId)
-                  : account?.name}
-                {account?.last4 ? ` · ${account.last4}` : ""}
-                {txn.occurredTime ? ` · ${txn.occurredTime}` : ""}
-                {txn.note ? ` · ${txn.note}` : ""}
-                {transfer
-                  ? ` → ${transferAccountName(data, txn.toAccountId)}`
-                  : ""}
-              </Txt>
-              {financial?.hint ? (
-                <Txt size={11} color={t.muted}>
-                  {financial.hint}
-                </Txt>
-              ) : (
-                <TxnMetadata data={data} txn={txn} />
+    <>
+      <SwipeActions
+        disabled={selection.active || savingFavorite}
+        startWidth={canRefund && canFavorite ? 196 : 100}
+        startActions={
+          canRefund || canFavorite ? (
+            <Row style={{ gap: 6 }}>
+              {canFavorite && (
+                <Button
+                  secondary
+                  label="存为常用"
+                  onPress={() => setSavingFavorite(true)}
+                />
               )}
-              {!!txn.refundIncome && (
-                <Txt size={11} color={t.green}>
-                  {zh.refundOffset} {formatMoney(txn.amount - txn.refundIncome)}{" "}
-                  · {zh.income} {formatMoney(txn.refundIncome)}
-                </Txt>
+              {canRefund && (
+                <Button
+                  secondary
+                  label={zh.refund}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/refund",
+                      params: { sourceId: txn.id },
+                    })
+                  }
+                />
               )}
-            </View>
-            <Txt
-              size={17}
-              bold
-              color={income ? t.green : transfer ? t.muted : t.text}
-            >
-              {income ? "+" : transfer ? "" : "−"}
-              {formatMoney(txn.amount, false)}
-            </Txt>
+            </Row>
+          ) : undefined
+        }
+        actions={
+          <Row style={{ justifyContent: "flex-end" }}>
+            <IconButton
+              name="trash"
+              color={t.red}
+              label={zh.remove}
+              onPress={() =>
+                confirmAction(zh.deleteEntry, zh.deleteEntryHint, () => {
+                  try {
+                    run(() => repo.deleteTxn(txn.id));
+                  } catch (e) {
+                    setNotice((e as Error).message);
+                  }
+                })
+              }
+            />
           </Row>
-        </Pressable>
-      </View>
-    </SwipeActions>
+        }
+      >
+        <View style={{ backgroundColor: t.card }}>
+          {!!notice && (
+            <Txt size={11} color={t.blue}>
+              {notice}
+            </Txt>
+          )}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${title} ${formatMoney(txn.amount)}`}
+            onPress={() =>
+              selection.active ? canSelect && selection.toggle(txn.id) : open()
+            }
+            delayLongPress={450}
+            onLongPress={canSelect ? () => selection.start(txn.id) : undefined}
+            accessibilityHint={
+              canSelect ? "长按多选，右滑存为常用或退款" : undefined
+            }
+            accessibilityState={{
+              selected: selection.active && selection.ids.has(txn.id),
+            }}
+            style={({ pressed }) => ({
+              paddingVertical: 10,
+              backgroundColor: pressed ? t.soft : "transparent",
+            })}
+          >
+            <Row>
+              {selection.active && (
+                <Icon
+                  name={
+                    selection.ids.has(txn.id)
+                      ? "checkmark.circle.fill"
+                      : "circle"
+                  }
+                  size={23}
+                  color={canSelect ? t.blue : t.line}
+                />
+              )}
+
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 14,
+                  backgroundColor:
+                    txn.type === "income"
+                      ? t.incomeIcon
+                      : txn.type === "expense"
+                        ? t.expenseIcon
+                        : t.transferIcon,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Icon
+                  name={category?.icon ?? "arrow.left.arrow.right"}
+                  color="#fff"
+                  size={21}
+                />
+              </View>
+              <View style={{ flex: 1, gap: 3 }}>
+                <Row style={{ gap: 7 }}>
+                  <Txt size={16} bold>
+                    {title}
+                  </Txt>
+                </Row>
+                <Txt size={13} color={t.muted} style={{ flexShrink: 1 }}>
+                  {txn.type === "transfer"
+                    ? transferAccountName(data, txn.accountId)
+                    : account?.name}
+                  {account?.last4 ? ` · ${account.last4}` : ""}
+                  {txn.occurredTime ? ` · ${txn.occurredTime}` : ""}
+                  {txn.note ? ` · ${txn.note}` : ""}
+                  {transfer
+                    ? ` → ${transferAccountName(data, txn.toAccountId)}`
+                    : ""}
+                </Txt>
+                {financial?.hint ? (
+                  <Txt size={11} color={t.muted}>
+                    {financial.hint}
+                  </Txt>
+                ) : (
+                  <TxnMetadata data={data} txn={txn} />
+                )}
+                {!!txn.refundIncome && (
+                  <Txt size={11} color={t.green}>
+                    {zh.refundOffset}{" "}
+                    {formatMoney(txn.amount - txn.refundIncome)} · {zh.income}{" "}
+                    {formatMoney(txn.refundIncome)}
+                  </Txt>
+                )}
+              </View>
+              <Txt
+                size={17}
+                bold
+                color={income ? t.green : transfer ? t.muted : t.text}
+              >
+                {income ? "+" : transfer ? "" : "−"}
+                {formatMoney(txn.amount, false)}
+              </Txt>
+            </Row>
+          </Pressable>
+        </View>
+      </SwipeActions>
+      {savingFavorite && (
+        <SaveFavoriteSheet
+          txnId={txn.id}
+          onClose={() => setSavingFavorite(false)}
+          onSaved={() => {
+            setSavingFavorite(false);
+          }}
+        />
+      )}
+    </>
   );
 }
 export default function Details() {
-  const { data } = useLedger();
+  const { data, repo, run } = useLedger();
   const t = useTheme();
   const router = useRouter();
   const month = useUi((s) => s.month);
   const [query, setQuery] = useState("");
   const [types, setTypes] = useState<TxnType[]>([]);
   const filtered = filterMonthTransactions(data, month, types, query);
+  const [selection, setSelection] = useState<Set<string> | null>(null);
+  const [selectionError, setSelectionError] = useState("");
+  const selectable = filtered.filter(
+    (txn) => !financialRow(data, txn) && txn.type !== "repayment",
+  );
+  const chosen = selectable.filter((txn) => selection?.has(txn.id));
+  const selectedTotals = totals(chosen);
+  useEffect(() => {
+    setSelection(null);
+    setSelectionError("");
+  }, [month, query, types]);
+  useEffect(() => {
+    useUi.setState({ selectingTransactions: selection !== null });
+    return () => {
+      useUi.setState({ selectingTransactions: false });
+    };
+  }, [selection !== null]);
+  const selectionValue = {
+    active: selection !== null,
+    ids: selection ?? new Set<string>(),
+    start: (id: string) => setSelection((current) => current ?? new Set([id])),
+    toggle: (id: string) =>
+      setSelection((current) => {
+        const next = new Set(current ?? []);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      }),
+  };
+
   const me = data.members.find((m) => m.id === data.meId);
   const groups = useMemo(
     () =>
@@ -303,192 +406,256 @@ export default function Details() {
     [filtered],
   );
   return (
-    <Page
-      searchActive={!!query}
-      revealSearch={
-        <Row
-          style={{
-            backgroundColor: t.card,
-            borderRadius: 13,
-            paddingHorizontal: 14,
-            borderWidth: 1,
-            borderColor: t.line,
-          }}
-        >
-          <Icon name="magnifyingglass" size={17} color={t.muted} />
-          <TextInput
-            accessibilityLabel={zh.search}
-            placeholder={zh.search}
-            placeholderTextColor={t.muted}
-            value={query}
-            onChangeText={setQuery}
-            style={{
-              flex: 1,
-              paddingVertical: 13,
-              color: t.text,
-              fontSize: 13,
-            }}
-          />
-          {!!query && (
-            <IconButton
-              name="xmark"
-              label={zh.close}
-              onPress={() => setQuery("")}
-            />
-          )}
-        </Row>
-      }
-    >
-      <Row style={{ justifyContent: "space-between" }}>
-        <View style={{ gap: 3, flex: 1 }}>
-          <Txt size={13} bold color={t.muted}>
-            {zh.family}
-          </Txt>
-          <Txt size={13} color={t.muted}>
-            {today().replaceAll("-", " / ")}
-          </Txt>
-        </View>
-        <Popover label="筛选交易" active={types.length > 0}>
-          {(close) => (
+    <SelectionContext.Provider value={selectionValue}>
+      <Page
+        footer={
+          selection !== null ? (
             <>
-              <Txt size={17} bold>
-                交易类型
-              </Txt>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {(["income", "expense", "transfer", "refund"] as const).map(
-                  (type) => (
-                    <Chip
-                      key={type}
-                      label={zh[type]}
-                      selected={types.includes(type)}
-                      onPress={() =>
-                        setTypes((current) =>
-                          current.includes(type)
-                            ? current.filter((x) => x !== type)
-                            : [...current, type],
-                        )
-                      }
-                    />
-                  ),
-                )}
-              </View>
-              <Txt size={13} color={t.muted}>
-                {types.length
-                  ? `当前：${types.map((type) => zh[type]).join("、")}`
-                  : "当前：全部类型"}
-              </Txt>
-              {!!types.length && (
-                <Button
-                  secondary
-                  label="重置类型筛选"
-                  onPress={() => setTypes([])}
-                />
-              )}
-              <Button label="完成" onPress={close} />
-            </>
-          )}
-        </Popover>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="进入我的"
-          onPress={() => router.push("/(tabs)/me")}
-          style={({ pressed }) => ({
-            width: 44,
-            height: 44,
-            borderRadius: 22,
-            backgroundColor: t.soft,
-            alignItems: "center",
-            justifyContent: "center",
-            opacity: pressed ? 0.6 : 1,
-          })}
-        >
-          <Txt bold size={19} color={t.blue}>
-            {me?.name.slice(0, 1) || "我"}
-          </Txt>
-        </Pressable>
-      </Row>
-      <MonthPicker />
-      <MonthlySummaryCard month={month} />
-      <Row style={{ justifyContent: "space-between" }}>
-        <Txt size={20} bold>
-          本月明细
-        </Txt>
-        {!!types.length && (
-          <Txt size={12} color={t.blue}>
-            {types.length} 种类型 · {filtered.length} 笔
-          </Txt>
-        )}
-      </Row>
-      {groups.length === 0 ? (
-        <Card style={{ alignItems: "center", paddingVertical: 40, gap: 12 }}>
-          <View
-            style={{
-              width: 66,
-              height: 66,
-              backgroundColor: t.soft,
-              borderRadius: 24,
-              alignItems: "center",
-              justifyContent: "center",
-              marginBottom: 6,
-            }}
-          >
-            <Icon name="book.fill" size={30} color={t.blue} />
-          </View>
-          <Txt size={18} bold>
-            {query || types.length ? zh.noResults : zh.noTransactions}
-          </Txt>
-          <Txt size={12} color={t.muted}>
-            {zh.noTransactionsHint}
-          </Txt>
-          <View style={{ marginTop: 10 }}>
-            <Button
-              label={zh.firstEntry}
-              onPress={() => router.push("/entry")}
-              icon="plus"
-            />
-          </View>
-        </Card>
-      ) : (
-        groups.map((group) => {
-          const daily = totals(group.txns);
-          return (
-            <View key={group.date} style={{ gap: 10 }}>
-              <Row
-                style={{
-                  justifyContent: "space-between",
-                  paddingHorizontal: 3,
-                }}
-              >
-                <Txt size={12} color={t.muted}>
-                  {group.date === today()
-                    ? zh.today
-                    : group.date.slice(5).replace("-", " / ")}
-                </Txt>
-                <Txt size={11} color={t.muted}>
-                  {zh.expense} {formatMoney(daily.expense, false)}　{zh.income}{" "}
-                  {formatMoney(daily.income, false)}
+              <Row style={{ justifyContent: "space-between" }}>
+                <Txt bold>已选 {chosen.length} 笔</Txt>
+                <Txt size={12}>
+                  支出 {formatMoney(selectedTotals.expense)} · 收入{" "}
+                  {formatMoney(selectedTotals.income)}
                 </Txt>
               </Row>
-              <Card
-                style={{ paddingVertical: 0, paddingHorizontal: 17, gap: 0 }}
-              >
-                {financialRowGroups(data, group.txns).map((row, i) => (
-                  <View
-                    key={row.id}
-                    style={{ borderTopWidth: i ? 1 : 0, borderColor: t.line }}
-                  >
-                    {row.txns.length > 1 ? (
-                      <FinancialGroup name={row.name} txns={row.txns} />
-                    ) : (
-                      <TransactionRow txn={row.txns[0]!} />
-                    )}
-                  </View>
-                ))}
-              </Card>
+              {!!selectionError && (
+                <Txt size={12} color={t.red}>
+                  {selectionError}
+                </Txt>
+              )}
+              <Row style={{ justifyContent: "space-between" }}>
+                <Button
+                  secondary
+                  label={
+                    chosen.length === selectable.length ? "取消全选" : "全选"
+                  }
+                  onPress={() =>
+                    setSelection(
+                      chosen.length === selectable.length
+                        ? new Set()
+                        : new Set(selectable.map((t) => t.id)),
+                    )
+                  }
+                />
+                <Button
+                  secondary
+                  label="退出多选"
+                  onPress={() => {
+                    setSelection(null);
+                    setSelectionError("");
+                  }}
+                />
+                <Button
+                  label="删除所选"
+                  disabled={!chosen.length}
+                  onPress={() =>
+                    confirmAction(
+                      "删除所选账单",
+                      `将删除 ${chosen.length} 笔账单，余额会相应更新。`,
+                      () => {
+                        try {
+                          run(() => repo.deleteTxns(chosen.map((t) => t.id)));
+                          setSelection(null);
+                          setSelectionError("");
+                        } catch (e) {
+                          setSelectionError((e as Error).message);
+                        }
+                      },
+                    )
+                  }
+                />
+              </Row>
+            </>
+          ) : undefined
+        }
+        searchActive={!!query}
+        revealSearch={
+          <Row
+            style={{
+              backgroundColor: t.card,
+              borderRadius: 13,
+              paddingHorizontal: 14,
+              borderWidth: 1,
+              borderColor: t.line,
+            }}
+          >
+            <Icon name="magnifyingglass" size={17} color={t.muted} />
+            <TextInput
+              accessibilityLabel={zh.search}
+              placeholder={zh.search}
+              placeholderTextColor={t.muted}
+              value={query}
+              onChangeText={setQuery}
+              style={{
+                flex: 1,
+                paddingVertical: 13,
+                color: t.text,
+                fontSize: 13,
+              }}
+            />
+            {!!query && (
+              <IconButton
+                name="xmark"
+                label={zh.close}
+                onPress={() => setQuery("")}
+              />
+            )}
+          </Row>
+        }
+      >
+        <Row style={{ justifyContent: "space-between" }}>
+          <View style={{ gap: 3, flex: 1 }}>
+            <Txt size={13} bold color={t.muted}>
+              {zh.family}
+            </Txt>
+            <Txt size={13} color={t.muted}>
+              {today().replaceAll("-", " / ")}
+            </Txt>
+          </View>
+          <Popover label="筛选交易" active={types.length > 0}>
+            {(close) => (
+              <>
+                <Txt size={17} bold>
+                  交易类型
+                </Txt>
+                <View
+                  style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
+                >
+                  {(["income", "expense", "transfer", "refund"] as const).map(
+                    (type) => (
+                      <Chip
+                        key={type}
+                        label={zh[type]}
+                        selected={types.includes(type)}
+                        onPress={() =>
+                          setTypes((current) =>
+                            current.includes(type)
+                              ? current.filter((x) => x !== type)
+                              : [...current, type],
+                          )
+                        }
+                      />
+                    ),
+                  )}
+                </View>
+                <Txt size={13} color={t.muted}>
+                  {types.length
+                    ? `当前：${types.map((type) => zh[type]).join("、")}`
+                    : "当前：全部类型"}
+                </Txt>
+                {!!types.length && (
+                  <Button
+                    secondary
+                    label="重置类型筛选"
+                    onPress={() => setTypes([])}
+                  />
+                )}
+                <Button label="完成" onPress={close} />
+              </>
+            )}
+          </Popover>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="进入我的"
+            onPress={() => router.push("/(tabs)/me")}
+            style={({ pressed }) => ({
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: t.soft,
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: pressed ? 0.6 : 1,
+            })}
+          >
+            <Txt bold size={19} color={t.blue}>
+              {me?.name.slice(0, 1) || "我"}
+            </Txt>
+          </Pressable>
+        </Row>
+        <MonthPicker />
+        <MonthlySummaryCard month={month} />
+        <Row style={{ justifyContent: "space-between" }}>
+          <Txt size={20} bold>
+            本月明细
+          </Txt>
+          {!!types.length && (
+            <Txt size={12} color={t.blue}>
+              {types.length} 种类型 · {filtered.length} 笔
+            </Txt>
+          )}
+        </Row>
+        {groups.length === 0 ? (
+          <Card style={{ alignItems: "center", paddingVertical: 40, gap: 12 }}>
+            <View
+              style={{
+                width: 66,
+                height: 66,
+                backgroundColor: t.soft,
+                borderRadius: 24,
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: 6,
+              }}
+            >
+              <Icon name="book.fill" size={30} color={t.blue} />
             </View>
-          );
-        })
-      )}
-    </Page>
+            <Txt size={18} bold>
+              {query || types.length ? zh.noResults : zh.noTransactions}
+            </Txt>
+            <Txt size={12} color={t.muted}>
+              {zh.noTransactionsHint}
+            </Txt>
+            <View style={{ marginTop: 10 }}>
+              <Button
+                label={zh.firstEntry}
+                onPress={() => router.push("/entry")}
+                icon="plus"
+              />
+            </View>
+          </Card>
+        ) : (
+          groups.map((group) => {
+            const daily = totals(group.txns);
+            return (
+              <View key={group.date} style={{ gap: 10 }}>
+                <Row
+                  style={{
+                    justifyContent: "space-between",
+                    paddingHorizontal: 3,
+                  }}
+                >
+                  <Txt size={12} color={t.muted}>
+                    {group.date === today()
+                      ? zh.today
+                      : group.date.slice(5).replace("-", " / ")}
+                  </Txt>
+                  <Txt size={11} color={t.muted}>
+                    {zh.expense} {formatMoney(daily.expense, false)}　
+                    {zh.income} {formatMoney(daily.income, false)}
+                  </Txt>
+                </Row>
+                <Card
+                  style={{ paddingVertical: 0, paddingHorizontal: 17, gap: 0 }}
+                >
+                  {financialRowGroups(data, group.txns).map((row, i) => (
+                    <View
+                      key={row.id}
+                      style={{ borderTopWidth: i ? 1 : 0, borderColor: t.line }}
+                    >
+                      {row.txns.length > 1 ? (
+                        <FinancialGroup name={row.name} txns={row.txns} />
+                      ) : (
+                        <TransactionRow txn={row.txns[0]!} />
+                      )}
+                    </View>
+                  ))}
+                </Card>
+              </View>
+            );
+          })
+        )}
+      </Page>
+    </SelectionContext.Provider>
   );
 }
