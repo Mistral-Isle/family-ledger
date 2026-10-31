@@ -31,7 +31,7 @@ export function EntryKeyboard({
       ) : (
         <Txt
           size={23}
-          color={["+", "−", "×", "÷"].includes(value) ? t.blue : t.text}
+          color={["+", "−", "×", "÷"].includes(value) ? t.buttonText : t.text}
         >
           {value}
         </Txt>
@@ -74,7 +74,7 @@ export function EntryKeyboard({
             opacity: pressed ? 0.6 : 1,
           })}
         >
-          <Txt size={14} bold color={t.blue}>
+          <Txt size={14} bold color={t.buttonText}>
             {onAgain ? zh.continue : zh.save}
           </Txt>
         </Pressable>
@@ -91,7 +91,7 @@ export function EntryKeyboard({
             opacity: pressed ? 0.6 : 1,
           })}
         >
-          <Txt size={16} bold color="#fff">
+          <Txt size={16} bold color={t.onPrimary}>
             完成
           </Txt>
         </Pressable>

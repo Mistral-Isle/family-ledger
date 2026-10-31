@@ -33,9 +33,12 @@ export const darcula = {
   muted: "#A9ADB3",
   line: "#55585A",
   soft: "#45494A",
-  blue: "#8AAED0",
-  primary: "#4B6EAF",
-  selected: "#31465E",
+  blue: "#8ABEF0",
+  primary: "#82B9EF",
+  onPrimary: "#202B36",
+  buttonText: "#D6E7F6",
+  selected: "#78ADE0",
+  onSelected: "#202B36",
   green: "#A5C261",
   red: "#E38B83",
 };
@@ -57,7 +60,10 @@ export function useTheme() {
     soft: dark ? darcula.soft : warm ? "#EDE5D9" : "#E9E9EF",
     blue: dark ? darcula.blue : warm ? "#8B6844" : blue,
     primary: dark ? darcula.primary : warm ? "#8B6844" : blue,
+    onPrimary: dark ? darcula.onPrimary : "#FFFFFF",
+    buttonText: dark ? darcula.buttonText : warm ? "#8B6844" : blue,
     selected: dark ? darcula.selected : warm ? "#EDE5D9" : "#E9E9EF",
+    onSelected: dark ? darcula.onSelected : "#1C1C1E",
     red: dark ? darcula.red : coral,
     green: dark ? darcula.green : "#247342",
   };
@@ -488,9 +494,9 @@ export function Button({
       })}
     >
       {icon && (
-        <Icon name={icon} color={secondary ? t.blue : "#fff"} size={18} />
+        <Icon name={icon} color={secondary ? t.buttonText : t.onPrimary} size={18} />
       )}
-      <Txt bold color={secondary ? t.blue : "#fff"}>
+      <Txt bold color={secondary ? t.buttonText : t.onPrimary}>
         {label}
       </Txt>
     </Pressable>
@@ -521,7 +527,7 @@ export function IconButton({
         backgroundColor: pressed ? t.soft : "transparent",
       })}
     >
-      <Icon name={name} color={color ?? t.muted} size={20} />
+      <Icon name={name} color={color ?? (t.dark ? t.text : t.muted)} size={20} />
     </Pressable>
   );
 }
@@ -551,7 +557,7 @@ export function Chip({
         paddingHorizontal: 14,
       })}
     >
-      <Txt size={13} color={selected ? "#fff" : t.text} bold={selected}>
+      <Txt size={13} color={selected ? t.onPrimary : t.text} bold={selected}>
         {label}
       </Txt>
     </Pressable>

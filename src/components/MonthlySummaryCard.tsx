@@ -472,14 +472,21 @@ export function MonthlySummaryCard({ month }: { month: string }) {
                 borderRadius: 10,
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: page === index ? t.card : "transparent",
+                backgroundColor:
+                  page === index
+                    ? t.dark
+                      ? t.selected
+                      : t.card
+                    : "transparent",
                 opacity: pressed ? 0.6 : 1,
               })}
             >
               <Txt
                 size={12}
                 bold={page === index}
-                color={page === index ? t.blue : t.muted}
+                color={
+                  page === index ? (t.dark ? t.onSelected : t.blue) : t.muted
+                }
               >
                 {label}
               </Txt>

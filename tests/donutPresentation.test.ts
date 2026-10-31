@@ -72,6 +72,7 @@ test.each([240, 256, 287, 311, 326, 358, 440])(
     const scenarios = [
       [],
       [367000],
+      [4800, 1200, 400, 200, 200],
       [350000, 15600, 1400],
       [1000, 1, 1, 1, 1, 1],
       [50, 40, 2.5, 2.5, 2.5, 2.5],
@@ -94,7 +95,6 @@ test.each([240, 256, 287, 311, 326, 358, 440])(
       ).toBeCloseTo(amounts.reduce((a, b) => a + b, 0));
       const lines = layout.labels.map((label) => [
         { x: label.x, y: label.anchorY },
-        { x: label.radialX, y: label.radialY },
         { x: label.elbowX, y: label.y },
         { x: label.endX, y: label.y },
       ]);
@@ -123,6 +123,29 @@ test.each([240, 256, 287, 311, 326, 358, 440])(
           );
         });
       });
+    }
+  },
+);
+
+test.each([326, 440])(
+  "example leaders rise with visible bends at %ipx",
+  (width) => {
+    const height = Math.max(240, width * 0.86);
+    const radius = Math.min(width * 0.3, width / 2 - 66);
+    const { labels } = donutLayout(
+      items([4800, 1200, 400, 200, 200]),
+      width,
+      height,
+      radius,
+    );
+    for (const label of labels) {
+      expect(label.y).toBeLessThan(label.anchorY);
+      const turn =
+        (Math.atan2(label.anchorY - label.y, Math.abs(label.elbowX - label.x)) *
+          180) /
+        Math.PI;
+      expect(turn).toBeGreaterThan(20);
+      expect(turn).toBeLessThan(80);
     }
   },
 );

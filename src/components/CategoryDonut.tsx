@@ -73,7 +73,7 @@ export function CategoryDonut({
           return (
             <G key={label.id}>
               <Polyline
-                points={`${label.x},${label.anchorY} ${label.radialX},${label.radialY} ${label.elbowX},${label.y} ${label.endX},${label.y}`}
+                points={`${label.x},${label.anchorY} ${label.elbowX},${label.y} ${label.endX},${label.y}`}
                 stroke={label.color}
                 strokeWidth={1.5}
                 strokeLinecap="round"

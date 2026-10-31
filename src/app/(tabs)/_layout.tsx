@@ -52,7 +52,7 @@ export default function TabsLayout() {
                 transform: [{ scale: pressed ? 0.94 : 1 }],
               })}
             >
-              <Icon name="plus" color="#fff" size={26} />
+              <Icon name="plus" color={t.onPrimary} size={26} />
             </Pressable>
             <Segmented
               value={state.routes[state.index]!.name}

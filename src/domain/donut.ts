@@ -41,22 +41,32 @@ export function donutSlices(items: DonutItem[], limit = 6) {
   });
 }
 
-/** Resolve labels on each side in vertical order, keeping two text lines clear. */
+/** Resolve labels in anchor order; lift prefers an upward diagonal into each label. */
 export function donutLabels(
   slices: ReturnType<typeof donutSlices>,
   centerY: number,
   radius: number,
   height: number,
+  lift = false,
 ) {
+  const preferredY = (slice: { angle: number }) =>
+    lift
+      ? centerY +
+        Math.sin(slice.angle) * radius -
+        Math.max(
+          18,
+          (radius + 6 - Math.abs(Math.cos(slice.angle) * radius)) * 0.85,
+        )
+      : centerY + Math.sin(slice.angle) * (radius + 30);
   const labels = slices.map((slice) => ({
     ...slice,
     side: Math.cos(slice.angle) >= 0 ? 1 : -1,
-    y: centerY + Math.sin(slice.angle) * (radius + 30),
+    y: preferredY(slice),
   }));
   for (const side of [-1, 1]) {
     const group = labels
       .filter((label) => label.side === side)
-      .sort((a, b) => a.y - b.y);
+      .sort((a, b) => Math.sin(a.angle) - Math.sin(b.angle));
     group.forEach((label, index) => {
       label.y = Math.max(28, label.y, index ? group[index - 1]!.y + 36 : 28);
     });
@@ -70,11 +80,8 @@ export function donutLabels(
     // downward. This keeps the leaders short for very uneven distributions.
     if (group.length) {
       const shift =
-        group.reduce(
-          (sum, label) =>
-            sum + centerY + Math.sin(label.angle) * (radius + 30) - label.y,
-          0,
-        ) / group.length;
+        group.reduce((sum, label) => sum + preferredY(label) - label.y, 0) /
+        group.length;
       const bounded = Math.max(
         28 - group[0]!.y,
         Math.min(height - 28 - group[group.length - 1]!.y, shift),
@@ -100,54 +107,62 @@ export function donutLayout(
     cy = height / 2;
   const baseRotation = source.length ? -source[0]!.angle : 0;
   let best: ReturnType<typeof candidate> | undefined;
-  function candidate(rotation: number) {
+  function candidate(rotation: number, lift: boolean) {
     const slices = source.map((slice) => ({
       ...slice,
       start: slice.start + rotation / (2 * Math.PI),
       angle: slice.angle + rotation,
     }));
     let score = 0;
-    const labels = donutLabels(slices, cy, outerRadius - 18, height).map(
-      (label) => {
-        const cos = Math.cos(label.angle),
-          sin = Math.sin(label.angle);
-        const x = cx + cos * outerRadius,
-          y = cy + sin * outerRadius;
-        const radialX = cx + cos * (outerRadius + 4);
-        const radialY = cy + sin * (outerRadius + 4);
-        const elbowX = cx + label.side * (outerRadius + 6);
-        const edge = width < 280 ? 46 : 54;
-        const endX = label.side === 1 ? width - edge : edge;
-        const dx = elbowX - radialX,
-          dy = label.y - radialY;
-        // Penalize any segment entering the circle, rather than routing a long
-        // rectangular line across the top of the chart to reach a moved label.
-        const lengthSquared = dx * dx + dy * dy;
-        const projection = lengthSquared
-          ? Math.max(
-              0,
-              Math.min(
-                1,
-                -((radialX - cx) * dx + (radialY - cy) * dy) / lengthSquared,
-              ),
-            )
-          : 0;
-        const clearance = Math.hypot(
-          radialX + projection * dx - cx,
-          radialY + projection * dy - cy,
-        );
-        score +=
-          lengthSquared + Math.max(0, outerRadius + 1 - clearance) * 100000;
-        return { ...label, x, anchorY: y, radialX, radialY, elbowX, endX };
-      },
-    );
+    const labels = donutLabels(
+      slices,
+      cy,
+      lift ? outerRadius : outerRadius - 18,
+      height,
+      lift,
+    ).map((label) => {
+      const cos = Math.cos(label.angle),
+        sin = Math.sin(label.angle);
+      const x = cx + cos * outerRadius,
+        y = cy + sin * outerRadius;
+      const elbowX = cx + label.side * (outerRadius + 6);
+      const edge = width < 280 ? 46 : 54;
+      const endX = label.side === 1 ? width - edge : edge;
+      const dx = elbowX - x,
+        dy = label.y - y;
+      // Connect the ring directly to one elbow; avoid an extra radial kink.
+      // Penalize any segment entering the circle, rather than routing a long
+      // rectangular line across the top of the chart to reach a moved label.
+      const lengthSquared = dx * dx + dy * dy;
+      const projection = lengthSquared
+        ? Math.max(
+            0,
+            Math.min(1, -((x - cx) * dx + (y - cy) * dy) / lengthSquared),
+          )
+        : 0;
+      const clearance = Math.hypot(
+        x + projection * dx - cx,
+        y + projection * dy - cy,
+      );
+      // Prefer upward leaders and turns of at least 30 degrees; circle clearance
+      // takes priority when a narrow chart or dense cluster needs a fallback.
+      score +=
+        lengthSquared +
+        (dy > -8 ? 2000 : 0) +
+        Math.max(0, Math.abs(dx) * 0.58 - Math.abs(dy)) * 100 +
+        (clearance < outerRadius - 0.000001 ? 1e9 : 0) +
+        Math.max(0, outerRadius - clearance) * 100000;
+      return { ...label, x, anchorY: y, elbowX, endX };
+    });
     return { slices, labels, score };
   }
   // Only six slices are drawn; this bounded search is cheap and keeps a dense
   // cluster beside the ring rather than directly above or below it.
   for (let step = 0; step < 72; step++) {
-    const layout = candidate(baseRotation + (step * Math.PI) / 36);
-    if (!best || layout.score < best.score - 0.01) best = layout;
+    for (const lift of [true, false]) {
+      const layout = candidate(baseRotation + (step * Math.PI) / 36, lift);
+      if (!best || layout.score < best.score - 0.01) best = layout;
+    }
   }
   return best!;
 }

@@ -19,9 +19,9 @@ export function Segmented<T extends string>({
       }
       appearance={t.dark ? "dark" : "light"}
       backgroundColor={t.soft}
-      tintColor={t.card}
+      tintColor={t.dark ? t.selected : t.card}
       fontStyle={{ color: t.muted, fontSize: 15 }}
-      activeFontStyle={{ color: t.text, fontWeight: "600", fontSize: 15 }}
+      activeFontStyle={{ color: t.onSelected, fontWeight: "600", fontSize: 15 }}
       style={{ height: 48, borderRadius: 24, overflow: "hidden" }}
     />
   );

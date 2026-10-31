@@ -82,10 +82,10 @@ export function CalendarControl({
                       borderRadius: 21,
                       alignItems: "center",
                       justifyContent: "center",
-                      backgroundColor: selected ? t.blue : "transparent",
+                      backgroundColor: selected ? t.primary : "transparent",
                     }}
                   >
-                    <Txt size={19} color={selected ? "#fff" : t.text}>
+                    <Txt size={19} color={selected ? t.onPrimary : t.text}>
                       {day}
                     </Txt>
                   </Pressable>

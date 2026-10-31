@@ -88,7 +88,8 @@ export function CategoryBreakdown({
             {label}分类详情
           </Txt>
           <Row style={{ gap: 6 }}>
-            <Popover disclosure
+            <Popover
+              disclosure
               compact
               label="环比显示方式"
               triggerText={
@@ -120,7 +121,8 @@ export function CategoryBreakdown({
                 </>
               )}
             </Popover>
-            <Popover disclosure
+            <Popover
+              disclosure
               compact
               label="分类层级与筛选"
               triggerText={level === "root" ? "一级分类" : "二级分类"}
@@ -281,7 +283,7 @@ export function CategoryBreakdown({
                           ? t.muted
                           : favorable
                             ? t.green
-                            : "#D9363E"
+                            : t.red
                       }
                     >
                       {change(item.amount, item.id)}

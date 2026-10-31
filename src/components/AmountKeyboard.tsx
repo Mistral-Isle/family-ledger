@@ -41,7 +41,9 @@ export function AmountKeyboard({ onKey }: { onKey: (key: string) => void }) {
             >
               <Txt
                 size={24}
-                color={["+", "−", "×", "÷"].includes(key) ? t.blue : t.text}
+                color={
+                  ["+", "−", "×", "÷"].includes(key) ? t.buttonText : t.text
+                }
               >
                 {key}
               </Txt>

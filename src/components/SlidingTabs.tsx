@@ -98,13 +98,17 @@ export function Segmented<T extends string>({
               <Icon
                 name={o.icon}
                 size={21}
-                color={value === o.value ? t.blue : t.muted}
+                color={
+                  value === o.value ? (t.dark ? t.onSelected : t.blue) : t.muted
+                }
               />
             )}
             <Txt
               size={o.icon ? 10 : 13}
               bold={o.value === value}
-              color={value === o.value ? t.blue : t.muted}
+              color={
+                value === o.value ? (t.dark ? t.onSelected : t.blue) : t.muted
+              }
             >
               {o.label}
             </Txt>
