@@ -1,4 +1,15 @@
+import { privacyAccountId, privacyMemberId } from "../domain/privacyTransfer";
+import {
+  summaryPreferences,
+  type SummaryPreferences,
+} from "../domain/summaryPreferences";
 import { validatePlanData } from "../domain/finance";
+import {
+  leaseSchedule,
+  leaseParts,
+  leaseExit,
+  type LeaseTerms,
+} from "../domain/lease";
 import {
   validateBudgetAllocation,
   type DetailBudgetPreferences,
@@ -20,6 +31,8 @@ import {
   type CategoryDeletionHistory,
 } from "../domain/categoryDeletion";
 import type {
+  Trip,
+  DuplicateDecision,
   Budget,
   FinancialPlan,
   Account,
@@ -36,6 +49,11 @@ import type {
 } from "../domain/types";
 import { assertMoney } from "../domain/money";
 import { validDate } from "../domain/date";
+import {
+  duplicateCandidates,
+  duplicatePairs,
+  duplicateFingerprint,
+} from "../domain/travel";
 import { zh } from "../i18n/zh";
 
 type Value = string | number | null;
@@ -45,9 +63,25 @@ export interface SqlDriver {
   withTransactionSync(fn: () => void): void;
 }
 type Entity = Operation["entity"];
-type RecordType = Account | Category | Txn | Member | FinancialPlan | Budget;
+type RecordType =
+  | Account
+  | Category
+  | Txn
+  | Member
+  | FinancialPlan
+  | Budget
+  | Trip
+  | DuplicateDecision;
 type Raw = Record<string, Value>;
 const keys: Record<string, string> = {
+  excludeBudget: "exclude_budget",
+  excludeTotals: "exclude_totals",
+  payerMemberId: "payer_member_id",
+  tripId: "trip_id",
+  startDate: "start_date",
+  endDate: "end_date",
+  firstId: "first_id",
+  secondId: "second_id",
   createdAt: "created_at",
   updatedAt: "updated_at",
   initialBalance: "initial_balance",
@@ -70,7 +104,15 @@ const keys: Record<string, string> = {
 const reverseKeys = Object.fromEntries(
   Object.entries(keys).map(([a, b]) => [b, a]),
 );
-const booleans = new Set(["deleted", "archived", "hidden", "discarded"]);
+const booleans = new Set([
+  "deleted",
+  "archived",
+  "hidden",
+  "discarded",
+  "ended",
+  "exclude_budget",
+  "exclude_totals",
+]);
 function decode<T>(row: Raw): T {
   return Object.fromEntries(
     Object.entries(row).map(([key, value]) => [
@@ -105,6 +147,189 @@ export class LedgerRepository {
   }
   restoreBackup(text: string) {
     restoreBackup(this.db, text);
+  }
+  private validateTrip(
+    trip: Pick<Trip, "name" | "startDate" | "endDate" | "ended">,
+  ) {
+    nameCheck(trip.name);
+    if (typeof trip.ended !== "boolean") throw new Error(zh.sync.invalid);
+    if (trip.startDate !== null) validDate(trip.startDate);
+    if (trip.endDate !== null) validDate(trip.endDate);
+    if (trip.startDate && trip.endDate && trip.startDate > trip.endDate)
+      throw new Error(zh.errors.date);
+  }
+  saveTrip(input: {
+    id?: string;
+    name: string;
+    startDate: string | null;
+    endDate: string | null;
+    ended: boolean;
+  }) {
+    let id = "";
+    this.validateTrip(input);
+    this.db.withTransactionSync(() => {
+      const previous = this.all<Trip>("trip").find(
+        (t) => t.id === input.id && !t.deleted,
+      );
+      if (input.id && !previous) throw new Error(zh.errors.missing);
+      const record: Trip = {
+        ...this.stamp(previous),
+        scope: "family",
+        name: nameCheck(input.name),
+        startDate: input.startDate,
+        endDate: input.endDate,
+        ended: input.ended,
+      };
+      id = record.id;
+      this.write("trip", record);
+      if (record.ended && this.pref("currentTripId", null) === id)
+        this.setPref("currentTripId", null);
+    });
+    return id;
+  }
+  currentTripId(): string | null {
+    const id = this.pref<string | null>("currentTripId", null);
+    return this.all<Trip>("trip").some(
+      (t) => t.id === id && !t.deleted && !t.ended,
+    )
+      ? id
+      : null;
+  }
+  setCurrentTrip(id: string | null) {
+    if (
+      id &&
+      !this.all<Trip>("trip").some((t) => t.id === id && !t.deleted && !t.ended)
+    )
+      throw new Error(zh.errors.missing);
+    this.db.withTransactionSync(() => this.setPref("currentTripId", id));
+  }
+  deleteTrip(id: string) {
+    this.db.withTransactionSync(() => {
+      const trip = this.all<Trip>("trip").find(
+        (t) => t.id === id && !t.deleted,
+      );
+      if (!trip) throw new Error(zh.errors.missing);
+      // Tombstone hides the relation on both devices, including concurrent late entries.
+      this.write("trip", { ...trip, ...this.stamp(trip), deleted: true });
+      if (this.pref("currentTripId", null) === id)
+        this.setPref("currentTripId", null);
+    });
+  }
+  findDuplicateCandidates(input: Parameters<typeof duplicateCandidates>[1]) {
+    return duplicateCandidates(this.snapshot(), input);
+  }
+  duplicatePairs() {
+    return duplicatePairs(this.snapshot());
+  }
+  confirmDistinct(firstId: string, secondId: string) {
+    this.db.withTransactionSync(() => {
+      const s = this.snapshot(),
+        a = s.txns.find((t) => t.id === firstId),
+        b = s.txns.find((t) => t.id === secondId);
+      if (
+        !a ||
+        !b ||
+        a.id === b.id ||
+        a.scope !== "family" ||
+        b.scope !== "family"
+      )
+        throw new Error(zh.errors.missing);
+      const [first, second] = [a, b].sort((x, y) =>
+        x.id.localeCompare(y.id),
+      ) as [Txn, Txn];
+      const previous = s.duplicates?.find(
+        (d) => d.firstId === first.id && d.secondId === second.id,
+      );
+      this.write("duplicate", {
+        ...this.stamp(previous),
+        scope: "family",
+        firstId: first.id,
+        secondId: second.id,
+        fingerprint: duplicateFingerprint(first, second),
+      });
+    });
+  }
+  defaultCategoryPreview() {
+    const s = this.snapshot();
+    return zh.defaultCategories.flatMap((g) => {
+      const root = s.categories.find(
+        (c) =>
+          !c.deleted && !c.parentId && c.kind === g.kind && c.name === g.name,
+      );
+      return [
+        ...(!root ? [{ name: g.name, parent: "", kind: g.kind }] : []),
+        ...g.children
+          .filter(
+            ([name]) =>
+              !s.categories.some(
+                (c) =>
+                  !c.deleted &&
+                  c.parentId === root?.id &&
+                  !!root &&
+                  c.name === name,
+              ),
+          )
+          .map(([name]) => ({ name, parent: g.name, kind: g.kind })),
+      ];
+    });
+  }
+  installDefaultCategories() {
+    this.db.withTransactionSync(() => {
+      let categories = this.all<Category>("category");
+      zh.defaultCategories.forEach((group, index) => {
+        let root = categories.find(
+          (c) =>
+            !c.deleted &&
+            !c.parentId &&
+            c.kind === group.kind &&
+            c.name === group.name,
+        );
+        if (!root) {
+          const id = `ca7e0000-0000-4000-8000-${String(index * 100).padStart(12, "0")}`;
+          const previous = categories.find((c) => c.id === id);
+          // A user-renamed deterministic entry is never overwritten.
+          root = {
+            ...this.stamp(),
+            id: previous ? this.uuid() : id,
+            parentId: null,
+            kind: group.kind,
+            name: group.name,
+            icon: group.icon,
+            color: group.color,
+            sort: categories.length,
+            hidden: false,
+            mergedInto: null,
+            deleteAction: null,
+          };
+          this.write("category", root);
+          categories.push(root);
+        }
+        group.children.forEach(([name, icon], sort) => {
+          if (
+            categories.some(
+              (c) => !c.deleted && c.parentId === root!.id && c.name === name,
+            )
+          )
+            return;
+          const id = `ca7e0000-0000-4000-8000-${String(index * 100 + sort + 1).padStart(12, "0")}`;
+          const child: Category = {
+            ...this.stamp(),
+            id: categories.some((c) => c.id === id) ? this.uuid() : id,
+            parentId: root!.id,
+            kind: group.kind,
+            name,
+            icon,
+            color: group.color,
+            sort,
+            hidden: false,
+            mergedInto: null,
+            deleteAction: null,
+          };
+          this.write("category", child);
+          categories.push(child);
+        });
+      });
+    });
   }
   monthBudget(month: string): number | null {
     const record = this.all<Budget>("budget")
@@ -158,12 +383,6 @@ export class LedgerRepository {
       });
     });
   }
-  remindersEnabled(): boolean {
-    return this.pref("remindersEnabled", false);
-  }
-  setRemindersEnabled(value: boolean) {
-    this.db.withTransactionSync(() => this.setPref("remindersEnabled", value));
-  }
   getTheme(): "system" | "light" | "dark" {
     return this.pref("theme", "system");
   }
@@ -183,6 +402,14 @@ export class LedgerRepository {
       excludedCategoryIds: [],
       title: "",
     });
+  }
+  getSummaryPreferences(): SummaryPreferences {
+    return summaryPreferences(this.pref("summaryPreferences", null));
+  }
+  setSummaryPreferences(value: SummaryPreferences) {
+    this.db.withTransactionSync(() =>
+      this.setPref("summaryPreferences", summaryPreferences(value)),
+    );
   }
   setDetailBudgetPreferences(value: DetailBudgetPreferences) {
     const title = value.title.trim();
@@ -247,6 +474,14 @@ export class LedgerRepository {
   }
   // The only entity-write entry point. Callers always hold a database transaction.
   private write(entity: Entity, record: RecordType, enqueue = true) {
+    if (entity === "txn")
+      record = {
+        excludeBudget: false,
+        excludeTotals: false,
+        payerMemberId: null,
+        tripId: null,
+        ...record,
+      } as Txn;
     const fields = Object.entries(record);
     const columns = fields.map(([key]) => keys[key] ?? key);
     const values = fields.map(([, value]) =>
@@ -261,6 +496,7 @@ export class LedgerRepository {
     );
     if ("scope" in record && record.scope === "private") return;
     if (enqueue) this.enqueue(entity, record);
+    if (entity === "txn") this.reconcilePrivacyTransfer(record as Txn);
   }
   private enqueue(entity: Entity, record: RecordType) {
     if ("scope" in record && record.scope !== "family")
@@ -282,6 +518,29 @@ export class LedgerRepository {
     );
     this.setPref("seq", seq);
   }
+  private upgradeDefaultCategoryOrder() {
+    if (this.pref("defaultCategoryOrderV2", false)) return;
+    const roots = this.all<Category>("category")
+      .filter((c) => !c.deleted && !c.parentId && c.kind === "expense")
+      .sort((a, b) => a.sort - b.sort);
+    const oldOrder = zh.defaultCategories
+      .filter((g) => g.kind === "expense")
+      .map((g) => g.name);
+    // Only upgrade the previous untouched default order; respect customized lists.
+    if (
+      roots.length === oldOrder.length &&
+      roots.every((c, i) => c.name === oldOrder[i])
+    ) {
+      for (const root of roots) {
+        const sort = zh.defaultExpenseOrder.findIndex(
+          (name) => name === root.name,
+        );
+        if (sort !== root.sort)
+          this.write("category", { ...root, ...this.stamp(root), sort });
+      }
+    }
+    this.setPref("defaultCategoryOrderV2", true);
+  }
   initialize() {
     this.db.withTransactionSync(() => {
       if (this.pref("initialized", false)) {
@@ -296,6 +555,7 @@ export class LedgerRepository {
               amount,
             });
         this.setPref("monthBudgets", {});
+        this.upgradeDefaultCategoryOrder();
         return;
       }
       this.setPref("deviceId", this.uuid());
@@ -323,7 +583,7 @@ export class LedgerRepository {
         pinned.push(account.id);
       }
       zh.defaultCategories.forEach((group, i) => {
-        const kind = i === 7 ? "income" : "expense";
+        const kind = group.kind;
         const root: Category = {
           ...this.stamp(),
           parentId: null,
@@ -331,7 +591,8 @@ export class LedgerRepository {
           name: group.name,
           icon: group.icon,
           color: group.color,
-          sort: i,
+          sort:
+            kind === "expense" ? zh.defaultExpenseOrder.indexOf(group.name) : i,
           hidden: false,
           mergedInto: null,
           deleteAction: null,
@@ -354,6 +615,7 @@ export class LedgerRepository {
       });
       this.setPref("preferences", { ...emptyPrefs(), pinned });
       this.setPref("initialized", true);
+      this.setPref("defaultCategoryOrderV2", true);
     });
   }
   snapshot(): Snapshot {
@@ -377,6 +639,8 @@ export class LedgerRepository {
       return { ...p, data: JSON.stringify(d) };
     });
     return {
+      trips: this.all<Trip>("trip"),
+      duplicates: this.all<DuplicateDecision>("duplicate"),
       budgets: this.all<Budget>("budget"),
       plans,
       members: this.all<Member>("member"),
@@ -683,13 +947,21 @@ export class LedgerRepository {
         )
       )
         throw new Error("原支出新增了关联退款，无法直接恢复；请先处理新增退款");
-      for (const c of item.categories) {
+      const restoredCategories = s.categories.map(
+        (c) => item.categories.find((old) => old.id === c.id) ?? c,
+      );
+      for (const c of restoredCategories.filter((c) => !c.deleted)) {
         if (
           c.parentId &&
-          !item.categories.some((p) => p.id === c.parentId) &&
-          !s.categories.some((p) => p.id === c.parentId && !p.deleted)
+          !restoredCategories.some(
+            (p) =>
+              p.id === c.parentId &&
+              !p.deleted &&
+              !p.parentId &&
+              p.kind === c.kind,
+          )
         )
-          throw new Error("请先恢复上级分类");
+          throw new Error("请先恢复上级分类，并确保它仍为同类型的一级分类");
       }
       if (
         item.favoritesBefore &&
@@ -703,6 +975,14 @@ export class LedgerRepository {
       for (const c of item.categories)
         this.write("category", { ...c, ...this.stamp(c) });
       for (const t of item.txns) this.write("txn", { ...t, ...this.stamp(t) });
+      for (const month of new Set(
+        this.all<Budget>("budget").map((b) => b.month),
+      ))
+        validateBudgetAllocation(
+          this.monthBudget(month),
+          this.monthAllocations(month),
+          this.all<Category>("category"),
+        );
       this.setPref(
         "categoryDeletionHistory",
         history.filter((h) => h.id !== id),
@@ -711,7 +991,21 @@ export class LedgerRepository {
   }
   reorderCategories(ids: string[]) {
     this.db.withTransactionSync(() => {
-      const categories = this.snapshot().categories;
+      const categories = this.snapshot().categories.filter((c) => !c.deleted);
+      const first = categories.find((c) => c.id === ids[0]);
+      const siblings = first
+        ? categories.filter(
+            (c) => c.kind === first.kind && c.parentId === first.parentId,
+          )
+        : [];
+      if (
+        !first ||
+        new Set(ids).size !== ids.length ||
+        ids.length !== siblings.length ||
+        ids.some((id) => !siblings.some((c) => c.id === id))
+      ) {
+        throw new Error("分类已变化，请重新打开排序后再试");
+      }
       ids.forEach((id, sort) => {
         const c = categories.find((x) => x.id === id && !x.deleted);
         if (c && c.sort !== sort)
@@ -731,7 +1025,13 @@ export class LedgerRepository {
     note: string;
     forWhom: Txn["forWhom"];
     refundOfId?: string | null;
+    payerMemberId?: string | null;
+    tripId?: string | null;
+    excludeBudget?: boolean;
+    excludeTotals?: boolean;
+    acceptDuplicateIds?: string[];
   }) {
+    let savedId = "";
     this.db.withTransactionSync(() => {
       const s = this.snapshot();
       const previous = s.txns.find((t) => t.id === input.id && !t.deleted);
@@ -874,8 +1174,45 @@ export class LedgerRepository {
         throw new Error(zh.finance.managed);
       if (previous && previous.scope !== account.scope)
         throw new Error(zh.errors.scope);
+      const source =
+        input.type === "refund"
+          ? s.txns.find((t) => t.id === input.refundOfId)
+          : undefined;
+      const payerMemberId =
+        input.type === "expense"
+          ? input.payerMemberId === undefined
+            ? previous
+              ? (previous.payerMemberId ?? null)
+              : account.ownerMemberId
+            : input.payerMemberId
+          : (source?.payerMemberId ?? null);
+      const tripId =
+        input.type === "expense" && account.scope === "family"
+          ? input.tripId === undefined
+            ? (previous?.tripId ?? null)
+            : input.tripId
+          : null;
+      if (
+        payerMemberId &&
+        !s.members.some((m) => m.id === payerMemberId && !m.deleted)
+      )
+        throw new Error(zh.errors.missing);
+      if (tripId && !s.trips?.some((t) => t.id === tripId && !t.deleted))
+        throw new Error(zh.errors.missing);
       const record: Txn = {
         ...this.stamp(previous),
+        excludeBudget:
+          source?.excludeBudget ??
+          input.excludeBudget ??
+          previous?.excludeBudget ??
+          false,
+        excludeTotals:
+          source?.excludeTotals ??
+          input.excludeTotals ??
+          previous?.excludeTotals ??
+          false,
+        payerMemberId,
+        tripId,
         scope: account.scope,
         type: input.type,
         amount: input.amount,
@@ -896,6 +1233,31 @@ export class LedgerRepository {
         refundIncomeCategoryId,
       };
       this.write("txn", record);
+      savedId = record.id;
+      for (const refund of refunds)
+        this.write("txn", {
+          ...refund,
+          ...this.stamp(refund),
+          excludeBudget: record.excludeBudget,
+          excludeTotals: record.excludeTotals,
+        });
+      for (const id of input.acceptDuplicateIds ?? []) {
+        const other = s.txns.find(
+          (t) => t.id === id && t.scope === "family" && !t.deleted,
+        );
+        if (other && record.scope === "family" && record.type === "expense") {
+          const [first, second] = [record, other].sort((a, b) =>
+            a.id.localeCompare(b.id),
+          ) as [Txn, Txn];
+          this.write("duplicate", {
+            ...this.stamp(),
+            scope: "family",
+            firstId: first.id,
+            secondId: second.id,
+            fingerprint: duplicateFingerprint(first, second),
+          });
+        }
+      }
       if (categoryId && input.type !== "refund" && account.scope === "family")
         this.setPref("preferences", {
           ...s.preferences,
@@ -909,6 +1271,7 @@ export class LedgerRepository {
           ].slice(0, 50),
         });
     });
+    return savedId;
   }
   private financialAccount(
     name: string,
@@ -932,7 +1295,7 @@ export class LedgerRepository {
   }
   private financialTxn(
     input: Pick<Txn, "type" | "amount" | "accountId" | "occurredAt"> &
-      Partial<Pick<Txn, "toAccountId" | "categoryId" | "note">>,
+      Partial<Pick<Txn, "toAccountId" | "categoryId" | "note" | "refundOfId">>,
   ): Txn {
     validDate(input.occurredAt);
     assertMoney(input.amount);
@@ -949,7 +1312,7 @@ export class LedgerRepository {
       recorderMemberId: this.snapshot().meId,
       forWhom: "both",
       discarded: false,
-      refundOfId: null,
+      refundOfId: input.refundOfId ?? null,
       refundIncome: 0,
       refundIncomeCategoryId: null,
     };
@@ -1200,48 +1563,57 @@ export class LedgerRepository {
     categoryId: string,
     date: string,
   ) {
-    this.db.withTransactionSync(() => {
-      const s = this.snapshot(),
-        plan = s.plans.find(
-          (p) => p.id === id && !p.deleted && p.kind === "deposit",
-        );
-      if (!plan) throw new Error(zh.errors.missing);
-      const d = JSON.parse(plan.data);
-      if (d.closed) throw new Error(zh.finance.closed);
-      this.paymentAccount(accountId);
-      validDate(date);
-      if (date < d.date) throw new Error(zh.finance.order);
-      const a = s.accounts.find((a) => a.id === d.accountId)!,
-        balance = accountBalance(a, s.txns);
-      if (assertMoney(amount) < 0 || amount > balance)
-        throw new Error(zh.errors.amount);
-      if (amount < balance) this.expenseCategory(categoryId);
-      if (amount)
-        d.txnIds.push(
-          this.financialTxn({
-            type: "transfer",
-            amount,
-            accountId: a.id,
-            toAccountId: accountId,
-            occurredAt: date,
-            note: plan.name,
-          }).id,
-        );
-      if (amount < balance)
-        d.txnIds.push(
-          this.financialTxn({
-            type: "expense",
-            amount: balance - amount,
-            accountId: a.id,
-            categoryId,
-            occurredAt: date,
-            note: zh.finance.depositLoss,
-          }).id,
-        );
-      d.closed = true;
-      this.write("account", { ...a, ...this.stamp(a), archived: true });
-      this.putPlan("deposit", plan.name, d, plan);
-    });
+    this.db.withTransactionSync(() =>
+      this.closeDepositRecords(id, amount, accountId, categoryId, date),
+    );
+  }
+  private closeDepositRecords(
+    id: string,
+    amount: number,
+    accountId: string,
+    categoryId: string,
+    date: string,
+  ) {
+    const s = this.snapshot(),
+      plan = s.plans.find(
+        (p) => p.id === id && !p.deleted && p.kind === "deposit",
+      );
+    if (!plan) throw new Error(zh.errors.missing);
+    const d = JSON.parse(plan.data);
+    if (d.closed) throw new Error(zh.finance.closed);
+    this.paymentAccount(accountId);
+    validDate(date);
+    if (date < d.date) throw new Error(zh.finance.order);
+    const a = s.accounts.find((a) => a.id === d.accountId)!,
+      balance = accountBalance(a, s.txns);
+    if (assertMoney(amount) < 0 || amount > balance)
+      throw new Error(zh.errors.amount);
+    if (amount < balance) this.expenseCategory(categoryId);
+    if (amount)
+      d.txnIds.push(
+        this.financialTxn({
+          type: "transfer",
+          amount,
+          accountId: a.id,
+          toAccountId: accountId,
+          occurredAt: date,
+          note: plan.name,
+        }).id,
+      );
+    if (amount < balance)
+      d.txnIds.push(
+        this.financialTxn({
+          type: "expense",
+          amount: balance - amount,
+          accountId: a.id,
+          categoryId,
+          occurredAt: date,
+          note: zh.finance.depositLoss,
+        }).id,
+      );
+    d.closed = true;
+    this.write("account", { ...a, ...this.stamp(a), archived: true });
+    this.putPlan("deposit", plan.name, d, plan);
   }
   private prepaymentRecords(
     input: {
@@ -1321,6 +1693,8 @@ export class LedgerRepository {
           )
         : undefined;
       if (input.id && !previous) throw new Error(zh.errors.missing);
+      if (previous && JSON.parse(previous.data).lease)
+        throw new Error("租赁请使用记录租金或续租操作");
       if (previous) this.removePlanTxns(previous);
       this.prepaymentRecords(input, previous);
     });
@@ -1351,6 +1725,311 @@ export class LedgerRepository {
       const a = s.accounts.find((a) => a.id === JSON.parse(p.data).accountId)!;
       this.write("account", { ...a, ...this.stamp(a), archived: true });
       this.write("plan", { ...p, ...this.stamp(p), deleted: true });
+    });
+  }
+  createLease(input: {
+    name: string;
+    paymentAccountId: string;
+    categoryId: string;
+    lease: LeaseTerms;
+    deposit: number;
+    date: string;
+    renewedFrom?: string;
+  }) {
+    this.db.withTransactionSync(() => {
+      const schedule = leaseSchedule(input.lease);
+      this.paymentAccount(input.paymentAccountId);
+      this.expenseCategory(input.categoryId);
+      validDate(input.date);
+      if (input.date > input.lease.start)
+        throw new Error("首次付款日期不能晚于起租日");
+      assertMoney(input.deposit);
+      if (input.deposit < 0) throw new Error("押金不能为负");
+      if (input.renewedFrom) {
+        const plans = this.snapshot().plans.filter((p) => !p.deleted);
+        const previous = plans.find(
+          (p) => p.id === input.renewedFrom && p.kind === "prepaid",
+        );
+        const d = previous && JSON.parse(previous.data);
+        if (!d?.lease || input.lease.start <= d.lease.end)
+          throw new Error("续租须在原租期结束后开始");
+        if (
+          plans.some(
+            (p) => JSON.parse(p.data).renewedFrom === input.renewedFrom,
+          )
+        )
+          throw new Error("该租约已续租，请在新租约上继续操作");
+      }
+      const a = this.financialAccount(input.name, "prepaid");
+      const depositPlanIds: string[] = [];
+      if (input.deposit)
+        depositPlanIds.push(
+          this.depositRecords({
+            name: input.name + " · 押金",
+            amount: input.deposit,
+            paymentAccountId: input.paymentAccountId,
+            date: input.date,
+          }).id,
+        );
+      const d = {
+        ...input,
+        depositPlanIds,
+        accountId: a.id,
+        amount: schedule[0]!.amount,
+        months: 1,
+        startMonth: input.lease.start.slice(0, 7),
+        day: Number(input.lease.start.slice(-2)),
+        paidPeriods: 0,
+        txnIds: [] as string[],
+        closed: false,
+      };
+      this.appendLeasePayment(d, input.date);
+      this.putPlan("prepaid", input.name, d);
+    });
+  }
+  private appendLeasePayment(d: any, date: string) {
+    const period = leaseSchedule(d.lease)[d.paidPeriods];
+    if (!period) throw new Error("当前租期的租金已全部记录，可办理续租");
+    validDate(date);
+    if (date > period.start || (d.lastPaymentDate && date < d.lastPaymentDate))
+      throw new Error("付款日期不能晚于本期开始日期，也不能早于上次付款日期");
+    this.paymentAccount(d.paymentAccountId);
+    this.expenseCategory(d.categoryId);
+    d.txnIds.push(
+      this.financialTxn({
+        type: "transfer",
+        amount: period.amount,
+        accountId: d.paymentAccountId,
+        toAccountId: d.accountId,
+        occurredAt: date,
+        note: d.name + " · 第 " + (d.paidPeriods + 1) + " 期租金",
+      }).id,
+    );
+    for (const part of leaseParts(period))
+      d.txnIds.push(
+        this.financialTxn({
+          type: "expense",
+          amount: part.amount,
+          accountId: d.accountId,
+          categoryId: d.categoryId,
+          occurredAt: part.date,
+          note: d.name + " · 租金分摊",
+        }).id,
+      );
+    d.paidPeriods++;
+    d.lastPaymentDate = date;
+  }
+  payLease(
+    id: string,
+    expectedPeriod: number,
+    date: string,
+    paymentAccountId: string,
+  ) {
+    this.db.withTransactionSync(() => {
+      const plan = this.snapshot().plans.find(
+        (p) => p.id === id && !p.deleted && p.kind === "prepaid",
+      );
+      if (!plan) throw new Error(zh.errors.missing);
+      const d = JSON.parse(plan.data);
+      if (!d.lease || d.closed || d.paidPeriods !== expectedPeriod)
+        throw new Error("租金记录已变化，请刷新后重试");
+      d.paymentAccountId = paymentAccountId;
+      this.appendLeasePayment(d, date);
+      this.putPlan("prepaid", plan.name, d, plan);
+    });
+  }
+  adjustLeaseRent(id: string, expectedPeriod: number, rent: number) {
+    this.db.withTransactionSync(() => {
+      const plan = this.snapshot().plans.find(
+        (p) => p.id === id && !p.deleted && p.kind === "prepaid",
+      );
+      if (!plan) throw new Error(zh.errors.missing);
+      const d = JSON.parse(plan.data);
+      if (!d.lease || d.closed || d.paidPeriods !== expectedPeriod)
+        throw new Error("租赁记录已变化，请刷新后重试");
+      if (!leaseSchedule(d.lease)[d.paidPeriods])
+        throw new Error("本租期已全部交租，请在续签合同时设置新租金");
+      assertMoney(rent);
+      if (rent <= 0) throw new Error("租金须大于零");
+      d.lease.rentChanges = [
+        ...(d.lease.rentChanges ?? []).filter(
+          (c: { fromPeriod: number }) => c.fromPeriod < d.paidPeriods,
+        ),
+        { fromPeriod: d.paidPeriods, rent },
+      ];
+      leaseSchedule(d.lease);
+      this.putPlan("prepaid", plan.name, d, plan);
+    });
+  }
+  endLease(
+    id: string,
+    date: string,
+    settlement?: {
+      depositIds: string[];
+      returned: number;
+      accountId: string;
+      categoryId: string;
+    },
+    rentSettlement?: { returned: number; accountId: string },
+  ) {
+    this.db.withTransactionSync(() => {
+      const plan = this.snapshot().plans.find(
+        (p) => p.id === id && !p.deleted && p.kind === "prepaid",
+      );
+      if (!plan) throw new Error(zh.errors.missing);
+      const d = JSON.parse(plan.data);
+      if (!d.lease || d.closed) throw new Error("租赁已结束或不存在");
+      validDate(date);
+      if (date < d.lease.start || date < d.lastPaymentDate || date > today())
+        throw new Error("结束日期须在起租及最近付款之后，且不能晚于今天");
+      const exit = leaseExit(d.lease, d.paidPeriods, date);
+      if (exit.unused > 0 && !rentSettlement)
+        throw new Error("请填写提前退租实际退回的租金，未退回填 0");
+      if (rentSettlement) {
+        const s = this.snapshot();
+        const expenses = (d.txnIds as string[])
+          .map((id) => s.txns.find((t) => t.id === id))
+          .filter(
+            (t): t is Txn =>
+              !!t &&
+              !t.deleted &&
+              t.type === "expense" &&
+              t.accountId === d.accountId,
+          );
+        if (
+          expenses.length !== exit.parts.length ||
+          expenses.some(
+            (t, i) =>
+              t.amount !== exit.parts[i]!.originalAmount ||
+              t.occurredAt !== exit.parts[i]!.date ||
+              t.discarded,
+          ) ||
+          s.txns.some(
+            (t) =>
+              !t.deleted &&
+              t.refundOfId &&
+              expenses.some((e) => e.id === t.refundOfId),
+          )
+        )
+          throw new Error("租金分摊记录已有变化，请先核对相关退款或分摊");
+        const paid = expenses.reduce(
+          (sum, t) => assertMoney(sum + t.amount),
+          0,
+        );
+        const returned = assertMoney(rentSettlement.returned);
+        if (returned < 0 || returned > paid)
+          throw new Error("退回租金须在 0 与已付租金之间");
+        this.paymentAccount(rentSettlement.accountId);
+        const retained: Txn[] = [];
+        expenses.forEach((txn, i) => {
+          const amount = exit.parts[i]!.amount;
+          const updated = {
+            ...txn,
+            ...this.stamp(txn),
+            amount: amount || txn.amount,
+            deleted: amount === 0,
+          };
+          if (amount !== txn.amount) this.write("txn", updated);
+          if (amount) retained.push({ ...txn, amount });
+        });
+        const prepaidReturn = Math.min(returned, exit.unused);
+        if (prepaidReturn)
+          d.txnIds.push(
+            this.financialTxn({
+              type: "transfer",
+              amount: prepaidReturn,
+              accountId: d.accountId,
+              toAccountId: rentSettlement.accountId,
+              occurredAt: date,
+              note: plan.name + " · 退回未住租金",
+            }).id,
+          );
+        const withheld = Math.max(0, exit.unused - returned);
+        if (withheld) {
+          this.expenseCategory(d.categoryId);
+          d.txnIds.push(
+            this.financialTxn({
+              type: "expense",
+              amount: withheld,
+              accountId: d.accountId,
+              categoryId: d.categoryId,
+              occurredAt: date,
+              note: plan.name + " · 提前退租未退租金",
+            }).id,
+          );
+        }
+        let extra = returned - prepaidReturn;
+        for (const txn of retained.reverse()) {
+          if (!extra) break;
+          const amount = Math.min(extra, txn.amount);
+          d.txnIds.push(
+            this.financialTxn({
+              type: "refund",
+              amount,
+              accountId: rentSettlement.accountId,
+              categoryId: txn.categoryId,
+              refundOfId: txn.id,
+              occurredAt: date,
+              note: plan.name + " · 租金退款",
+            }).id,
+          );
+          extra -= amount;
+        }
+        d.rentSettlement = {
+          ...rentSettlement,
+          unused: exit.unused,
+          withheld,
+          date,
+        };
+      }
+      if (settlement) {
+        const ids = settlement.depositIds;
+        if (!ids.length || new Set(ids).size !== ids.length)
+          throw new Error("请选择待结算的押金");
+        const s = this.snapshot();
+        const deposits = ids.map((depositId) => {
+          const deposit = s.plans.find(
+            (p) => p.id === depositId && !p.deleted && p.kind === "deposit",
+          );
+          if (!deposit || JSON.parse(deposit.data).closed)
+            throw new Error("押金已结算或不存在，请刷新后重试");
+          const account = s.accounts.find(
+            (a) => a.id === JSON.parse(deposit.data).accountId,
+          );
+          if (!account) throw new Error(zh.errors.missing);
+          return { id: depositId, balance: accountBalance(account, s.txns) };
+        });
+        const balance = deposits.reduce(
+          (sum, p) => assertMoney(sum + p.balance),
+          0,
+        );
+        if (
+          assertMoney(settlement.returned) < 0 ||
+          settlement.returned > balance
+        )
+          throw new Error("实际退回金额须在 0 与押金余额之间");
+        let remaining = settlement.returned;
+        for (const deposit of deposits) {
+          const returned = Math.min(remaining, deposit.balance);
+          this.closeDepositRecords(
+            deposit.id,
+            returned,
+            settlement.accountId,
+            settlement.categoryId,
+            date,
+          );
+          remaining -= returned;
+        }
+        d.depositSettlement = {
+          ...settlement,
+          total: balance,
+          deducted: balance - settlement.returned,
+          date,
+        };
+      }
+      d.closed = true;
+      d.endedAt = date;
+      this.putPlan("prepaid", plan.name, d, plan);
     });
   }
   createRent(input: {
@@ -1391,7 +2070,16 @@ export class LedgerRepository {
 
   familySnapshotOperations(): Operation[] {
     return (
-      ["member", "account", "category", "txn", "plan", "budget"] as const
+      [
+        "member",
+        "account",
+        "category",
+        "txn",
+        "plan",
+        "budget",
+        "trip",
+        "duplicate",
+      ] as const
     ).flatMap((entity) =>
       this.all<RecordType>(entity)
         .filter((r) => !("scope" in r) || r.scope === "family")
@@ -1446,6 +2134,7 @@ export class LedgerRepository {
     return (
       !s.txns.length &&
       !s.plans.length &&
+      !s.trips?.length &&
       !s.accounts.some((a) => a.scope === "private")
     );
   }
@@ -1454,7 +2143,15 @@ export class LedgerRepository {
       if (!this.canJoinFamily()) throw new Error(zh.sync.joinNotEmpty);
       const s = this.snapshot(),
         me = s.members.find((m) => m.id === s.meId)!;
-      for (const table of ["category", "account", "member", "budget", "outbox"])
+      for (const table of [
+        "category",
+        "account",
+        "member",
+        "budget",
+        "trip",
+        "duplicate",
+        "outbox",
+      ])
         this.db.runSync(`DELETE FROM ${table}`);
       this.setPref("preferences", emptyPrefs());
       this.setPref("categoryDeletionHistory", []);
@@ -1482,9 +2179,16 @@ export class LedgerRepository {
       for (const op of ops) {
         if (
           !op ||
-          !["member", "account", "category", "txn", "plan", "budget"].includes(
-            op.entity,
-          ) ||
+          ![
+            "member",
+            "account",
+            "category",
+            "txn",
+            "plan",
+            "budget",
+            "trip",
+            "duplicate",
+          ].includes(op.entity) ||
           typeof op.opId !== "string" ||
           typeof op.deviceId !== "string" ||
           !Number.isSafeInteger(op.seq) ||
@@ -1511,6 +2215,30 @@ export class LedgerRepository {
           (record as Budget).allocations === undefined
         )
           (record as Budget).allocations = "{}";
+        if (op.entity === "txn") {
+          (record as Txn).excludeBudget ??= false;
+          (record as Txn).excludeTotals ??= false;
+          (record as Txn).payerMemberId ??= null;
+          (record as Txn).tripId ??= null;
+        }
+        if (op.entity === "trip") this.validateTrip(record as Trip);
+        if (op.entity === "duplicate") {
+          const d = record as DuplicateDecision;
+          if (
+            !d.firstId ||
+            !d.secondId ||
+            d.firstId >= d.secondId ||
+            !d.fingerprint
+          )
+            throw new Error(zh.sync.invalid);
+          if (
+            this.all<Txn>("txn").some(
+              (t) =>
+                t.scope === "private" && [d.firstId, d.secondId].includes(t.id),
+            )
+          )
+            throw new Error(zh.errors.scope);
+        }
         const expected = columns.map((c) => reverseKeys[c.name] ?? c.name);
         if (Object.keys(record).sort().join() !== expected.sort().join())
           throw new Error(zh.sync.invalid);
@@ -1605,6 +2333,21 @@ export class LedgerRepository {
             (t.type === "refund" && (t.refundIncome ?? 0) > t.amount)
           )
             throw new Error(zh.sync.invalid);
+          if (t.tripId && t.type !== "expense")
+            throw new Error(zh.sync.invalid);
+          if (privacyMemberId(t.accountId) || privacyMemberId(t.toAccountId)) {
+            if (
+              t.type !== "transfer" ||
+              !t.toAccountId ||
+              t.accountId === t.toAccountId ||
+              t.note !== "" ||
+              t.categoryId !== null ||
+              t.tripId !== null ||
+              (privacyMemberId(t.accountId) &&
+                privacyMemberId(t.accountId) !== t.recorderMemberId)
+            )
+              throw new Error(zh.sync.invalid);
+          }
           const accounts = this.all<Account>("account");
           if (
             accounts.some(
@@ -1691,6 +2434,12 @@ export class LedgerRepository {
         }
         if (!seen.has(op.opId) && (!previous || previous.hlc < record.hlc)) {
           this.write(op.entity, record, false);
+          if (
+            op.entity === "trip" &&
+            ((record as Trip).ended || record.deleted) &&
+            this.pref("currentTripId", null) === record.id
+          )
+            this.setPref("currentTripId", null);
           if (op.entity === "txn") {
             const t = record as Txn,
               pair = this.scopeTransfers().find((p) => p.familyId === t.id);
@@ -1802,6 +2551,228 @@ export class LedgerRepository {
       });
       this.setPref("seenOps", [...seen]);
     });
+  }
+
+  privateReceiptAccount(): string {
+    return this.pref("privateReceiptAccount", "");
+  }
+  setPrivateReceiptAccount(id: string) {
+    this.db.withTransactionSync(() => {
+      const me = this.pref<string>("meId", "");
+      if (
+        !this.all<Account>("account").some(
+          (a) =>
+            a.id === id &&
+            a.scope === "private" &&
+            a.ownerMemberId === me &&
+            !a.deleted &&
+            !a.archived &&
+            !["loan", "deposit", "prepaid"].includes(a.kind),
+        )
+      )
+        throw new Error("请选择自己的可用隐私账户");
+      this.setPref("privateReceiptAccount", id);
+      for (const row of this.all<Txn>("txn"))
+        if (row.scope === "family" && row.type === "transfer")
+          this.reconcilePrivacyTransfer(row);
+    });
+  }
+  pendingPrivateTransfers() {
+    const me = this.pref<string>("meId", ""),
+      rows = this.all<Txn>("txn");
+    return rows.filter(
+      (t) =>
+        !t.deleted &&
+        t.scope === "family" &&
+        t.toAccountId === privacyAccountId(me) &&
+        !rows.some((r) => r.id === "receipt:" + t.id + ":" + me),
+    );
+  }
+  private reconcilePrivacyTransfer(row: Txn) {
+    const me = this.pref<string>("meId", ""),
+      alias = privacyAccountId(me);
+    const incoming = row.type === "transfer" && row.toAccountId === alias,
+      outgoing = row.type === "transfer" && row.accountId === alias;
+    const id = "receipt:" + row.id + ":" + me;
+    const old = this.all<Txn>("txn").find((t) => t.id === id);
+    if (!incoming && !outgoing) {
+      const bindings = this.pref<Record<string, string>>(
+        "privateTransferBindings",
+        {},
+      );
+      if (bindings[row.id]) {
+        delete bindings[row.id];
+        this.setPref("privateTransferBindings", bindings);
+      }
+      if (old)
+        this.write(
+          "txn",
+          { ...old, deleted: true, hlc: row.hlc, updatedAt: row.updatedAt },
+          false,
+        );
+      return;
+    }
+    const bindings = this.pref<Record<string, string>>(
+      "privateTransferBindings",
+      {},
+    );
+    const accountId = bindings[row.id] ?? this.privateReceiptAccount();
+    const account = this.all<Account>("account").find(
+      (a) =>
+        a.id === accountId &&
+        a.scope === "private" &&
+        a.ownerMemberId === me &&
+        (!a.deleted || !!old) &&
+        (!a.archived || !!old),
+    );
+    if (!account) return; // Received while unconfigured: visibly pending in the vault.
+    if (!bindings[row.id])
+      this.setPref("privateTransferBindings", {
+        ...bindings,
+        [row.id]: account.id,
+      });
+    this.write(
+      "txn",
+      {
+        ...row,
+        id,
+        scope: "private",
+        type: incoming ? "scope_in" : "scope_out",
+        accountId: account.id,
+        toAccountId: null,
+        note: incoming ? "成员转入" : "成员转出",
+      },
+      false,
+    );
+  }
+  saveMemberTransfer(input: {
+    id?: string;
+    accountId: string;
+    toAccountId: string;
+    amount: number;
+    occurredAt: string;
+    occurredTime?: string | null;
+    note: string;
+  }) {
+    let saved = "";
+    this.db.withTransactionSync(() => {
+      const s = this.snapshot(),
+        old = s.txns.find((t) => t.id === input.id && !t.deleted);
+      if (
+        old?.accountId.startsWith("privacy:") &&
+        privacyMemberId(old.accountId) !== s.meId
+      )
+        throw new Error("请由转出方修改这笔隐私转账");
+      if (
+        input.id &&
+        (!old || old.type !== "transfer" || old.scope !== "family")
+      )
+        throw new Error(zh.errors.missing);
+      if (assertMoney(input.amount) <= 0) throw new Error(zh.errors.amount);
+      validDate(input.occurredAt);
+      if (
+        input.occurredTime &&
+        !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.occurredTime)
+      )
+        throw new Error("时间无效");
+      const endpoint = (id: string, outgoing: boolean) => {
+        const member = privacyMemberId(id);
+        if (member) {
+          if (
+            !s.members.some((m) => m.id === member && !m.deleted) ||
+            (outgoing && member !== s.meId)
+          )
+            throw new Error("只能从自己的隐私账户转出");
+          return id;
+        }
+        const a = s.accounts.find(
+          (a) => a.id === id && !a.deleted && !a.archived,
+        );
+        if (!a || ["loan", "deposit", "prepaid"].includes(a.kind))
+          throw new Error(zh.errors.account);
+        if (a.scope === "private") {
+          if (a.ownerMemberId !== s.meId) throw new Error(zh.errors.scope);
+          return privacyAccountId(s.meId);
+        }
+        return id;
+      };
+      const from = endpoint(input.accountId, true),
+        to = endpoint(input.toAccountId, false);
+      if (from === to) throw new Error(zh.errors.destination);
+      if (old && (old.accountId !== from || old.toAccountId !== to))
+        throw new Error("请撤销原转账后重新选择账户");
+      if (
+        old &&
+        s.plans.some(
+          (p) =>
+            !p.deleted && (JSON.parse(p.data).txnIds ?? []).includes(old.id),
+        )
+      )
+        throw new Error(zh.finance.managed);
+      if (
+        privacyMemberId(from) === s.meId &&
+        !s.accounts.some(
+          (a) => a.id === input.accountId && a.scope === "private",
+        )
+      ) {
+        const binding =
+          this.pref<Record<string, string>>("privateTransferBindings", {})[
+            old?.id ?? ""
+          ] ?? this.privateReceiptAccount();
+        if (
+          !s.accounts.some(
+            (a) =>
+              a.id === binding &&
+              a.scope === "private" &&
+              a.ownerMemberId === s.meId &&
+              !a.deleted &&
+              !a.archived,
+          )
+        )
+          throw new Error("请在小金库设置可用的默认收款账户");
+      }
+      const stamp = this.stamp(old);
+      saved = stamp.id;
+      const localPrivate = s.accounts.find(
+        (a) =>
+          a.scope === "private" &&
+          [input.accountId, input.toAccountId].includes(a.id),
+      );
+      if (localPrivate)
+        this.setPref("privateTransferBindings", {
+          ...this.pref<Record<string, string>>("privateTransferBindings", {}),
+          [saved]: localPrivate.id,
+        });
+      if (
+        privacyMemberId(from) === s.meId &&
+        !localPrivate &&
+        !this.privateReceiptAccount() &&
+        !old
+      )
+        throw new Error("请先在小金库设置默认收款账户");
+      this.write("txn", {
+        ...stamp,
+        scope: "family",
+        type: "transfer",
+        amount: input.amount,
+        accountId: from,
+        toAccountId: to,
+        categoryId: null,
+        occurredAt: input.occurredAt,
+        occurredTime: input.occurredTime ?? null,
+        note:
+          privacyMemberId(from) || privacyMemberId(to)
+            ? ""
+            : input.note.trim().slice(0, 500),
+        recorderMemberId: old?.recorderMemberId ?? s.meId,
+        forWhom: "both",
+        discarded: false,
+        refundOfId: null,
+        refundIncome: 0,
+        refundIncomeCategoryId: null,
+      });
+    });
+    return saved;
   }
 
   scopeTransfers(): { id: string; familyId: string; privateId: string }[] {

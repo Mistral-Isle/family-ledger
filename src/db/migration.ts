@@ -27,11 +27,25 @@ export const budgetSql =
   "CREATE TABLE `budget` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`created_at` text NOT NULL,\n\t`updated_at` text NOT NULL,\n\t`hlc` text NOT NULL,\n\t`deleted` integer DEFAULT false NOT NULL,\n\t`scope` text NOT NULL,\n\t`month` text NOT NULL,\n\t`amount` integer NOT NULL\n);\n";
 export const allocationSql =
   "ALTER TABLE `budget` ADD `allocations` text DEFAULT '{}' NOT NULL;--> statement-breakpoint\nALTER TABLE `txn` ADD `occurred_time` text;";
+export const familyTravelSql = `
+ALTER TABLE txn ADD payer_member_id text;
+--> statement-breakpoint
+ALTER TABLE txn ADD trip_id text;
+--> statement-breakpoint
+CREATE TABLE trip (id TEXT PRIMARY KEY NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, hlc TEXT NOT NULL, deleted INTEGER NOT NULL DEFAULT 0, scope TEXT NOT NULL, name TEXT NOT NULL, start_date TEXT, end_date TEXT, ended INTEGER NOT NULL DEFAULT 0);
+--> statement-breakpoint
+CREATE TABLE duplicate (id TEXT PRIMARY KEY NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, hlc TEXT NOT NULL, deleted INTEGER NOT NULL DEFAULT 0, scope TEXT NOT NULL, first_id TEXT NOT NULL, second_id TEXT NOT NULL, fingerprint TEXT NOT NULL);
+--> statement-breakpoint
+CREATE INDEX txn_trip_idx ON txn(trip_id);
+`;
+export const transactionOptionsSql =
+  "ALTER TABLE txn ADD exclude_budget integer DEFAULT 0 NOT NULL;\n--> statement-breakpoint\nALTER TABLE txn ADD exclude_totals integer DEFAULT 0 NOT NULL;\n";
 export const migrations = {
   journal: {
     version: "7",
     dialect: "sqlite",
     entries: [
+      // New migrations are appended below; never rewrite an installed migration.
       {
         idx: 0,
         version: "6",
@@ -67,6 +81,20 @@ export const migrations = {
         tag: "0004_sour_sugar_man",
         breakpoints: true,
       },
+      {
+        idx: 5,
+        version: "6",
+        when: 1793376000000,
+        tag: "0005_family_travel",
+        breakpoints: true,
+      },
+      {
+        idx: 6,
+        version: "6",
+        when: 1793400000000,
+        tag: "0006_transaction_options",
+        breakpoints: true,
+      },
     ],
   },
   migrations: {
@@ -75,5 +103,7 @@ export const migrations = {
     m0002: financialSql,
     m0003: budgetSql,
     m0004: allocationSql,
+    m0005: familyTravelSql,
+    m0006: transactionOptionsSql,
   },
 };

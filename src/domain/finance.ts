@@ -1,6 +1,6 @@
 import { assertMoney } from "./money";
 import { validDate, today } from "./date";
-import { addDays } from "./reports";
+import { leaseSchedule } from "./lease";
 export type LoanData = {
   accountId: string;
   paymentAccountId: string;
@@ -19,7 +19,7 @@ export type LoanData = {
 export function monthDate(month: string, day: number) {
   validDate(month + "-01");
   if (!Number.isInteger(day) || day < 1 || day > 31)
-    throw new Error("还款日须在 1–31 之间");
+    throw new Error("每月日期须在 1–31 之间");
   const d = new Date(month + "-01T00:00:00Z");
   d.setUTCMonth(d.getUTCMonth() + 1);
   d.setUTCDate(0);
@@ -147,7 +147,6 @@ export function rentSchedule(
     total: assertMoney(deposit + prepaid),
     parts,
     next,
-    reminder: addDays(next, -7),
   };
 }
 export function validatePlanData(kind: "loan" | "deposit" | "prepaid", d: any) {
@@ -170,6 +169,77 @@ export function validatePlanData(kind: "loan" | "deposit" | "prepaid", d: any) {
   validDate(d.date);
   if (kind === "prepaid")
     splitPrepayment(d.amount, d.months, d.startMonth, d.day);
+  if (kind === "prepaid" && d.lease) {
+    if (d.rentSettlement !== undefined) {
+      const r = d.rentSettlement;
+      if (
+        !r ||
+        !d.closed ||
+        typeof r.accountId !== "string" ||
+        ![r.returned, r.unused, r.withheld].every(Number.isSafeInteger) ||
+        r.returned < 0 ||
+        r.unused < 0 ||
+        r.withheld !== Math.max(0, r.unused - r.returned) ||
+        r.date !== d.endedAt
+      )
+        throw new Error("租金退租结算记录无效");
+      validDate(r.date);
+    }
+    if (d.depositSettlement !== undefined) {
+      const settlement = d.depositSettlement;
+      if (
+        !settlement ||
+        !d.closed ||
+        !Array.isArray(settlement.depositIds) ||
+        !settlement.depositIds.length ||
+        !settlement.depositIds.every((id: unknown) => typeof id === "string") ||
+        new Set(settlement.depositIds).size !== settlement.depositIds.length ||
+        typeof settlement.accountId !== "string" ||
+        typeof settlement.categoryId !== "string" ||
+        ![settlement.total, settlement.returned, settlement.deducted].every(
+          Number.isSafeInteger,
+        ) ||
+        settlement.returned < 0 ||
+        settlement.deducted < 0 ||
+        settlement.total !== settlement.returned + settlement.deducted ||
+        settlement.date !== d.endedAt
+      )
+        throw new Error("租赁押金结算记录无效");
+      validDate(settlement.date);
+    }
+    if (
+      d.depositPlanIds !== undefined &&
+      (!Array.isArray(d.depositPlanIds) ||
+        !d.depositPlanIds.every((id: unknown) => typeof id === "string") ||
+        new Set(d.depositPlanIds).size !== d.depositPlanIds.length)
+    )
+      throw new Error("租赁押金关联无效");
+    const schedule = leaseSchedule(d.lease);
+    if (
+      !Number.isSafeInteger(d.paidPeriods) ||
+      d.paidPeriods < 1 ||
+      d.paidPeriods > schedule.length ||
+      typeof d.name !== "string" ||
+      (d.renewedFrom !== undefined && typeof d.renewedFrom !== "string")
+    )
+      throw new Error("租赁付款记录无效");
+    validDate(d.lastPaymentDate);
+    if (d.endedAt !== undefined) {
+      validDate(d.endedAt);
+      if (
+        !d.closed ||
+        d.endedAt < d.lease.start ||
+        d.endedAt < d.lastPaymentDate
+      )
+        throw new Error("租赁结束日期无效");
+    }
+    if (
+      d.date > d.lease.start ||
+      d.lastPaymentDate < d.date ||
+      d.lastPaymentDate > schedule[d.paidPeriods - 1]!.start
+    )
+      throw new Error("租赁付款日期无效");
+  }
   if (
     d.expectedReturn !== undefined &&
     d.expectedReturn !== null &&

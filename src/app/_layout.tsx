@@ -1,3 +1,4 @@
+import { useReducedMotion } from "../components/useReducedMotion";
 import { SyncRunner } from "../components/SyncRunner";
 import { isBudgetDemo } from "../demo/config";
 import { useEffect } from "react";
@@ -10,6 +11,7 @@ import { LedgerProvider } from "../components/LedgerProvider";
 import { useTheme } from "../components/ui";
 export default function RootLayout() {
   const t = useTheme();
+  const reducedMotion = useReducedMotion();
   useEffect(() => {
     const listener = AppState.addEventListener("change", (state) => {
       if (state !== "active") useVault.getState().setUnlocked(false);
@@ -24,6 +26,7 @@ export default function RootLayout() {
         <Stack
           screenOptions={{
             headerShown: false,
+            animation: reducedMotion ? "fade" : "default",
             contentStyle: { backgroundColor: t.bg },
           }}
         >

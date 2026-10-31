@@ -26,16 +26,18 @@ import { useReducedMotion } from "./useReducedMotion";
 
 export function CategoryDeletionSheet({
   id,
+  initialTargetId,
   onClose,
 }: {
   id: string;
+  initialTargetId?: string;
   onClose: () => void;
 }) {
   const { data, repo, run } = useLedger();
   const theme = useTheme();
   const reduced = useReducedMotion();
   const [action, setAction] = useState<CategoryDeletion["action"]>("migrate");
-  const [targetId, setTargetId] = useState("");
+  const [targetId, setTargetId] = useState(initialTargetId ?? "");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const rawImpact = categoryDeletionImpact(data, id);

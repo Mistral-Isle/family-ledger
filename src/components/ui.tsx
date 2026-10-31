@@ -39,13 +39,15 @@ export function useTheme() {
     card: dark ? "#1D2026" : warm ? "#FFFDFA" : "#FFFFFF",
     text: dark ? "#F5F5F7" : "#1C1C1E",
     muted: dark ? "#ABABB2" : "#67676F",
-    line: dark ? "#38383A" : "#E5E5EA",
+    line: dark ? "#38383A" : warm ? "#DDD3C5" : "#E5E5EA",
     soft: dark ? "#2B3039" : warm ? "#EDE5D9" : "#E9E9EF",
     blue: dark ? "#9CBFFF" : warm ? "#8B6844" : blue,
     green: dark ? "#6BDA89" : "#247342",
   };
 }
 const symbols = [
+  "clock",
+  "delete.left",
   "calendar",
   "questionmark.circle",
   "book.closed.fill",
@@ -54,6 +56,9 @@ const symbols = [
   "plus",
   "creditcard.fill",
   "person.crop.circle",
+  "chevron.down",
+  "circle",
+  "checkmark.circle.fill",
   "chevron.left",
   "chevron.right",
   "xmark",
@@ -108,6 +113,8 @@ const symbols = [
 ] as const;
 export type IconName = (typeof symbols)[number];
 const paths: Record<string, string> = {
+  "suitcase.fill": "M8 5V3H16V5M4 5H20V21H4ZM8 5V21M16 5V21",
+  clock: "M22 12A10 10 0 1 1 2 12A10 10 0 1 1 22 12ZM12 6V12L16 14",
   "sun.max.fill":
     "M16 12a4 4 0 11-8 0 4 4 0 018 0M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5",
   calendar:
@@ -124,6 +131,12 @@ const paths: Record<string, string> = {
   "book.fill": "M3 4h6l3 2 3-2h6v15h-6l-3 2-3-2H3zM12 6v15",
   "list.bullet": "M8 6h13M8 12h13M8 18h13M3 6h.1M3 12h.1M3 18h.1",
   "chart.bar.fill": "M4 20V10h4v10M10 20V4h4v16M16 20v-7h4v7",
+  "chevron.down": "M6 9L12 15L18 9",
+  circle: "M22 12A10 10 0 1 1 2 12A10 10 0 1 1 22 12Z",
+  "checkmark.circle.fill":
+    "M22 12A10 10 0 1 1 2 12A10 10 0 1 1 22 12ZM7 12L10 15L17 8",
+  "delete.left":
+    "M9 5H20Q22 5 22 7V17Q22 19 20 19H9Q8 19 7 18L2 13Q1 12 2 11L7 6Q8 5 9 5M12 9L18 15M18 9L12 15",
   "creditcard.fill": "M3 5h18v14H3zM3 9h18M6 15h4",
   "person.crop.circle":
     "M20 21v-3a6 6 0 00-6-6h-4a6 6 0 00-6 6v3M16 5a4 4 0 11-8 0 4 4 0 018 0",
@@ -155,7 +168,7 @@ const paths: Record<string, string> = {
   cloud: "M5 18a4 4 0 010-8 7 7 0 0113-2 5 5 0 010 10z",
   "pin.fill": "M8 3h8l-1 7 4 3v2H5v-2l4-3zM12 15v7",
   "gearshape.fill":
-    "M12 3v3M12 18v3M3 12h3M18 12h3M6 6l2 2M16 16l2 2M6 18l2-2M16 8l2-2M17 12a5 5 0 11-10 0 5 5 0 0110 0",
+    "M9 2H15L15.5 4.5L17 5.4L19.4 4.6L22.4 9.8L20.5 11.5V13L22.4 14.7L19.4 19.9L17 19.1L15.5 20L15 22.5H9L8.5 20L7 19.1L4.6 19.9L1.6 14.7L3.5 13V11.5L1.6 9.8L4.6 4.6L7 5.4L8.5 4.5ZM16 12.25A4 4 0 1 1 8 12.25A4 4 0 1 1 16 12.25Z",
 };
 export function Icon({
   name,

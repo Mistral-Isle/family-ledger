@@ -26,7 +26,9 @@ export function CalendarControl({
 export function TimeControl({
   value,
   onChange,
+  compact = false,
 }: {
+  compact?: boolean;
   value: Date;
   onChange: (date: Date) => void;
 }) {
@@ -36,13 +38,18 @@ export function TimeControl({
       accessibilityLabel="选择时间"
       value={value}
       mode="time"
-      display="spinner"
+      display={compact ? "compact" : "spinner"}
+      accentColor={t.blue}
       locale="zh-CN"
       themeVariant={t.dark ? "dark" : "light"}
       onChange={(_, date) => {
         if (date) onChange(date);
       }}
-      style={{ height: 190, alignSelf: "stretch" }}
+      style={
+        compact
+          ? { height: 44, width: 120 }
+          : { height: 190, alignSelf: "stretch" }
+      }
     />
   );
 }

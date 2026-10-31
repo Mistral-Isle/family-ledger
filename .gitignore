@@ -20,3 +20,7 @@ docs/pdf-extracted.txt
 
 expo-env.d.ts
 # @end expo-cli
+
+!modules/ledger-category-order/ios/
+!modules/ledger-category-order/ios/*.swift
+!modules/ledger-category-order/ios/*.podspec

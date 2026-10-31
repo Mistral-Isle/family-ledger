@@ -1,6 +1,6 @@
 import type { Category, Txn } from "./types";
 import { assertMoney } from "./money";
-import { categoryAmounts, totals } from "./selectors";
+import { budgetTxns, categoryAmounts, totals } from "./selectors";
 import { today, validDate } from "./date";
 import { averageExpense } from "./reports";
 
@@ -18,6 +18,7 @@ export function detailBudget(
   allocations: Record<string, number>,
   preferences: DetailBudgetPreferences,
 ) {
+  txns = budgetTxns(txns);
   const excluded = new Set(preferences.excludedCategoryIds);
   const byId = new Map(categories.map((c) => [c.id, c]));
   const includes = (id: string | null): boolean => {
@@ -53,8 +54,6 @@ export function detailBudget(
           (txn) => txn.occurredAt.startsWith(month) && includes(txn.categoryId),
         ),
       ).expense;
-  const name = (c: Category) =>
-    c.parentId ? `${byId.get(c.parentId)?.name ?? "分类"} / ${c.name}` : c.name;
   return {
     budget,
     expense,
@@ -71,7 +70,9 @@ export function detailBudget(
     filtered,
     included,
     omitted,
-    explanation: `包含：${included.map(name).join("、") || "无"}。\n\n排除：${omitted.map(name).join("、") || "无"}。\n\n仅影响明细页预算和预算日均剩余。未单独分配的额度保留在上级或总预算中；未分配预算的分类关闭后仅排除其支出。可在完整预算中调整分类额度。`,
+    explanation: filtered
+      ? "按已开启的分类计算预算与支出。可在预算设置中调整范围，不影响账单和完整预算。"
+      : "当前包含全部支出分类。可在预算设置中调整明细页的显示范围。",
   };
 }
 
@@ -113,7 +114,7 @@ export function categoryBudgetUsage(
   month: string,
 ): Map<string, number> {
   const amounts = categoryAmounts(
-    txns.filter((txn) => txn.occurredAt.startsWith(month)),
+    budgetTxns(txns).filter((txn) => txn.occurredAt.startsWith(month)),
     "expense",
   );
   const usage = new Map(amounts);

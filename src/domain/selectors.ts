@@ -36,6 +36,11 @@ export function visibleTxns(txns: Txn[], scope: Scope = "family"): Txn[] {
         b.createdAt.localeCompare(a.createdAt),
     );
 }
+export function budgetTxns(txns: Txn[]): Txn[] {
+  return txns
+    .filter((t) => !t.excludeBudget)
+    .map((t) => ({ ...t, excludeTotals: false }));
+}
 export function totals(txns: Txn[]): {
   expense: number;
   income: number;
@@ -44,7 +49,8 @@ export function totals(txns: Txn[]): {
   let expense = 0;
   let income = 0;
   for (const t of txns) {
-    if (t.deleted || t.discarded || t.scope !== "family") continue;
+    if (t.deleted || t.discarded || t.excludeTotals || t.scope !== "family")
+      continue;
     if (t.type === "expense") expense = assertMoney(expense + t.amount);
     if (t.type === "refund") {
       expense = assertMoney(expense - (t.amount - (t.refundIncome ?? 0)));
@@ -60,7 +66,8 @@ export function categoryAmounts(
 ): Map<string, number> {
   const amounts = new Map<string, number>();
   for (const t of txns) {
-    if (t.deleted || t.discarded || t.scope !== "family") continue;
+    if (t.deleted || t.discarded || t.excludeTotals || t.scope !== "family")
+      continue;
     const categoryId =
       t.type === "refund" && kind === "income"
         ? t.refundIncomeCategoryId

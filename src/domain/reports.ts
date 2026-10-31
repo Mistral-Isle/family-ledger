@@ -1,3 +1,4 @@
+import { payerId } from "./travel";
 import { zh } from "../i18n/zh";
 import type { CategoryKind, Snapshot, Txn } from "./types";
 import { categoryAmounts, totals, visibleTxns } from "./selectors";
@@ -90,7 +91,7 @@ export function categoryReport(
         (kind === "expense"
           ? txn.amount - (txn.refundIncome ?? 0) > 0
           : (txn.refundIncome ?? 0) > 0));
-    if (!contributes) continue;
+    if (!contributes || txn.excludeTotals) continue;
     const id =
       txn.type === "refund" && kind === "income"
         ? txn.refundIncomeCategoryId
@@ -133,10 +134,17 @@ export function reportingSnapshot(
   s: Snapshot,
   memberId: string,
   includeRepayments: boolean,
+  basis: "recorder" | "payer" = "recorder",
 ): Snapshot {
   const id = "report-loan-principal";
   const txns = s.txns
-    .filter((t) => !memberId || t.recorderMemberId === memberId)
+    .filter(
+      (t) =>
+        !memberId ||
+        (basis === "payer"
+          ? (payerId(s, t) ?? "unknown")
+          : t.recorderMemberId) === memberId,
+    )
     .map((t) =>
       includeRepayments && t.type === "repayment"
         ? { ...t, type: "expense" as const, categoryId: id }

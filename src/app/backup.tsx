@@ -2,7 +2,7 @@ import { withSyncLock } from "../services/syncRuntime";
 import { clearSyncConfig } from "../services/syncConfig";
 import { useSyncStatus } from "../state/sync";
 import { VaultGate } from "../components/VaultGate";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import { useLedger } from "../components/LedgerProvider";
 import {
@@ -18,7 +18,6 @@ import {
 import { zh } from "../i18n/zh";
 import { saveBackupFile, readBackupFile } from "../services/backupFiles";
 import { packBackup, unpackBackup } from "../services/backupFormat";
-import { useUi } from "../state/ui";
 export default function BackupRoute() {
   const { data } = useLedger();
   return data.accounts.some((a) => a.scope === "private") ? (
@@ -37,9 +36,12 @@ function Backup() {
     preview: string;
   } | null>(null);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   async function task(fn: () => Promise<void>) {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setError("");
     setMessage("");
@@ -48,6 +50,7 @@ function Backup() {
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }
@@ -109,33 +112,31 @@ function Backup() {
             disabled={busy}
             label={zh.backup.confirm}
             onPress={() =>
-              confirmAction(zh.backup.confirm, zh.backup.warning, async () => {
-                setBusy(true);
-                try {
-                  await withSyncLock(async () => {
-                    await clearSyncConfig();
-                    useSyncStatus.setState({
-                      configured: false,
-                      busy: false,
-                      error: "",
-                      last: "",
+              confirmAction(
+                zh.backup.confirm,
+                zh.backup.warning,
+                () =>
+                  void task(async () => {
+                    await withSyncLock(async () => {
+                      await clearSyncConfig();
+                      useSyncStatus.setState({
+                        configured: false,
+                        busy: false,
+                        error: "",
+                        last: "",
+                      });
+                      run(() => repo.restoreBackup(pending.text));
                     });
-                    run(() => repo.restoreBackup(pending.text));
-                  });
-                  useUi.getState().setTheme(repo.getTheme());
-                  setPending(null);
-                  setError("");
-                  setMessage(zh.backup.done);
-                } catch (e) {
-                  setError((e as Error).message);
-                } finally {
-                  setBusy(false);
-                }
-              })
+                    setPending(null);
+                    setError("");
+                    setMessage(zh.backup.done);
+                  }),
+              )
             }
           />
           <Button
             secondary
+            disabled={busy}
             label={zh.backup.cancel}
             onPress={() => setPending(null)}
           />

@@ -233,6 +233,13 @@ describe("reversible category deletion", () => {
     const root = f.repo
       .snapshot()
       .categories.find((c) => c.kind === "income" && !c.parentId)!;
+    for (const other of f.repo
+      .snapshot()
+      .categories.filter(
+        (c) => c.kind === "income" && !c.parentId && c.id !== root.id,
+      )) {
+      f.repo.saveCategory({ ...other, hidden: true });
+    }
     const before = f.repo.snapshot();
     expect(() => f.repo.deleteCategory(root.id, { action: "discard" })).toThrow(
       "至少一个",

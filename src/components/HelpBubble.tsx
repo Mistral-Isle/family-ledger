@@ -6,9 +6,12 @@ import {
   ScrollView,
   View,
   useWindowDimensions,
+  type StyleProp,
+  type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon, Txt, useTheme } from "./ui";
+import { useReducedMotion } from "./useReducedMotion";
 
 /** Anchored, dismissible explanations and contextual menus share one surface. */
 export function Popover({
@@ -17,6 +20,12 @@ export function Popover({
   active = false,
   triggerText,
   compact = false,
+  disclosure = false,
+  triggerContent,
+  menuWidth = 320,
+  align = "end",
+  contentStyle,
+  animated = true,
   children,
 }: {
   label: string;
@@ -24,9 +33,16 @@ export function Popover({
   active?: boolean;
   triggerText?: string;
   compact?: boolean;
+  disclosure?: boolean;
+  triggerContent?: ReactNode;
+  menuWidth?: number;
+  align?: "start" | "end";
+  contentStyle?: StyleProp<ViewStyle>;
+  animated?: boolean;
   children: ReactNode | ((close: () => void) => ReactNode);
 }) {
   const t = useTheme();
+  const reduced = useReducedMotion();
   const trigger = useRef<View>(null);
   const [anchor, setAnchor] = useState<{
     x: number;
@@ -44,7 +60,7 @@ export function Popover({
     window.addEventListener("keydown", escape);
     return () => window.removeEventListener("keydown", escape);
   }, [anchor]);
-  const bubbleWidth = Math.min(320, width - 32);
+  const bubbleWidth = Math.min(menuWidth, width - 32);
   const below = anchor ? anchor.y < height * 0.55 : true;
   return (
     <>
@@ -70,22 +86,34 @@ export function Popover({
             pressed || active || compact ? t.soft : "transparent",
         })}
       >
-        {triggerText ? (
-          <Txt size={compact ? 12 : 15} bold style={{ textAlign: "center" }}>
-            {triggerText}
-          </Txt>
-        ) : (
-          <Icon
-            name={icon}
-            size={icon === "questionmark.circle" ? 18 : 22}
-            color={active ? t.blue : t.muted}
-          />
-        )}
+        {triggerContent ??
+          (triggerText ? (
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 5 }}
+            >
+              <Txt
+                size={compact ? 13 : 15}
+                bold
+                style={{ textAlign: "center" }}
+              >
+                {triggerText}
+              </Txt>
+              {disclosure && (
+                <Icon name="chevron.down" size={11} color={t.muted} />
+              )}
+            </View>
+          ) : (
+            <Icon
+              name={icon}
+              size={icon === "questionmark.circle" ? 18 : 22}
+              color={active ? t.blue : t.muted}
+            />
+          ))}
       </Pressable>
       <Modal
         visible={!!anchor}
         transparent
-        animationType="fade"
+        animationType={reduced || !animated ? "none" : "fade"}
         onRequestClose={close}
       >
         <View style={{ flex: 1 }}>
@@ -103,7 +131,7 @@ export function Popover({
                 left: Math.max(
                   16,
                   Math.min(
-                    anchor.x - bubbleWidth + 44,
+                    align === "start" ? anchor.x : anchor.x - bubbleWidth + 44,
                     width - bubbleWidth - 16,
                   ),
                 ),
@@ -138,7 +166,7 @@ export function Popover({
             >
               <ScrollView
                 keyboardShouldPersistTaps="handled"
-                contentContainerStyle={{ padding: 18, gap: 12 }}
+                contentContainerStyle={[{ padding: 18, gap: 12 }, contentStyle]}
               >
                 {typeof children === "function" ? children(close) : children}
               </ScrollView>

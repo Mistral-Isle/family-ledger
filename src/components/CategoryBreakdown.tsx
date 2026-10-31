@@ -3,6 +3,7 @@ import { Pressable, View } from "react-native";
 import type { Snapshot } from "../domain/types";
 import { categoryReport, type DateRange } from "../domain/reports";
 import { shareLabel } from "../domain/donut";
+import { categoryChartColors, chartOtherColor } from "../domain/chartColors";
 import { formatMoney } from "../domain/money";
 import { CategoryDonut } from "./CategoryDonut";
 import { CategoryPicker } from "./CategoryPicker";
@@ -10,15 +11,6 @@ import { Segmented } from "./Segmented";
 import { HelpBubble, Popover } from "./HelpBubble";
 import { Card, Chip, Icon, Row, Txt, useTheme } from "./ui";
 
-const palette = [
-  "#F26B70",
-  "#F59D50",
-  "#E8BC41",
-  "#35B8CC",
-  "#5D8FF0",
-  "#8D72E8",
-  "#C17CE9",
-];
 export function CategoryBreakdown({
   data,
   range,
@@ -68,20 +60,10 @@ export function CategoryBreakdown({
     0,
   );
   const total = categories.reduce((sum, c) => sum + c.amount, 0);
-  const colors = new Map<string, string>();
-  const used = new Set<string>();
-  // Keep each category's color stable across periods, and distinguish duplicate category colors.
-  data.categories
-    .filter((c) => c.kind === kind)
-    .sort((a, b) => a.sort - b.sort || a.id.localeCompare(b.id))
-    .forEach((c, index) => {
-      const color = !used.has(c.color)
-        ? c.color
-        : (palette.find((value) => !used.has(value)) ??
-          palette[index % palette.length]!);
-      colors.set(c.id, color);
-      used.add(color);
-    });
+  const colors = categoryChartColors(
+    data.categories.filter((c) => c.kind === kind),
+    categories.map((c) => c.id),
+  );
   const label =
     kind === "income" ? "收入" : includeRepayments ? "流出" : "支出";
   const change = (amount: number, id: string) => {
@@ -106,15 +88,15 @@ export function CategoryBreakdown({
             {label}分类详情
           </Txt>
           <Row style={{ gap: 6 }}>
-            <Popover
+            <Popover disclosure
               compact
               label="环比显示方式"
               triggerText={
                 comparison === "amount"
-                  ? "环比金额 ⌄"
+                  ? "环比金额"
                   : comparison === "percent"
-                    ? "环比比例 ⌄"
-                    : "隐藏环比 ⌄"
+                    ? "环比比例"
+                    : "隐藏环比"
               }
             >
               {(close) => (
@@ -138,10 +120,10 @@ export function CategoryBreakdown({
                 </>
               )}
             </Popover>
-            <Popover
+            <Popover disclosure
               compact
               label="分类层级与筛选"
-              triggerText={level === "root" ? "一级分类 ⌄" : "二级分类 ⌄"}
+              triggerText={level === "root" ? "一级分类" : "二级分类"}
             >
               {(close) => (
                 <>
@@ -188,7 +170,7 @@ export function CategoryBreakdown({
             id: c.id,
             name: c.category?.name ?? "未分类",
             amount: c.amount,
-            color: colors.get(c.id) ?? t.blue,
+            color: colors.get(c.id) ?? chartOtherColor,
           }))}
         />
         {!categories.length && (
@@ -205,7 +187,7 @@ export function CategoryBreakdown({
             0,
           );
           const canExpand = level === "root" && children.length > 0;
-          const color = colors.get(item.id) ?? t.blue;
+          const color = colors.get(item.id) ?? chartOtherColor;
           const delta = item.amount - (prior.get(item.id) ?? 0);
           const favorable = kind === "income" ? delta > 0 : delta < 0;
           const open = expanded.includes(item.id);

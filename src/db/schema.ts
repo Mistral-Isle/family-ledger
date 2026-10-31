@@ -70,23 +70,48 @@ export const txns = sqliteTable(
     occurredTime: text("occurred_time"),
     note: text("note").notNull().default(""),
     recorderMemberId: text("recorder_member_id").notNull(),
+    payerMemberId: text("payer_member_id"),
+    tripId: text("trip_id"),
     forWhom: text("for_whom", { enum: ["me", "partner", "both"] }).notNull(),
     discarded: integer("discarded", { mode: "boolean" })
       .notNull()
       .default(false),
     refundOfId: text("refund_of_id"),
+    excludeBudget: integer("exclude_budget", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    excludeTotals: integer("exclude_totals", { mode: "boolean" })
+      .notNull()
+      .default(false),
     refundIncome: integer("refund_income").notNull().default(0),
     refundIncomeCategoryId: text("refund_income_category_id"),
   },
   (t) => [
     index("txn_date_idx").on(t.occurredAt),
     index("txn_account_idx").on(t.accountId),
+    index("txn_trip_idx").on(t.tripId),
   ],
 );
 export const outbox = sqliteTable("outbox", {
   seq: integer("seq").primaryKey({ autoIncrement: true }),
   opJson: text("op_json").notNull(),
   uploaded: integer("uploaded", { mode: "boolean" }).notNull().default(false),
+});
+
+export const trips = sqliteTable("trip", {
+  ...base(),
+  scope: text("scope").notNull(),
+  name: text("name").notNull(),
+  startDate: text("start_date"),
+  endDate: text("end_date"),
+  ended: integer("ended", { mode: "boolean" }).notNull().default(false),
+});
+export const duplicateDecisions = sqliteTable("duplicate", {
+  ...base(),
+  scope: text("scope").notNull(),
+  firstId: text("first_id").notNull(),
+  secondId: text("second_id").notNull(),
+  fingerprint: text("fingerprint").notNull(),
 });
 export const localPrefs = sqliteTable("local_pref", {
   key: text("key").primaryKey(),

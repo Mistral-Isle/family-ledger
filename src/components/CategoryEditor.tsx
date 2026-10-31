@@ -1,4 +1,5 @@
 import { useReducedMotion } from "./useReducedMotion";
+import { useSubmissionGuard } from "./useSubmissionGuard";
 import { useState } from "react";
 import {
   Modal,
@@ -46,6 +47,7 @@ export function CategoryEditor({
     t = useTheme(),
     insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
+  const submission = useSubmissionGuard();
   const [form, setForm] = useState(initial),
     [query, setQuery] = useState(""),
     [group, setGroup] = useState("全部"),
@@ -61,7 +63,10 @@ export function CategoryEditor({
   function save() {
     try {
       const ids = new Set(data.categories.map((c) => c.id));
-      run(() => repo.saveCategory({ ...form, kind }));
+      if (
+        !submission.run(() => run(() => repo.saveCategory({ ...form, kind })))
+      )
+        return;
       const id =
         form.id ?? repo.snapshot().categories.find((c) => !ids.has(c.id))?.id;
       if (id) onSaved?.(id);

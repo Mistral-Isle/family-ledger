@@ -1,3 +1,4 @@
+import { transferAccountName } from "./privacyTransfer";
 import { loanProjection, type LoanData } from "./finance";
 import * as XLSX from "xlsx";
 import type { Snapshot } from "./types";
@@ -9,6 +10,14 @@ import {
   type DateRange,
 } from "./reports";
 import { moneyInput } from "./money";
+import {
+  tripSummary,
+  effectiveTripId,
+  memberName,
+  payerId,
+  categoryPath,
+  netExpense,
+} from "./travel";
 import { zh } from "../i18n/zh";
 type Cell = string | number;
 export type ExportSheet = { name: string; rows: Cell[][] };
@@ -25,14 +34,19 @@ export function exportSheets(s: Snapshot, range: DateRange): ExportSheet[] {
       p = s.categories.find((p) => p.id === c?.parentId);
     return [p?.name, c?.name].filter(Boolean).join(" / ");
   };
-  const account = (id: string | null) =>
-    s.accounts.find((a) => a.id === id && a.scope === "family")?.name ?? "";
+  const account = (id: string | null) => (id ? transferAccountName(s, id) : "");
   const member = (id: string) => s.members.find((m) => m.id === id)?.name ?? "";
   return [
     {
       name: e.details,
       rows: [
-        [...e.detailHeaders],
+        [
+          ...e.detailHeaders,
+          zh.collaboration.payer,
+          zh.collaboration.trip,
+          "不计入预算",
+          "不计入收支",
+        ],
         ...txns.map((t) => [
           t.occurredAt,
           zh[t.type],
@@ -53,6 +67,12 @@ export function exportSheets(s: Snapshot, range: DateRange): ExportSheet[] {
           currency(t.refundIncome ?? 0),
           category(t.refundIncomeCategoryId),
           t.occurredTime ?? "",
+          t.type === "expense" || t.type === "refund"
+            ? memberName(s, payerId(s, t))
+            : "",
+          s.trips?.find((x) => x.id === effectiveTripId(s, t))?.name ?? "",
+          t.excludeBudget ? "是" : "否",
+          t.excludeTotals ? "是" : "否",
         ]),
       ],
     },
@@ -137,6 +157,66 @@ export function exportSheets(s: Snapshot, range: DateRange): ExportSheet[] {
               d.settlePeriod,
             ];
           }),
+      ],
+    },
+  ];
+}
+export function tripExportSheets(s: Snapshot, tripId: string): ExportSheet[] {
+  const trip = s.trips?.find((x) => x.id === tripId && !x.deleted);
+  if (!trip) throw new Error(zh.errors.missing);
+  const summary = tripSummary(s, tripId),
+    c = zh.collaboration;
+  return [
+    {
+      name: zh.exports.details,
+      rows: [
+        [
+          c.trip,
+          "日期",
+          "时间",
+          "类型",
+          "分类",
+          "金额",
+          "退款抵减",
+          "净消费",
+          c.payer,
+          "付款账户",
+          c.recorder,
+          "备注",
+        ],
+        ...summary.rows.map((t) => [
+          trip.name,
+          t.occurredAt,
+          t.occurredTime ?? "",
+          zh[t.type],
+          categoryPath(s, t.categoryId),
+          currency(t.amount),
+          currency(t.type === "refund" ? t.amount - (t.refundIncome ?? 0) : 0),
+          currency(netExpense(t)),
+          memberName(s, payerId(s, t)),
+          s.accounts.find((a) => a.id === t.accountId)?.name ?? "",
+          memberName(s, t.recorderMemberId),
+          t.note,
+        ]),
+      ],
+    },
+    {
+      name: c.payer,
+      rows: [
+        [c.payer, c.tripTotal],
+        ...summary.members.map(([id, n]) => [memberName(s, id), currency(n)]),
+        ["合计", currency(summary.total)],
+      ],
+    },
+    {
+      name: zh.exports.categories,
+      rows: [
+        ["分类", c.tripTotal],
+        ...summary.categories.map(([id, n]) => [
+          categoryPath(s, id),
+          currency(n),
+        ]),
+        ["合计", currency(summary.total)],
       ],
     },
   ];

@@ -2,7 +2,7 @@ name: Unsigned iOS build
 on:
   workflow_dispatch:
   push:
-    branches: ["codex/ios-rounded-ui"]
+    branches: ["codex/ios-rounded-ui", "codex/sidestore-*"]
 permissions:
   contents: read
 jobs:

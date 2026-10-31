@@ -2,14 +2,11 @@
   "expo": {
     "name": "两个人的账本",
     "slug": "family-ledger",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "scheme": "familyledger",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "platforms": [
-      "ios",
-      "web"
-    ],
+    "platforms": ["ios", "web"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.dwigh.familyledger",
@@ -21,7 +18,7 @@
         },
         "NSCameraUsageDescription": "扫描另一位家庭成员的账本配对二维码"
       },
-      "buildNumber": "2"
+      "buildNumber": "3"
     },
     "web": {
       "bundler": "metro",

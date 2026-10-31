@@ -5,6 +5,8 @@ import {
   financialSql,
   budgetSql,
   allocationSql,
+  familyTravelSql,
+  transactionOptionsSql,
 } from "../src/db/migration";
 import { LedgerRepository, type SqlDriver } from "../src/db/repository";
 import { randomUUID } from "node:crypto";
@@ -16,6 +18,8 @@ export function fixture() {
   sqlite.exec(financialSql);
   sqlite.exec(budgetSql);
   sqlite.exec(allocationSql.replace(/--> statement-breakpoint/g, ""));
+  sqlite.exec(familyTravelSql.replace(/--> statement-breakpoint/g, ""));
+  sqlite.exec(transactionOptionsSql.replace(/--> statement-breakpoint/g, ""));
   const driver: SqlDriver = {
     runSync(sql, ...params) {
       return sqlite.prepare(sql).run(...params);

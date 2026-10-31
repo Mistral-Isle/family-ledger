@@ -50,7 +50,12 @@ export default function Stats() {
   const [showCalendar, setShowCalendar] = useState(() =>
     repo.getShowIncomeCalendar(),
   );
-  const reportData = reportingSnapshot(data, memberId, includeRepayments);
+  const reportData = reportingSnapshot(
+    data,
+    memberId,
+    includeRepayments,
+    "payer",
+  );
   const month = useUi((s) => s.month);
   const { statsView, statsRequest } = useUi();
   const [view, setView] = useState<"expense" | "income" | "balance">(statsView);
@@ -79,7 +84,7 @@ export default function Stats() {
   const summary = totals(rows);
   const prior = previous ? totals(rangeTxns(reportData.txns, previous)) : null;
   const actual = totals(
-    rangeTxns(reportingSnapshot(data, memberId, false).txns, range),
+    rangeTxns(reportingSnapshot(data, memberId, false, "payer").txns, range),
   );
   const value = summary[view];
   const period = mode === "month" ? "本月" : "本期";
@@ -98,6 +103,31 @@ export default function Stats() {
         title={zh.tabs.stats}
         action={
           <Row style={{ gap: 0 }}>
+            <Popover
+              label="选择统计成员"
+              triggerText={
+                data.members.find((m) => m.id === memberId)?.name ?? "全部成员"
+              }
+              compact
+            >
+              <View style={styles.wrap}>
+                <Chip
+                  label={zh.collaboration.allPayers}
+                  selected={!memberId}
+                  onPress={() => setMemberId("")}
+                />
+                {data.members
+                  .filter((m) => !m.deleted)
+                  .map((m) => (
+                    <Chip
+                      key={m.id}
+                      label={m.name}
+                      selected={memberId === m.id}
+                      onPress={() => setMemberId(m.id)}
+                    />
+                  ))}
+              </View>
+            </Popover>
             <Popover label="统计显示设置" triggerText="显示设置" compact>
               <Txt bold size={18}>
                 显示设置
@@ -158,6 +188,7 @@ export default function Stats() {
           <Popover
             label="选择统计周"
             icon="calendar"
+            disclosure
             triggerText={`${range.start.replaceAll("-", ".")} — ${range.end.slice(5).replace("-", ".")}`}
           >
             {(close) => (
@@ -229,7 +260,7 @@ export default function Stats() {
         <View style={{ alignItems: "center" }}>
           <Popover
             label="选择统计范围"
-            triggerText={`${range.start.replaceAll("-", ".")} — ${range.end.replaceAll("-", ".")} ⌄`}
+            triggerText={`${range.start.replaceAll("-", ".")} — ${range.end.replaceAll("-", ".")}`}
           >
             {(close) => (
               <>
@@ -274,23 +305,6 @@ export default function Stats() {
         </View>
       )}
       <ErrorText message={mode === "custom" ? "" : error} />
-      <View style={styles.wrap}>
-        <Chip
-          label={zh.memberAll}
-          selected={!memberId}
-          onPress={() => setMemberId("")}
-        />
-        {data.members
-          .filter((m) => !m.deleted)
-          .map((m) => (
-            <Chip
-              key={m.id}
-              label={m.name}
-              selected={memberId === m.id}
-              onPress={() => setMemberId(m.id)}
-            />
-          ))}
-      </View>
       <Segmented
         value={view}
         options={[

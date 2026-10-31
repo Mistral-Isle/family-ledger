@@ -122,7 +122,7 @@ export function CategoryPicker({
                     </Pressable>
                   ))}
               </View>
-              {root && (
+              {root && allowAll && (
                 <Button
                   secondary
                   label="选择整个一级分类"

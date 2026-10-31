@@ -1,4 +1,5 @@
 import { DateField } from "../components/DateField";
+import { useSubmissionGuard } from "../components/useSubmissionGuard";
 import { VaultGate } from "../components/VaultGate";
 import { useState } from "react";
 import { View } from "react-native";
@@ -90,6 +91,7 @@ function Refund() {
   const [date, setDate] = useState(existing?.occurredAt ?? today());
   const [note, setNote] = useState(existing?.note ?? "");
   const [error, setError] = useState("");
+  const submission = useSubmissionGuard();
   let split: { offset: number; income: number } | undefined;
   try {
     const total = calculate(amount);
@@ -106,18 +108,23 @@ function Refund() {
   const save = () => {
     try {
       if (!source || (id && !existing)) throw new Error(zh.errors.refundSource);
-      run(() =>
-        repo.saveTxn({
-          id: existing?.id,
-          type: "refund",
-          amount: calculate(amount),
-          accountId,
-          occurredAt: date,
-          note,
-          forWhom: source.forWhom,
-          refundOfId: source.id,
-        }),
-      );
+      if (
+        !submission.run(() =>
+          run(() =>
+            repo.saveTxn({
+              id: existing?.id,
+              type: "refund",
+              amount: calculate(amount),
+              accountId,
+              occurredAt: date,
+              note,
+              forWhom: source.forWhom,
+              refundOfId: source.id,
+            }),
+          ),
+        )
+      )
+        return;
       router.back();
     } catch (e) {
       setError((e as Error).message);

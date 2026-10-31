@@ -126,6 +126,18 @@ export default function Me() {
             href="/budget"
           />
           <SettingsRow
+            title={zh.collaboration.tripTitle}
+            icon="suitcase.fill"
+            color="#4E91AD"
+            href="/trips"
+          />
+          <SettingsRow
+            title={zh.collaboration.duplicateInbox}
+            icon="list.bullet"
+            color="#B9824C"
+            href="/duplicates"
+          />
+          <SettingsRow
             title={zh.categoryManagement}
             icon="list.bullet"
             color="#4B82C5"

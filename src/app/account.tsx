@@ -1,4 +1,5 @@
 import { VaultGate } from "../components/VaultGate";
+import { useSubmissionGuard } from "../components/useSubmissionGuard";
 import { useState } from "react";
 import { View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -49,22 +50,28 @@ function AccountEditor() {
   );
   const [last4, setLast4] = useState(existing?.last4 ?? "");
   const [error, setError] = useState("");
+  const submission = useSubmissionGuard();
   const save = (archive?: boolean) => {
     try {
       if (id && !existing) throw new Error(zh.errors.missing);
-      run(() =>
-        repo.saveAccount({
-          id: existing?.id,
-          scope:
-            existing?.scope ?? (scope === "private" ? "private" : "family"),
-          name,
-          kind,
-          initialBalance: parseMoney(balance),
-          last4,
-          ownerMemberId,
-          archived: archive ?? existing?.archived,
-        }),
-      );
+      if (
+        !submission.run(() =>
+          run(() =>
+            repo.saveAccount({
+              id: existing?.id,
+              scope:
+                existing?.scope ?? (scope === "private" ? "private" : "family"),
+              name,
+              kind,
+              initialBalance: parseMoney(balance),
+              last4,
+              ownerMemberId,
+              archived: archive ?? existing?.archived,
+            }),
+          ),
+        )
+      )
+        return;
       router.back();
     } catch (e) {
       setError((e as Error).message);

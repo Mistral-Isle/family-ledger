@@ -37,7 +37,6 @@ test("rent example and final-installment rounding", () => {
       { date: "2027-01-01", amount: 300000 },
     ],
     next: "2027-02-01",
-    reminder: "2027-01-25",
   });
   expect(
     splitPrepayment(1000000, 3, "2026-11", 1).map((p) => p.amount),

@@ -70,7 +70,7 @@ export function MonthField({
           <Txt bold size={compact ? 19 : 15} style={{ flexShrink: 1 }}>
             {value.slice(0, 4)}年{!yearOnly && `${Number(value.slice(5, 7))}月`}
           </Txt>
-          <Icon name="arrow.down" size={12} color={t.muted} />
+          <Icon name="chevron.down" size={11} color={t.muted} />
         </Row>
       </Pressable>
       <Modal

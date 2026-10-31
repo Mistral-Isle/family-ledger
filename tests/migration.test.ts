@@ -1,6 +1,28 @@
 import { DatabaseSync } from "node:sqlite";
 import { initialSql, refundIncomeSql, migrations } from "../src/db/migration";
 import { readFileSync } from "node:fs";
+import { familyTravelSql } from "../src/db/migration";
+
+test("family travel upgrade preserves old money and leaves payer unknown", () => {
+  const db = new DatabaseSync(":memory:");
+  try {
+    db.exec(initialSql.replace(/--> statement-breakpoint/g, ""));
+    db.exec(
+      "INSERT INTO txn(id,created_at,updated_at,hlc,scope,type,amount,account_id,occurred_at,recorder_member_id,for_whom) VALUES('legacy','c','u','h','family','expense',1234,'a','2026-10-01','m','both')",
+    );
+    db.exec(familyTravelSql.replace(/--> statement-breakpoint/g, ""));
+    expect(
+      db.prepare("SELECT amount,payer_member_id,trip_id FROM txn").get(),
+    ).toEqual({ amount: 1234, payer_member_id: null, trip_id: null });
+    expect(
+      readFileSync("src/db/migrations/0005_family_travel.sql", "utf8")
+        .replace(/\r/g, "")
+        .trim(),
+    ).toBe(familyTravelSql.trim());
+  } finally {
+    db.close();
+  }
+});
 
 test("refund income upgrade preserves legacy receipt, defaults split to zero, and matches migration files", () => {
   const db = new DatabaseSync(":memory:");

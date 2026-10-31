@@ -4,7 +4,7 @@ import { Platform, Pressable, Switch, View } from "react-native";
 import { useLedger } from "./LedgerProvider";
 import { Button, Card, ErrorText, Field, Icon, Row, Txt, useTheme } from "./ui";
 import { calculate, formatMoney, moneyInput } from "../domain/money";
-import { totals } from "../domain/selectors";
+import { budgetTxns, totals } from "../domain/selectors";
 import {
   categoryBudgetUsage,
   detailBudget,
@@ -97,7 +97,7 @@ export function BudgetCard({
     preferences,
   );
   const expense = totals(
-    data.txns.filter((txn) => txn.occurredAt.startsWith(month)),
+    budgetTxns(data.txns).filter((txn) => txn.occurredAt.startsWith(month)),
   ).expense;
   const [editing, setEditing] = useState(false);
   const [input, setInput] = useState(budget === null ? "" : moneyInput(budget));
@@ -173,35 +173,42 @@ export function BudgetCard({
     const spent = usage.get(category.id) ?? 0;
     const included =
       !excluded.has(category.id) && (!parent || !excluded.has(parent.id));
-    return (
-      <View style={{ gap: 8 }}>
-        {editing ? (
-          <Field
-            label={label}
-            value={draft[category.id] ?? ""}
-            keyboardType="decimal-pad"
-            placeholder="未分配"
-            onChangeText={(value) =>
-              setDraft((current) => ({ ...current, [category.id]: value }))
-            }
-          />
-        ) : (
-          <Row style={{ justifyContent: "space-between", flexWrap: "wrap" }}>
-            <Txt size={13} color={t.muted}>
-              预算 {amount === undefined ? "未设置" : formatMoney(amount)}
-            </Txt>
-            {amount !== undefined && (
-              <Txt size={13} color={amount < spent ? "#D9363E" : t.green}>
-                {amount < spent ? "超支" : "剩余"}{" "}
-                {formatMoney(Math.abs(amount - spent))}
-              </Txt>
-            )}
-          </Row>
-        )}
+    return editing ? (
+      <Field
+        label={label}
+        value={draft[category.id] ?? ""}
+        keyboardType="decimal-pad"
+        placeholder="未分配"
+        onChangeText={(value) =>
+          setDraft((current) => ({ ...current, [category.id]: value }))
+        }
+      />
+    ) : (
+      <View
+        style={{
+          flexDirection: "row",
+          flexWrap: "wrap",
+          columnGap: 8,
+          rowGap: 2,
+        }}
+      >
+        <Txt size={12} color={t.muted}>
+          预算 {amount === undefined ? "未设置" : formatMoney(amount)}
+        </Txt>
         <Txt size={12} color={t.muted}>
           已用 {formatMoney(spent)}
-          {included ? "" : " · 已从明细预算排除"}
         </Txt>
+        {amount !== undefined && (
+          <Txt size={12} color={amount < spent ? "#D9363E" : t.green}>
+            {amount < spent ? "超支" : "剩余"}{" "}
+            {formatMoney(Math.abs(amount - spent))}
+          </Txt>
+        )}
+        {!included && (
+          <Txt size={12} color={t.muted}>
+            不计入明细
+          </Txt>
+        )}
       </View>
     );
   };
@@ -213,27 +220,21 @@ export function BudgetCard({
         </Txt>
         <HelpBubble label="明细预算范围">{display.explanation}</HelpBubble>
         <View style={{ flex: 1 }} />
-        {embedded ? (
-          <Popover label="明细预算设置">
-            {(close) => (
-              <Button
-                secondary
-                label="分类预算与显示设置"
-                onPress={() => {
-                  close();
-                  router.push("/budget");
-                }}
-              />
-            )}
-          </Popover>
-        ) : (
-          <Popover label="修改明细预算名称" icon="pencil">
-            {(close) => <DetailBudgetSettings onDone={close} />}
-          </Popover>
-        )}
+        <Popover label="明细预算设置">
+          {(close) => (
+            <Button
+              secondary
+              label="分类预算与显示设置"
+              onPress={() => {
+                close();
+                router.push("/budget");
+              }}
+            />
+          )}
+        </Popover>
       </Row>
       <BudgetAmounts
-        testID={embedded ? "detail-budget-summary" : "budget-display-preview"}
+        testID="detail-budget-summary"
         budget={display.budget}
         expense={display.expense}
       />
@@ -241,14 +242,18 @@ export function BudgetCard({
   );
   if (embedded) return summary;
   return (
-    <Card style={{ gap: 18 }}>
+    <Card style={{ gap: 12 }}>
       <Row style={{ justifyContent: "space-between" }}>
         <Txt bold size={20}>
           完整预算
         </Txt>
         <HelpBubble label="预算分配">
-          先设置总预算，再分配一级和二级分类预算。一级额度包含子分类额度。开关只决定是否计入明细预算，不会删除分类额度或影响记账和统计。
+          设置每月总额，可按分类分配。一级分类额度已包含子分类。
         </HelpBubble>
+        <View style={{ flex: 1 }} />
+        <Popover label="修改明细预算名称" icon="pencil">
+          {(close) => <DetailBudgetSettings onDone={close} />}
+        </Popover>
       </Row>
       <BudgetAmounts
         testID="full-budget-summary"
@@ -257,28 +262,17 @@ export function BudgetCard({
       />
       {editable && (
         <>
-          <View
-            style={{
-              padding: 16,
-              borderRadius: 20,
-              backgroundColor: t.soft,
-              gap: 4,
-            }}
-          >
-            <Txt size={12} color={t.muted}>
-              明细页效果 · 随开关即时更新
-            </Txt>
-            {summary}
-          </View>
           <Row style={{ justifyContent: "space-between" }}>
-            <Txt bold>分类预算</Txt>
+            <Row style={{ gap: 0 }}>
+              <Txt bold>分类预算</Txt>
+              <HelpBubble label="分类预算开关">
+                开关即时保存，适用于所有月份。关闭一级分类会一并排除子分类，重新开启后保留子分类选择。
+              </HelpBubble>
+            </Row>
             <Txt size={12} color={t.muted}>
               计入明细
             </Txt>
           </Row>
-          <Txt size={12} color={t.muted}>
-            开关即时保存，适用于所有月份。关闭一级分类会一并排除子分类，重新开启后保留子分类选择。
-          </Txt>
           {!editing ? (
             <Button
               secondary
@@ -306,82 +300,95 @@ export function BudgetCard({
               placeholder="未设置"
             />
           )}
-          {roots.map((root) => (
-            <View
-              key={root.id}
-              style={{
-                gap: 10,
-                borderTopWidth: 1,
-                borderColor: t.line,
-                paddingTop: 10,
-              }}
-            >
-              <Row>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`展开${root.name}预算`}
-                  accessibilityState={{ expanded: expanded.includes(root.id) }}
-                  onPress={() =>
-                    setExpanded((current) =>
-                      current.includes(root.id)
-                        ? current.filter((id) => id !== root.id)
-                        : [...current, root.id],
-                    )
-                  }
-                  style={({ pressed }) => ({
-                    flex: 1,
-                    minHeight: 44,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 10,
-                    opacity: pressed ? 0.6 : 1,
-                  })}
-                >
-                  <Icon name={root.icon} color={root.color} />
-                  <Txt bold style={{ flex: 1 }}>
-                    {root.name}
-                  </Txt>
-                  <Icon
-                    name={
-                      expanded.includes(root.id)
-                        ? "arrow.down"
-                        : "chevron.right"
+          <View>
+            {roots.map((root) => (
+              <View
+                key={root.id}
+                style={{
+                  gap: editing ? 8 : 0,
+                  borderTopWidth: 1,
+                  borderColor: t.line,
+                  paddingVertical: 6,
+                }}
+              >
+                <Row>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`展开${root.name}预算`}
+                    accessibilityState={{
+                      expanded: expanded.includes(root.id),
+                    }}
+                    onPress={() =>
+                      setExpanded((current) =>
+                        current.includes(root.id)
+                          ? current.filter((id) => id !== root.id)
+                          : [...current, root.id],
+                      )
                     }
-                    size={13}
-                    color={t.muted}
-                  />
-                </Pressable>
-                {switchFor(root)}
-              </Row>
-              {categoryAmount(root)}
-              {expanded.includes(root.id) &&
-                cats
-                  .filter((c) => c.parentId === root.id)
-                  .map((child) => (
-                    <View
-                      key={child.id}
-                      style={{
-                        marginLeft: 24,
-                        gap: 8,
-                        paddingVertical: 8,
-                        borderTopWidth: 1,
-                        borderColor: t.line,
-                      }}
-                    >
-                      <Row
+                    style={({ pressed }) => ({
+                      flex: 1,
+                      minHeight: 52,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 10,
+                      opacity: pressed ? 0.6 : 1,
+                    })}
+                  >
+                    <Icon name={root.icon} color={root.color} />
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <Txt bold>{root.name}</Txt>
+                      {!editing && categoryAmount(root)}
+                    </View>
+                    <Icon
+                      name={
+                        expanded.includes(root.id)
+                          ? "arrow.down"
+                          : "chevron.right"
+                      }
+                      size={13}
+                      color={t.muted}
+                    />
+                  </Pressable>
+                  {switchFor(root)}
+                </Row>
+                {editing && categoryAmount(root)}
+                {expanded.includes(root.id) &&
+                  cats
+                    .filter((c) => c.parentId === root.id)
+                    .map((child) => (
+                      <View
+                        key={child.id}
                         style={{
-                          minHeight: 44,
-                          justifyContent: "space-between",
+                          marginLeft: 24,
+                          gap: editing ? 6 : 0,
+                          paddingVertical: 5,
+                          borderTopWidth: 1,
+                          borderColor: t.line,
                         }}
                       >
-                        <Txt style={{ flex: 1 }}>{child.name}</Txt>
-                        {switchFor(child)}
-                      </Row>
-                      {categoryAmount(child)}
-                    </View>
-                  ))}
-            </View>
-          ))}
+                        <Row
+                          style={{
+                            minHeight: 44,
+                            justifyContent: "space-between",
+                          }}
+                        >
+                          <Icon
+                            name={child.icon}
+                            color={child.color}
+                            size={20}
+                          />
+                          <View style={{ flex: 1, gap: 3 }}>
+                            <Txt>{child.name}</Txt>
+                            {!editing && categoryAmount(child)}
+                          </View>
+                          {switchFor(child)}
+                        </Row>
+                        {editing && categoryAmount(child)}
+                      </View>
+                    ))}
+              </View>
+            ))}
+          </View>
           <ErrorText message={validation || error} />
           {editing && (
             <>

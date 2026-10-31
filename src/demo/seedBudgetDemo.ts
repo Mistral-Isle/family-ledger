@@ -71,7 +71,7 @@ export function seedBudgetDemo(repo: LedgerRepository, month: string) {
   repo.saveTxn({
     type: "income",
     categoryId: initial.categories.find(
-      (c) => c.kind === "income" && c.parentId,
+      (c) => c.kind === "income" && !c.deleted,
     )!.id,
     amount: 1500000,
     occurredAt: `${month}-01`,

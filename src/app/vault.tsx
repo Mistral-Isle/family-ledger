@@ -1,4 +1,5 @@
 import { DateField } from "../components/DateField";
+import { useSubmissionGuard } from "../components/useSubmissionGuard";
 import { useState } from "react";
 import { View } from "react-native";
 import { useRouter } from "expo-router";
@@ -40,6 +41,7 @@ function Vault() {
     [date, setDate] = useState(today()),
     [note, setNote] = useState(""),
     [error, setError] = useState("");
+  const submission = useSubmissionGuard(transfer);
   const accounts = data.accounts.filter(
       (a) => a.scope === "private" && !a.deleted,
     ),
@@ -58,6 +60,46 @@ function Vault() {
         }
       />
       <Txt>{zh.vault.hint}</Txt>
+      <Card>
+        <Txt bold>默认隐私收款账户</Txt>
+        <Txt size={13}>
+          对方只看到“隐私账户”和本次转账金额，账户名称、余额及其他流水不会同步。
+        </Txt>
+        <View style={styles.wrap}>
+          {accounts
+            .filter(
+              (a) =>
+                !a.archived &&
+                a.ownerMemberId === data.meId &&
+                !["loan", "deposit", "prepaid"].includes(a.kind),
+            )
+            .map((a) => (
+              <Chip
+                key={a.id}
+                label={a.name}
+                selected={repo.privateReceiptAccount() === a.id}
+                onPress={() => {
+                  try {
+                    run(() => repo.setPrivateReceiptAccount(a.id));
+                  } catch (e) {
+                    setError((e as Error).message);
+                  }
+                }}
+              />
+            ))}
+        </View>
+        {!repo.privateReceiptAccount() && (
+          <Txt size={13}>
+            请选择默认账户。未设置时，转入记录会保留在待入账中。
+          </Txt>
+        )}
+        {!!repo.pendingPrivateTransfers().length && (
+          <Txt>
+            待入账 {repo.pendingPrivateTransfers().length}{" "}
+            笔；设置默认账户后自动入账。
+          </Txt>
+        )}
+      </Card>
       <Button
         secondary
         label={zh.discarded.title}
@@ -169,15 +211,20 @@ function Vault() {
             label={zh.vault.saveTransfer}
             onPress={() => {
               try {
-                run(() =>
-                  repo.transferScopes({
-                    fromId: from,
-                    toId: to,
-                    amount: calculate(amount),
-                    occurredAt: date,
-                    note,
-                  }),
-                );
+                if (
+                  !submission.run(() =>
+                    run(() =>
+                      repo.transferScopes({
+                        fromId: from,
+                        toId: to,
+                        amount: calculate(amount),
+                        occurredAt: date,
+                        note,
+                      }),
+                    ),
+                  )
+                )
+                  return;
                 setAmount("");
                 setNote("");
                 setTransfer(false);
@@ -215,6 +262,15 @@ function Vault() {
                         .scopeTransfers()
                         .find((p) => p.privateId === t.id);
                       if (pair) run(() => repo.deleteScopeTransfer(pair.id));
+                      else {
+                        const publicRow = data.txns.find(
+                          (row) =>
+                            t.id === "receipt:" + row.id + ":" + data.meId,
+                        );
+                        if (!publicRow)
+                          throw new Error("找不到对应的家庭转账记录");
+                        run(() => repo.deleteTxn(publicRow.id));
+                      }
                       setError("");
                     } catch (e) {
                       setError((e as Error).message);

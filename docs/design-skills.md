@@ -11,3 +11,5 @@
 没有为了配色差异安装重复依赖，也没有将外部技能当作可执行脚本运行。三种外观在应用内直接切换，预览见 [样式对照](ui-styles.html)。
 
 原生组件使用 [expo-glass-effect](https://docs.expo.dev/versions/latest/sdk/glass-effect/)、[UISegmentedControl 封装](https://docs.expo.dev/versions/latest/sdk/segmented-control/) 与 @react-native-community/datetimepicker；采用官方 Expo SDK 57 对应版本。底部导航支持拖动选中项，玻璃只用于固定操作层。
+
+本轮已读取并应用 Emil animate-expo 的高频交互/减少动态效果规则、Rico 的规范文档方法，以及 Impeccable 的原生审查条目；均未全局安装，未运行 Impeccable 自动检测器。具体规则见 [暖白界面规范](DESIGN.md)。

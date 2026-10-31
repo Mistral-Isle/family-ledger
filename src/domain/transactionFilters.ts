@@ -1,3 +1,4 @@
+import { effectiveTripId, memberName, payerId } from "./travel";
 import type { Snapshot, TxnType } from "./types";
 import { visibleTxns } from "./selectors";
 
@@ -18,7 +19,7 @@ export function filterMonthTransactions(
     const parent = data.categories.find((c) => c.id === category?.parentId);
     const account = data.accounts.find((a) => a.id === txn.accountId);
     const target = data.accounts.find((a) => a.id === txn.toAccountId);
-    return `${txn.note} ${category?.name ?? ""} ${parent?.name ?? ""} ${account?.name ?? ""} ${target?.name ?? ""}`
+    return `${memberName(data, payerId(data, txn))} ${memberName(data, txn.recorderMemberId)} ${data.trips?.find((t) => t.id === effectiveTripId(data, txn))?.name ?? ""} ${txn.note} ${category?.name ?? ""} ${parent?.name ?? ""} ${account?.name ?? ""} ${target?.name ?? ""}`
       .toLocaleLowerCase()
       .includes(search);
   });

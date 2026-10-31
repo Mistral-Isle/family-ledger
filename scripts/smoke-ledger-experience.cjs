@@ -255,7 +255,7 @@ const server = http.createServer((req, res) => {
       ),
     );
     await button("明细预算范围说明").click();
-    await page.getByText("排除：日常 / 三餐", { exact: false }).waitFor();
+    await page.getByText("按已开启的分类计算预算与支出", { exact: false }).waitFor();
     await shot("budget-scope");
     await page.keyboard.press("Escape");
     await page.reload();

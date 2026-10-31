@@ -38,16 +38,20 @@ export default function Assets() {
     .reduce((sum, a) => sum - a.balance, 0);
   return (
     <Page>
-      <Heading title={zh.tabs.assets} subtitle={zh.assetHint} />
-      <Button
-        secondary
-        label={zh.finance.title}
-        onPress={() => router.push("/finance")}
+      <Heading
+        title={zh.tabs.assets}
+        subtitle={zh.assetHint}
+        action={
+          <Chip
+            label={zh.finance.title}
+            onPress={() => router.push("/finance")}
+          />
+        }
       />
       <Card
         style={{
-          backgroundColor: t.dark ? "#29364D" : "#EAF0FA",
-          borderColor: t.dark ? "#34445F" : "#E0E8F6",
+          backgroundColor: t.soft,
+          borderColor: t.line,
           gap: 16,
         }}
       >

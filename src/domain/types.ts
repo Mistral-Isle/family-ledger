@@ -73,10 +73,14 @@ export type Txn = BaseRecord & {
   occurredTime?: string | null;
   note: string;
   recorderMemberId: string;
+  payerMemberId?: string | null;
+  tripId?: string | null;
   forWhom: "me" | "partner" | "both";
   discarded: boolean;
   refundOfId: string | null;
   // Optional for pre-migration records in older operation logs.
+  excludeBudget?: boolean;
+  excludeTotals?: boolean;
   refundIncome?: number;
   refundIncomeCategoryId?: string | null;
 };
@@ -85,12 +89,30 @@ export type Operation = {
   deviceId: string;
   seq: number;
   hlc: string;
-  entity: "member" | "account" | "category" | "txn" | "plan" | "budget";
+  entity:
+    | "member"
+    | "account"
+    | "category"
+    | "txn"
+    | "plan"
+    | "budget"
+    | "trip"
+    | "duplicate";
   entityId: string;
   action: "upsert" | "delete";
-  record: Member | Account | Category | Txn | FinancialPlan | Budget;
+  record:
+    | Member
+    | Account
+    | Category
+    | Txn
+    | FinancialPlan
+    | Budget
+    | Trip
+    | DuplicateDecision;
 };
 export type Snapshot = {
+  trips?: Trip[];
+  duplicates?: DuplicateDecision[];
   budgets: Budget[];
   plans: FinancialPlan[];
   members: Member[];
@@ -100,6 +122,20 @@ export type Snapshot = {
   preferences: Preferences;
   pending: number;
   meId: string;
+};
+
+export type Trip = BaseRecord & {
+  scope: "family";
+  name: string;
+  startDate: string | null;
+  endDate: string | null;
+  ended: boolean;
+};
+export type DuplicateDecision = BaseRecord & {
+  scope: "family";
+  firstId: string;
+  secondId: string;
+  fingerprint: string;
 };
 
 export type FinancialPlan = BaseRecord & {

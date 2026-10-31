@@ -1,3 +1,4 @@
+import { privacyMemberId } from "../domain/privacyTransfer";
 import { validateBudgetAllocation } from "../domain/budgets";
 import type { Category } from "../domain/types";
 import { validateLoan, validatePlanData } from "../domain/finance";
@@ -11,6 +12,8 @@ const tables = [
   "txn",
   "plan",
   "budget",
+  "trip",
+  "duplicate",
   "outbox",
   "local_pref",
 ] as const;
@@ -18,7 +21,7 @@ type Table = (typeof tables)[number];
 type Row = Record<string, string | number | null>;
 export type BackupData = {
   format: "family-ledger";
-  version: 4;
+  version: 6;
   createdAt: string;
   tables: Record<Table, Row[]>;
 };
@@ -33,7 +36,7 @@ export function exportBackup(db: SqlDriver): string {
     );
     result = JSON.stringify({
       format: "family-ledger",
-      version: 4,
+      version: 6,
       createdAt: new Date().toISOString(),
       tables: data,
     });
@@ -41,6 +44,13 @@ export function exportBackup(db: SqlDriver): string {
   return result;
 }
 export function parseBackup(db: SqlDriver, text: string): BackupData {
+  return parseBackupData(db, text);
+}
+function parseBackupData(
+  db: SqlDriver,
+  text: string,
+  historical = false,
+): BackupData {
   if (text.length > 20 * 1024 * 1024) throw new Error(zh.backup.tooLarge);
   let value: BackupData;
   try {
@@ -48,14 +58,21 @@ export function parseBackup(db: SqlDriver, text: string): BackupData {
   } catch {
     return fail();
   }
-  if (!value || value.format !== "family-ledger") return fail();
+  if (
+    !value ||
+    value.format !== "family-ledger" ||
+    !value.tables ||
+    typeof value.tables !== "object" ||
+    Array.isArray(value.tables)
+  )
+    return fail();
   if (
     Number(value.version) === 1 &&
     value.tables &&
     (value.tables as Partial<BackupData["tables"]>).plan === undefined
   ) {
     value.tables.plan = [];
-    value.version = 2 as 4;
+    value.version = 2 as 6;
   }
   if (
     Number(value.version) === 2 &&
@@ -63,16 +80,41 @@ export function parseBackup(db: SqlDriver, text: string): BackupData {
     (value.tables as Partial<BackupData["tables"]>).budget === undefined
   ) {
     value.tables.budget = [];
-    value.version = 3 as 4;
+    value.version = 3 as 6;
   }
   if (Number(value.version) === 3) {
+    if (!Array.isArray(value.tables.txn) || !Array.isArray(value.tables.budget))
+      return fail();
     for (const row of value.tables.txn ?? [])
-      row.occurred_time = row.occurred_time ?? null;
+      if (row && typeof row === "object")
+        row.occurred_time = row.occurred_time ?? null;
+      else return fail();
     for (const row of value.tables.budget ?? [])
-      row.allocations = row.allocations ?? "{}";
-    value.version = 4;
+      if (row && typeof row === "object")
+        row.allocations = row.allocations ?? "{}";
+      else return fail();
+    value.version = 4 as 6;
   }
-  if (value.version !== 4) throw new Error(zh.backup.version);
+  if (Number(value.version) === 4) {
+    if (!Array.isArray(value.tables.txn)) return fail();
+    value.tables.trip = [];
+    value.tables.duplicate = [];
+    for (const row of value.tables.txn) {
+      if (!row || typeof row !== "object") return fail();
+      row.payer_member_id = null;
+      row.trip_id = null;
+    }
+    value.version = 5 as 6;
+  }
+  if (Number(value.version) === 5) {
+    if (!Array.isArray(value.tables.txn)) return fail();
+    for (const row of value.tables.txn) {
+      row.exclude_budget ??= 0;
+      row.exclude_totals ??= 0;
+    }
+    value.version = 6;
+  }
+  if (value.version !== 6) throw new Error(zh.backup.version);
   if (
     !Number.isFinite(Date.parse(value.createdAt)) ||
     !value.tables ||
@@ -90,6 +132,14 @@ export function parseBackup(db: SqlDriver, text: string): BackupData {
     }>(`PRAGMA table_info(${table})`);
     const seen = new Set();
     for (const row of rows) {
+      if (table === "txn" && row) {
+        if (historical) {
+          row.exclude_budget ??= 0;
+          row.exclude_totals ??= 0;
+        }
+        row.payer_member_id ??= null;
+        row.trip_id ??= null;
+      }
       if (table === "txn" && row && row.occurred_time === undefined)
         row.occurred_time = null;
       if (
@@ -112,9 +162,16 @@ export function parseBackup(db: SqlDriver, text: string): BackupData {
         )
           return fail();
         if (
-          ["deleted", "hidden", "archived", "discarded", "uploaded"].includes(
-            c.name,
-          ) &&
+          [
+            "deleted",
+            "hidden",
+            "archived",
+            "discarded",
+            "uploaded",
+            "ended",
+            "exclude_budget",
+            "exclude_totals",
+          ].includes(c.name) &&
           v !== 0 &&
           v !== 1
         )
@@ -152,7 +209,7 @@ export function parseBackup(db: SqlDriver, text: string): BackupData {
         (p) =>
           p.id === c.parent_id &&
           p.id !== c.id &&
-          !p.parent_id &&
+          (historical || c.deleted || (!p.deleted && !p.parent_id)) &&
           p.kind === c.kind,
       )
     )
@@ -166,7 +223,21 @@ export function parseBackup(db: SqlDriver, text: string): BackupData {
       return fail();
   }
   for (const t of txn) {
-    const a = account.find((a) => a.id === t.account_id);
+    const alias = (id: unknown) =>
+      t.type === "transfer" &&
+      t.scope === "family" &&
+      typeof id === "string" &&
+      member.some((m) => m.id === privacyMemberId(id));
+    const a =
+      account.find((a) => a.id === t.account_id) ??
+      (alias(t.account_id) ? { scope: "family" } : undefined);
+    if (
+      (alias(t.account_id) || alias(t.to_account_id)) &&
+      (t.note !== "" ||
+        t.category_id !== null ||
+        t.account_id === t.to_account_id)
+    )
+      return fail();
     if (
       !a ||
       a.scope !== t.scope ||
@@ -199,6 +270,7 @@ export function parseBackup(db: SqlDriver, text: string): BackupData {
     if (t.type !== "adjust" && Number(t.amount) <= 0) return fail();
     if (
       t.to_account_id &&
+      !alias(t.to_account_id) &&
       !account.some(
         (a) =>
           a.id === t.to_account_id &&
@@ -237,6 +309,52 @@ export function parseBackup(db: SqlDriver, text: string): BackupData {
           s.id === t.refund_of_id &&
           s.type === "expense" &&
           s.scope === t.scope,
+      )
+    )
+      return fail();
+  }
+  for (const trip of value.tables.trip) {
+    if (
+      trip.scope !== "family" ||
+      !String(trip.name).trim() ||
+      String(trip.name).length > 30
+    )
+      return fail();
+    for (const key of ["start_date", "end_date"]) {
+      const date = trip[key];
+      if (
+        date != null &&
+        (!/^\d{4}-\d{2}-\d{2}$/.test(String(date)) ||
+          !Number.isFinite(Date.parse(String(date))) ||
+          new Date(String(date)).toISOString().slice(0, 10) !== date)
+      )
+        return fail();
+    }
+    if (trip.start_date && trip.end_date && trip.start_date > trip.end_date)
+      return fail();
+  }
+  for (const t of txn) {
+    if (t.payer_member_id && !has(member, t.payer_member_id)) return fail();
+    if (
+      t.trip_id &&
+      (!has(value.tables.trip, t.trip_id) ||
+        t.scope !== "family" ||
+        t.type !== "expense")
+    )
+      return fail();
+  }
+  for (const d of value.tables.duplicate) {
+    if (
+      d.scope !== "family" ||
+      !has(txn, d.first_id) ||
+      !has(txn, d.second_id) ||
+      String(d.first_id) >= String(d.second_id) ||
+      !d.fingerprint
+    )
+      return fail();
+    if (
+      [d.first_id, d.second_id].some(
+        (id) => txn.find((t) => t.id === id)?.scope !== "family",
       )
     )
       return fail();
@@ -284,6 +402,37 @@ export function parseBackup(db: SqlDriver, text: string): BackupData {
       ))
   )
     return fail();
+  if (
+    prefs.privateReceiptAccount &&
+    !account.some(
+      (a) =>
+        a.id === prefs.privateReceiptAccount &&
+        a.scope === "private" &&
+        a.owner_member_id === prefs.meId,
+    )
+  )
+    return fail();
+  if (prefs.privateTransferBindings !== undefined) {
+    const bindings = prefs.privateTransferBindings;
+    if (
+      !bindings ||
+      typeof bindings !== "object" ||
+      Array.isArray(bindings) ||
+      !Object.entries(bindings).every(
+        ([id, target]) =>
+          txn.some(
+            (t) => t.id === id && t.type === "transfer" && t.scope === "family",
+          ) &&
+          account.some(
+            (a) =>
+              a.id === target &&
+              a.scope === "private" &&
+              a.owner_member_id === prefs.meId,
+          ),
+      )
+    )
+      return fail();
+  }
   const p = prefs.preferences;
   if (
     prefs.initialized !== true ||
@@ -328,6 +477,29 @@ export function parseBackup(db: SqlDriver, text: string): BackupData {
   if (
     prefs.theme !== undefined &&
     !["system", "light", "dark"].includes(prefs.theme)
+  )
+    return fail();
+  if (
+    prefs.appearance !== undefined &&
+    !["classic", "warm", "ink"].includes(prefs.appearance)
+  )
+    return fail();
+  for (const key of ["includeRepayments", "showIncomeCalendar"])
+    if (prefs[key] !== undefined && typeof prefs[key] !== "boolean")
+      return fail();
+  const detail = prefs.detailBudgetPreferences;
+  if (
+    detail !== undefined &&
+    (!detail ||
+      typeof detail !== "object" ||
+      Array.isArray(detail) ||
+      typeof detail.title !== "string" ||
+      detail.title.length > 30 ||
+      !Array.isArray(detail.excludedCategoryIds) ||
+      !detail.excludedCategoryIds.every(
+        // Local display preferences can outlive categories when joining a family.
+        (id: unknown) => typeof id === "string",
+      ))
   )
     return fail();
   if (
@@ -392,7 +564,9 @@ export function parseBackup(db: SqlDriver, text: string): BackupData {
         );
       }
     }
-    parseBackup(db, JSON.stringify(historical));
+    // History is a saved undo candidate, not the current category tree. Later
+    // edits may make undo invalid without making the backup itself invalid.
+    parseBackupData(db, JSON.stringify(historical), true);
   }
   for (const row of value.tables.budget) {
     try {
@@ -413,7 +587,7 @@ export function parseBackup(db: SqlDriver, text: string): BackupData {
           cats.some((c) => c.id === id && !c.deleted),
         ),
       ) as Record<string, number>;
-      if (!row.deleted)
+      if (!row.deleted && !historical)
         validateBudgetAllocation(Number(row.amount), active, cats);
     } catch {
       return fail();
@@ -494,9 +668,16 @@ export function parseBackup(db: SqlDriver, text: string): BackupData {
     }
     if (
       !op ||
-      !["member", "account", "category", "txn", "plan", "budget"].includes(
-        op.entity,
-      ) ||
+      ![
+        "member",
+        "account",
+        "category",
+        "txn",
+        "plan",
+        "budget",
+        "trip",
+        "duplicate",
+      ].includes(op.entity) ||
       !op.record ||
       op.record.id !== op.entityId ||
       typeof op.opId !== "string" ||

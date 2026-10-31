@@ -1,12 +1,7 @@
-import { useState } from "react";
-import { View } from "react-native";
+import { useMemo, useState } from "react";
+import { Text, View } from "react-native";
 import Svg, { Circle, G, Polyline, Text as SvgText } from "react-native-svg";
-import {
-  donutLabels,
-  donutSlices,
-  shareLabel,
-  type DonutItem,
-} from "../domain/donut";
+import { donutLayout, shareLabel, type DonutItem } from "../domain/donut";
 import { formatMoney } from "../domain/money";
 import { Txt, useTheme } from "./ui";
 
@@ -21,14 +16,24 @@ export function CategoryDonut({
 }) {
   const t = useTheme();
   const [width, setWidth] = useState(320);
-  const height = Math.max(280, width * 0.86);
+  const height = Math.max(240, width * 0.86);
   const cx = width / 2,
     cy = height / 2,
-    radius = width * 0.265;
-  const stroke = width * 0.115,
+    outerRadius = Math.min(width * 0.3, cx - (width < 280 ? 54 : 66));
+  const stroke = width * 0.105,
+    radius = outerRadius - stroke / 2,
     circumference = Math.PI * 2 * radius;
-  const slices = donutSlices(items);
-  const labels = donutLabels(slices, cy, radius, height);
+  const { slices, labels } = useMemo(
+    () => donutLayout(items, width, height, outerRadius),
+    [items, width, height, outerRadius],
+  );
+  const amount = formatMoney(total);
+  const centerWidth = (radius - stroke / 2 - 4) * 2;
+  const amountSize = Math.min(
+    width < 320 ? 18 : 21,
+    Math.floor(centerWidth / (amount.length * 0.58)),
+  );
+  const labelSize = width < 280 ? 10 : 11.5;
   return (
     <View
       testID="category-donut"
@@ -61,64 +66,38 @@ export function CategoryDonut({
               rotation={-90}
               origin={`${cx}, ${cy}`}
             />
-            <Circle
-              cx={cx}
-              cy={cy}
-              r={radius - stroke / 2 + 3}
-              fill="none"
-              stroke={slice.color}
-              strokeOpacity={0.55}
-              strokeWidth={6}
-              strokeDasharray={`${slice.share * Math.PI * 2 * (radius - stroke / 2 + 3)} ${(1 - slice.share) * Math.PI * 2 * (radius - stroke / 2 + 3)}`}
-              strokeDashoffset={
-                -slice.start * Math.PI * 2 * (radius - stroke / 2 + 3)
-              }
-              rotation={-90}
-              origin={`${cx}, ${cy}`}
-            />
           </G>
         ))}
         {labels.map((label) => {
-          const x = cx + Math.cos(label.angle) * (radius + stroke / 2);
-          const y = cy + Math.sin(label.angle) * (radius + stroke / 2);
-          const endX = label.side === 1 ? width - 51 : 51;
-          // Route the leader around the outside of the ring before aligning it
-          // with the displaced label, so clustered labels never cut through slices.
-          const radialX =
-            cx + Math.cos(label.angle) * (radius + stroke / 2 + 9);
-          const radialY =
-            cy + Math.sin(label.angle) * (radius + stroke / 2 + 9);
-          const elbowX =
-            label.side === 1
-              ? Math.min(endX, radialX)
-              : Math.max(endX, radialX);
+          const name = label.name.replace(/[\s/／]+/g, "");
           return (
             <G key={label.id}>
               <Polyline
-                points={`${x},${y} ${elbowX},${radialY} ${endX},${radialY} ${endX},${label.y}`}
+                points={`${label.x},${label.anchorY} ${label.radialX},${label.radialY} ${label.elbowX},${label.y} ${label.endX},${label.y}`}
                 stroke={label.color}
                 strokeWidth={1.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
                 fill="none"
               />
               <SvgText
-                x={label.side === 1 ? width - 2 : 2}
+                x={label.endX + label.side * 6}
                 y={label.y - 4}
-                textAnchor={label.side === 1 ? "end" : "start"}
-                fontSize={11.5}
+                textAnchor={label.side === 1 ? "start" : "end"}
+                fontSize={labelSize}
+                fontWeight="600"
                 fill={t.text}
               >
                 {shareLabel(label.share, 1)}
               </SvgText>
               <SvgText
-                x={label.side === 1 ? width - 2 : 2}
+                x={label.endX + label.side * 6}
                 y={label.y + 12}
-                textAnchor={label.side === 1 ? "end" : "start"}
-                fontSize={11.5}
-                fill={t.text}
+                textAnchor={label.side === 1 ? "start" : "end"}
+                fontSize={labelSize}
+                fill={t.muted}
               >
-                {label.name.length > 4
-                  ? label.name.slice(0, 3) + "…"
-                  : label.name}
+                {name.length > 4 ? name.slice(0, 3) + "…" : name}
               </SvgText>
             </G>
           );
@@ -128,19 +107,33 @@ export function CategoryDonut({
         pointerEvents="none"
         style={{
           position: "absolute",
-          top: cy - 27,
+          top: cy - radius + stroke / 2,
           left: cx - radius + stroke / 2 + 4,
-          width: (radius - stroke / 2 - 4) * 2,
+          width: centerWidth,
+          height: (radius - stroke / 2) * 2,
           alignItems: "center",
+          justifyContent: "center",
           gap: 6,
         }}
       >
         <Txt size={12} color={t.muted}>
           {title}
         </Txt>
-        <Txt size={width < 320 ? 18 : 21} bold style={{ textAlign: "center" }}>
-          {formatMoney(total)}
-        </Txt>
+        <Text
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.6}
+          style={{
+            color: t.text,
+            fontSize: amountSize,
+            fontWeight: "600",
+            textAlign: "center",
+            maxWidth: "100%",
+            fontVariant: ["tabular-nums"],
+          }}
+        >
+          {amount}
+        </Text>
       </View>
     </View>
   );

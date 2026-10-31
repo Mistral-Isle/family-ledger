@@ -1,5 +1,5 @@
 import { Pressable, View } from "react-native";
-import { Txt, useTheme } from "./ui";
+import { Icon, Txt, useTheme } from "./ui";
 import { zh } from "../i18n/zh";
 export function EntryKeyboard({
   onKey,
@@ -26,12 +26,16 @@ export function EntryKeyboard({
         justifyContent: "center",
       })}
     >
-      <Txt
-        size={23}
-        color={["+", "−", "×", "÷"].includes(value) ? t.blue : t.text}
-      >
-        {value}
-      </Txt>
+      {value === "⌫" ? (
+        <Icon name="delete.left" size={25} color={t.text} />
+      ) : (
+        <Txt
+          size={23}
+          color={["+", "−", "×", "÷"].includes(value) ? t.blue : t.text}
+        >
+          {value}
+        </Txt>
+      )}
     </Pressable>
   );
   return (

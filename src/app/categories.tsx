@@ -1,8 +1,9 @@
+import { CategoryOrderSheet } from "../components/CategoryOrderSheet";
 import { CategoryEditor } from "../components/CategoryEditor";
 import { CategoryDeletionSheet } from "../components/CategoryDeletionSheet";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useLedger } from "../components/LedgerProvider";
 import {
   Button,
@@ -23,7 +24,15 @@ export default function Categories() {
   const { data, repo, run } = useLedger();
   const t = useTheme();
   const router = useRouter();
-  const [kind, setKind] = useState<CategoryKind>("expense");
+  const params = useLocalSearchParams<{
+    migrate?: string;
+    target?: string;
+    kind?: string;
+  }>();
+  const [kind, setKind] = useState<CategoryKind>(
+    params.kind === "income" ? "income" : "expense",
+  );
+  const [sorting, setSorting] = useState<string | null | undefined>(undefined);
   const [form, setForm] = useState<{
     id?: string;
     name: string;
@@ -34,30 +43,15 @@ export default function Categories() {
     sort?: number;
   } | null>(null);
   const [error, setError] = useState("");
-  const [deletionId, setDeletionId] = useState<string | null>(null);
+  const [deletionId, setDeletionId] = useState<string | null>(
+    params.migrate ?? null,
+  );
   const roots = data.categories
     .filter((c) => !c.deleted && c.kind === kind && !c.parentId)
     .sort((a, b) => a.sort - b.sort);
   function edit(category: Category) {
     setError("");
     setForm(category);
-  }
-  function move(category: Category, delta: number) {
-    const siblings = data.categories
-      .filter(
-        (c) =>
-          !c.deleted && c.parentId === category.parentId && c.kind === kind,
-      )
-      .sort((a, b) => a.sort - b.sort);
-    const index = siblings.findIndex((c) => c.id === category.id);
-    const target = index + delta;
-    if (target < 0 || target >= siblings.length) return;
-    [siblings[index], siblings[target]] = [siblings[target]!, siblings[index]!];
-    try {
-      run(() => repo.reorderCategories(siblings.map((c) => c.id)));
-    } catch (e) {
-      setError((e as Error).message);
-    }
   }
   function hide(category: Category) {
     try {
@@ -105,16 +99,25 @@ export default function Categories() {
             </View>
           </Row>
         </Pressable>
-        <IconButton
-          name="arrow.up"
-          label={zh.moveUp}
-          onPress={() => move(category, -1)}
-        />
-        <IconButton
-          name="arrow.down"
-          label={zh.moveDown}
-          onPress={() => move(category, 1)}
-        />
+        {!child &&
+          data.categories.filter(
+            (c) => !c.deleted && c.parentId === category.id,
+          ).length > 1 && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={category.name + "子分类排序"}
+              onPress={() => setSorting(category.id)}
+              style={{
+                minHeight: 44,
+                justifyContent: "center",
+                paddingHorizontal: 8,
+              }}
+            >
+              <Txt size={12} color={t.blue}>
+                子类排序
+              </Txt>
+            </Pressable>
+          )}
         <Pressable accessibilityRole="button" onPress={() => hide(category)}>
           <Txt size={11} color={t.blue}>
             {category.hidden ? zh.show : zh.hide}
@@ -128,17 +131,20 @@ export default function Categories() {
       {deletionId && (
         <CategoryDeletionSheet
           id={deletionId}
+          initialTargetId={params.target}
           onClose={() => setDeletionId(null)}
         />
       )}
       <Page>
         <Heading
-          title={zh.categoryManagement}
+          title="分类设置"
           action={
             <IconButton
               name="xmark"
               label={zh.close}
-              onPress={() => router.back()}
+              onPress={() =>
+                router.canGoBack() ? router.back() : router.replace("/entry")
+              }
             />
           }
         />
@@ -157,6 +163,12 @@ export default function Categories() {
         <ErrorText message={form ? "" : error} />
         <Button
           secondary
+          label="调整顺序"
+          disabled={roots.length < 2}
+          onPress={() => setSorting(null)}
+        />
+        <Button
+          secondary
           label={zh.addCategory}
           icon="plus"
           onPress={() => {
@@ -168,6 +180,11 @@ export default function Categories() {
               color: "#648BD2",
             });
           }}
+        />
+        <Button
+          secondary
+          label={zh.collaboration.categoryUpgrade}
+          onPress={() => router.push("/category-defaults")}
         />
         {roots.map((root) => (
           <Card
@@ -210,6 +227,23 @@ export default function Categories() {
           </Card>
         )}
       </Page>
+      {sorting !== undefined && (
+        <CategoryOrderSheet
+          items={data.categories
+            .filter(
+              (c) => !c.deleted && c.kind === kind && c.parentId === sorting,
+            )
+            .sort((a, b) => a.sort - b.sort)}
+          title={
+            sorting === null
+              ? "一级分类排序"
+              : (data.categories.find((c) => c.id === sorting)?.name ??
+                  "二级分类") + "排序"
+          }
+          onClose={() => setSorting(undefined)}
+          onSave={(ids) => run(() => repo.reorderCategories(ids))}
+        />
+      )}
       {form && (
         <CategoryEditor
           initial={form}

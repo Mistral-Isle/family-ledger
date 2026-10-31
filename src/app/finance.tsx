@@ -1,6 +1,8 @@
+import { Popover } from "../components/HelpBubble";
+import { LeaseForm, LeaseDetails } from "../components/LeaseForm";
 import { CategoryPicker } from "../components/CategoryPicker";
+import { useSubmissionGuard } from "../components/useSubmissionGuard";
 import { DateField } from "../components/DateField";
-import { ReminderSettings } from "../components/ReminderSettings";
 import { useState } from "react";
 import { View } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -20,7 +22,11 @@ import {
 } from "../components/ui";
 import { calculate, formatMoney, moneyInput } from "../domain/money";
 import { accountBalance } from "../domain/selectors";
-import { loanProjection, type LoanData } from "../domain/finance";
+import {
+  loanProjection,
+  splitPrepayment,
+  type LoanData,
+} from "../domain/finance";
 import { today } from "../domain/date";
 import { zh } from "../i18n/zh";
 export default function Finance() {
@@ -28,9 +34,15 @@ export default function Finance() {
   const { data, repo, run } = useLedger(),
     router = useRouter();
   const [kind, setKind] = useState<"loan" | "deposit" | "prepaid" | "rent">(
-      requested === "prepaid" ? "prepaid" : "loan",
+      requested === "rent"
+        ? "rent"
+        : requested === "prepaid"
+          ? "prepaid"
+          : "loan",
     ),
-    [creating, setCreating] = useState(requested === "prepaid"),
+    [creating, setCreating] = useState(
+      requested === "prepaid" || requested === "rent",
+    ),
     [expectedReturn, setExpectedReturn] = useState(""),
     [name, setName] = useState(""),
     [amount, setAmount] = useState(""),
@@ -46,10 +58,24 @@ export default function Finance() {
     [months, setMonths] = useState("3"),
     [startMonth, setStartMonth] = useState(today().slice(0, 7)),
     [day, setDay] = useState(today().slice(-2)),
-    [depositMonths, setDepositMonths] = useState("1"),
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [editing, setEditing] = useState("");
+  const [showSchedule, setShowSchedule] = useState(false);
+  let parts: ReturnType<typeof splitPrepayment> = [];
+  let previewError = "";
+  if (kind === "prepaid" && amount) {
+    try {
+      parts = splitPrepayment(
+        calculate(amount),
+        Number(months),
+        startMonth,
+        Number(day),
+      );
+    } catch (e) {
+      previewError = (e as Error).message;
+    }
+  }
   const [action, setAction] = useState<{
       id: string;
       mode: "pay" | "settle" | "calibrate" | "return";
@@ -68,25 +94,62 @@ export default function Finance() {
     (c) => !c.deleted && c.kind === "expense",
   );
   const selection = (
-    <>
-      <Txt>{zh.finance.paymentAccount}</Txt>
-      <View style={styles.wrap}>
-        {accounts.map((a) => (
-          <Chip
-            key={a.id}
-            label={a.name}
-            selected={paymentAccount === a.id}
-            onPress={() => setPaymentAccount(a.id)}
-          />
-        ))}
-      </View>
-      <Txt>{zh.finance.category}</Txt>
-      <CategoryPicker value={category} onChange={setCategory} />
-    </>
+    <View
+      style={{
+        flexDirection: "row",
+        flexWrap: "wrap",
+        alignItems: "center",
+        gap: 8,
+      }}
+    >
+      <Popover
+        label="选择付款账户"
+        triggerText={
+          accounts.find((a) => a.id === paymentAccount)?.name ??
+          accounts[0]?.name ??
+          "添加付款账户"
+        }
+        compact
+      >
+        {(close) => (
+          <View style={styles.wrap}>
+            {accounts.map((a) => (
+              <Chip
+                key={a.id}
+                label={a.name}
+                selected={paymentAccount === a.id}
+                onPress={() => {
+                  setPaymentAccount(a.id);
+                  close();
+                }}
+              />
+            ))}
+            {!accounts.length && (
+              <Button
+                label="添加账户"
+                onPress={() => router.push("/account")}
+              />
+            )}
+          </View>
+        )}
+      </Popover>
+      {kind !== "deposit" && (
+        <CategoryPicker
+          label="费用分类"
+          value={category || categories[0]?.id || ""}
+          onChange={setCategory}
+        />
+      )}
+    </View>
   );
-  function perform(fn: () => void) {
+  const submission = useSubmissionGuard(
+    `${creating}:${editing}:${action?.id ?? ""}:${action?.mode ?? ""}`,
+  );
+  function perform(fn: () => void, once = true) {
     try {
-      run(fn);
+      if (once) {
+        if (!submission.run(() => run(fn))) return false;
+      } else run(fn);
       setError("");
       setMessage(zh.finance.created);
       return true;
@@ -136,16 +199,6 @@ export default function Finance() {
             startMonth,
             months: Number(months),
             day: Number(day),
-          });
-        if (kind === "rent")
-          repo.createRent({
-            name,
-            monthlyRent: calculate(amount),
-            depositMonths: Number(depositMonths),
-            prepayMonths: Number(months),
-            start: date,
-            paymentAccountId: accountId,
-            categoryId,
           });
       })
     ) {
@@ -213,30 +266,51 @@ export default function Finance() {
           />
         ))}
       </View>
-      <Button
-        secondary
-        label={zh.addPlan + " · " + zh.finance[kind]}
-        onPress={() => {
-          setCreating(!creating);
-          setEditing("");
-          setAction(null);
-        }}
-      />
-      {creating && (
+      {!creating && (
+        <Button
+          secondary
+          label={zh.addPlan + " · " + zh.finance[kind]}
+          onPress={() => {
+            setCreating(!creating);
+            setEditing("");
+            setAction(null);
+          }}
+        />
+      )}
+      {creating && kind === "rent" && (
+        <Card>
+          <LeaseForm
+            onSaved={() => {
+              setCreating(false);
+              setMessage(zh.finance.created);
+            }}
+            onCancel={() => setCreating(false)}
+          />
+        </Card>
+      )}
+      {creating && kind !== "rent" && (
         <Card style={{ gap: 12 }}>
           <Field label={zh.finance.name} value={name} onChangeText={setName} />
-          <Field
-            label={
-              kind === "loan"
-                ? zh.finance.monthly
-                : kind === "rent"
-                  ? zh.finance.rentAmount
-                  : zh.amount
-            }
-            value={amount}
-            onChangeText={setAmount}
-            keyboardType="decimal-pad"
-          />
+          <View style={{ flexDirection: "row", gap: 12, flexWrap: "wrap" }}>
+            <View style={{ flex: 1, minWidth: 150 }}>
+              <Field
+                label={kind === "loan" ? zh.finance.monthly : zh.amount}
+                value={amount}
+                onChangeText={setAmount}
+                keyboardType="decimal-pad"
+              />
+            </View>
+            {kind === "prepaid" && (
+              <View style={{ width: 110 }}>
+                <Field
+                  label={zh.finance.months}
+                  value={months}
+                  onChangeText={setMonths}
+                  keyboardType="number-pad"
+                />
+              </View>
+            )}
+          </View>
           {kind === "loan" ? (
             <>
               <Field
@@ -245,40 +319,52 @@ export default function Finance() {
                 onChangeText={setPrincipal}
                 keyboardType="decimal-pad"
               />
-              <Field
-                label={zh.finance.due}
-                value={due}
-                onChangeText={setDue}
-                keyboardType="number-pad"
-              />
-              <Field
-                label={zh.finance.paid}
-                value={paid}
-                onChangeText={setPaid}
-                keyboardType="number-pad"
-              />
-              <Field
-                label={zh.finance.total}
-                value={total}
-                onChangeText={setTotal}
-                keyboardType="number-pad"
-              />
-              <Field
-                label={zh.finance.free}
-                value={free}
-                onChangeText={setFree}
-                keyboardType="number-pad"
-              />
-              <Field
-                label={zh.finance.settlePeriod}
-                value={settle}
-                onChangeText={setSettle}
-                keyboardType="number-pad"
-              />
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+                <View style={{ width: "47%" }}>
+                  <Field
+                    label={zh.finance.due}
+                    value={due}
+                    onChangeText={setDue}
+                    keyboardType="number-pad"
+                  />
+                </View>
+                <View style={{ width: "47%" }}>
+                  <Field
+                    label={zh.finance.paid}
+                    value={paid}
+                    onChangeText={setPaid}
+                    keyboardType="number-pad"
+                  />
+                </View>
+                <View style={{ width: "47%" }}>
+                  <Field
+                    label={zh.finance.total}
+                    value={total}
+                    onChangeText={setTotal}
+                    keyboardType="number-pad"
+                  />
+                </View>
+                <View style={{ width: "47%" }}>
+                  <Field
+                    label={zh.finance.free}
+                    value={free}
+                    onChangeText={setFree}
+                    keyboardType="number-pad"
+                  />
+                </View>
+                <View style={{ width: "47%" }}>
+                  <Field
+                    label={zh.finance.settlePeriod}
+                    value={settle}
+                    onChangeText={setSettle}
+                    keyboardType="number-pad"
+                  />
+                </View>
+              </View>
             </>
-          ) : (
+          ) : kind !== "prepaid" ? (
             <DateField label={zh.date} value={date} onChange={setDate} />
-          )}
+          ) : null}
           {kind === "deposit" && (
             <DateField
               optional
@@ -287,39 +373,65 @@ export default function Finance() {
               onChange={setExpectedReturn}
             />
           )}
-          {(kind === "prepaid" || kind === "rent") && (
-            <Field
-              label={
-                kind === "rent" ? zh.finance.prepayMonths : zh.finance.months
-              }
-              value={months}
-              onChangeText={setMonths}
-              keyboardType="number-pad"
-            />
-          )}
           {kind === "prepaid" && (
             <>
-              <DateField
-                mode="month"
-                label={zh.finance.startMonth}
-                value={startMonth}
-                onChange={setStartMonth}
-              />
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <View style={{ flex: 1 }}>
+                  <DateField label="付款日期" value={date} onChange={setDate} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <DateField
+                    mode="month"
+                    label={zh.finance.startMonth}
+                    value={startMonth}
+                    onChange={setStartMonth}
+                  />
+                </View>
+              </View>
               <Field
-                label={zh.finance.day}
+                label={zh.finance.day + "（1–31）"}
                 value={day}
                 onChangeText={setDay}
                 keyboardType="number-pad"
               />
             </>
           )}
-          {kind === "rent" && (
-            <Field
-              label={zh.finance.depositMonths}
-              value={depositMonths}
-              onChangeText={setDepositMonths}
-              keyboardType="number-pad"
-            />
+          {kind === "prepaid" && (
+            <View style={{ gap: 6 }}>
+              <Txt size={12}>
+                当月没有所选日期时在月末分摊，下个月恢复原定日期。
+              </Txt>
+              {!!previewError && <ErrorText message={previewError} />}
+              {!!parts.length && (
+                <>
+                  <Txt bold>
+                    总额 {formatMoney(calculate(amount))} · {parts.length} 个月
+                  </Txt>
+                  <Txt>
+                    每月 {formatMoney(parts[0]!.amount)}
+                    {parts.at(-1)!.amount !== parts[0]!.amount
+                      ? "，末月 " + formatMoney(parts.at(-1)!.amount)
+                      : ""}
+                  </Txt>
+                  <Chip
+                    label={showSchedule ? "收起分摊明细" : "查看分摊日期"}
+                    onPress={() => setShowSchedule(!showSchedule)}
+                  />
+                  {showSchedule &&
+                    parts.slice(0, 3).map((p) => (
+                      <Txt size={13} key={p.date}>
+                        {p.date} · {formatMoney(p.amount)}
+                      </Txt>
+                    ))}
+                  {showSchedule && parts.length > 3 && (
+                    <Txt size={13}>
+                      … 至 {parts.at(-1)!.date}，合计{" "}
+                      {formatMoney(parts.reduce((n, p) => n + p.amount, 0))}
+                    </Txt>
+                  )}
+                </>
+              )}
+            </View>
           )}
           {selection}
           <Button label={zh.save} onPress={save} />
@@ -400,7 +512,7 @@ export default function Finance() {
           return (
             <Card key={p.id} style={{ gap: 12 }}>
               <Txt bold>
-                {p.name} · {zh.finance[p.kind]}
+                {p.name} · {d.lease ? zh.finance.rent : zh.finance[p.kind]}
               </Txt>
               <Txt>{formatMoney(p.kind === "loan" ? -balance : balance)}</Txt>
               {d.closed && <Txt>{zh.finance.closed}</Txt>}
@@ -482,7 +594,8 @@ export default function Finance() {
                   onPress={() => begin("return")}
                 />
               )}
-              {p.kind === "prepaid" && (
+              {p.kind === "prepaid" && d.lease && <LeaseDetails plan={p} />}
+              {p.kind === "prepaid" && !d.lease && (
                 <>
                   <Txt>
                     {d.startMonth} · {d.months} {zh.reports.month}
@@ -510,7 +623,7 @@ export default function Finance() {
                     label={zh.finance.deleteGroup}
                     onPress={() =>
                       confirmAction(zh.finance.deleteGroup, p.name, () =>
-                        perform(() => repo.deletePrepayment(p.id)),
+                        perform(() => repo.deletePrepayment(p.id), false),
                       )
                     }
                   />
@@ -519,7 +632,6 @@ export default function Finance() {
             </Card>
           );
         })}
-      <ReminderSettings />
     </Page>
   );
 }

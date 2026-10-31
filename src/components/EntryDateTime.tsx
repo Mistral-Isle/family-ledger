@@ -1,8 +1,15 @@
 import { useState } from "react";
-import { Modal, Pressable, ScrollView, Switch, View } from "react-native";
+import {
+  Platform,
+  Modal,
+  Pressable,
+  ScrollView,
+  Switch,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CalendarControl, TimeControl } from "./DateTimeControls";
-import { Button, Row, Txt, useTheme } from "./ui";
+import { Button, Icon, Row, Txt, useTheme } from "./ui";
 import { useReducedMotion } from "./useReducedMotion";
 import { today } from "../domain/date";
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -46,11 +53,14 @@ export function EntryDateTime({
           justifyContent: "center",
         }}
       >
-        <Txt size={12} color={t.blue}>
-          {date === today()
-            ? time || "今天"
-            : `${date.slice(5).replace("-", "月")}日${time ? " " + time : ""}`}
-        </Txt>
+        <Row style={{ gap: 5 }}>
+          <Icon name="clock" size={15} color={t.muted} />
+          <Txt size={12} color={t.muted}>
+            {date === today()
+              ? time || "今天"
+              : `${date.slice(5).replace("-", "月")}日${time ? " " + time : ""}`}
+          </Txt>
+        </Row>
       </Pressable>
       <Modal
         visible={open}
@@ -110,30 +120,41 @@ export function EntryDateTime({
                     if (!value) setShowTime(false);
                   }}
                 />
-                {recordTime && (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="调整时间"
-                    accessibilityState={{ expanded: showTime }}
-                    onPress={() => setShowTime(!showTime)}
-                    style={{
-                      backgroundColor: t.soft,
-                      borderRadius: 18,
-                      paddingVertical: 10,
-                      paddingHorizontal: 14,
-                      minHeight: 44,
-                    }}
-                  >
-                    <Txt size={18}>{timeString(draft)}</Txt>
-                  </Pressable>
-                )}
+                {recordTime &&
+                  (Platform.OS === "ios" ? (
+                    <TimeControl
+                      compact
+                      value={draft}
+                      onChange={(next) => {
+                        const d = new Date(draft);
+                        d.setHours(next.getHours(), next.getMinutes(), 0, 0);
+                        setDraft(d);
+                      }}
+                    />
+                  ) : (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="调整时间"
+                      accessibilityState={{ expanded: showTime }}
+                      onPress={() => setShowTime(!showTime)}
+                      style={{
+                        backgroundColor: t.soft,
+                        borderRadius: 18,
+                        paddingVertical: 10,
+                        paddingHorizontal: 14,
+                        minHeight: 44,
+                      }}
+                    >
+                      <Txt size={18}>{timeString(draft)}</Txt>
+                    </Pressable>
+                  ))}
               </Row>
               {!recordTime && (
                 <Txt size={12} color={t.muted}>
                   不记录时间，只保留日期
                 </Txt>
               )}
-              {recordTime && showTime && (
+              {Platform.OS !== "ios" && recordTime && showTime && (
                 <TimeControl
                   value={draft}
                   onChange={(next) => {
