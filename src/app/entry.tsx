@@ -4,6 +4,8 @@ import {
   transferAccountName,
 } from "../domain/privacyTransfer";
 import { EntryDateTime } from "../components/EntryDateTime";
+import { AccountIcon } from "../components/AccountIcon";
+import { AccountChip } from "../components/AccountChip";
 import { useSubmissionGuard } from "../components/useSubmissionGuard";
 import { useReducedMotion } from "../components/useReducedMotion";
 import { VaultGate } from "../components/VaultGate";
@@ -29,7 +31,6 @@ import {
 } from "../components/CategoryEditor";
 import { EntryKeyboard } from "../components/EntryKeyboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { HorizontalStrip } from "../components/HorizontalStrip";
 import { Segmented } from "../components/Segmented";
 import { useLedger } from "../components/LedgerProvider";
 import {
@@ -172,7 +173,7 @@ function Entry() {
       ? (existing.occurredTime ?? "")
       : new Date().toTimeString().slice(0, 5),
   );
-  const [allAccounts, setAllAccounts] = useState(false);
+  const [accountPicker, setAccountPicker] = useState(false);
   const [mode, setMode] = useState(
     scope === "private" ? "standard" : data.preferences.mode,
   );
@@ -196,23 +197,6 @@ function Entry() {
           a.id === existing?.toAccountId),
     )
     .sort((a, b) => a.sort - b.sort);
-  const visibleAccounts =
-    allAccounts || scope === "private"
-      ? accounts
-      : accounts
-          .filter(
-            (a) =>
-              data.preferences.pinned.includes(a.id) ||
-              a.id === accountId ||
-              a.id === toId,
-          )
-          .sort((a, b) => {
-            const rank = (id: string) => {
-              const index = data.preferences.pinned.indexOf(id);
-              return index < 0 ? 99 : index;
-            };
-            return rank(a.id) - rank(b.id);
-          });
   const roots = data.categories
     .filter((c) => !c.deleted && !c.hidden && !c.parentId && c.kind === type)
     .sort((a, b) => a.sort - b.sort);
@@ -385,43 +369,117 @@ function Entry() {
     Keyboard.dismiss();
     setTextEditing(false);
   };
-  function accountStrip(destination = false) {
+  function accountSelector() {
+    const selected = accounts.find((a) => a.id === accountId);
     return (
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        {type === "transfer" && (
-          <Txt size={11}>{destination ? zh.to : zh.from}</Txt>
-        )}
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <HorizontalStrip>
-            {visibleAccounts.map((a) => (
-              <Chip
-                key={a.id}
-                label={`${a.name}${a.last4 ? ` ${a.last4}` : ""}`}
-                selected={a.id === (destination ? toId : accountId)}
-                onPress={() =>
-                  destination ? setToId(a.id) : setAccountId(a.id)
-                }
-              />
-            ))}
-            {(allAccounts || accounts.length > visibleAccounts.length) && (
-              <Chip
-                label={allAccounts ? "收起账户" : "全部账户"}
-                selected={allAccounts}
-                onPress={() => setAllAccounts(!allAccounts)}
-              />
-            )}
-            {!accounts.length && (
+      <>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="选择账户"
+          accessibilityHint={selected?.name ?? "尚未选择账户"}
+          accessibilityState={{ expanded: accountPicker }}
+          onPress={() => {
+            finishText();
+            setAccountPicker(true);
+          }}
+          style={({ pressed }) => ({
+            minHeight: 44,
+            paddingHorizontal: 10,
+            borderRadius: 14,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 7,
+            backgroundColor: t.card,
+            opacity: pressed ? 0.75 : 1,
+          })}
+        >
+          {selected && <AccountIcon kind={selected.kind} size={26} />}
+          <Text
+            numberOfLines={1}
+            style={{
+              flexShrink: 1,
+              fontSize: 13,
+              fontWeight: "600",
+              color: t.text,
+            }}
+          >
+            {selected
+              ? `${selected.name}${selected.last4 ? ` ${selected.last4}` : ""}`
+              : "选择账户"}
+          </Text>
+          <Icon name="chevron.down" size={13} color={t.muted} />
+        </Pressable>
+        <Modal
+          visible={accountPicker}
+          transparent
+          animationType={reducedMotion ? "none" : "fade"}
+          onRequestClose={() => setAccountPicker(false)}
+        >
+          <View
+            style={{
+              flex: 1,
+              justifyContent: "flex-end",
+              backgroundColor: "#00000055",
+            }}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="关闭账户选择"
+              style={{ position: "absolute", inset: 0 }}
+              onPress={() => setAccountPicker(false)}
+            />
+            <View
+              accessibilityViewIsModal
+              style={{
+                backgroundColor: t.bg,
+                padding: 20,
+                paddingBottom: Math.max(20, insets.bottom),
+                borderTopLeftRadius: 24,
+                borderTopRightRadius: 24,
+                maxHeight: "70%",
+                gap: 14,
+              }}
+            >
+              <Row style={{ justifyContent: "space-between" }}>
+                <Txt bold size={18}>
+                  选择账户
+                </Txt>
+                <IconButton
+                  name="xmark"
+                  label="完成账户选择"
+                  onPress={() => setAccountPicker(false)}
+                />
+              </Row>
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ gap: 8 }}
+              >
+                {accounts.map((a) => (
+                  <AccountChip
+                    key={a.id}
+                    kind={a.kind}
+                    label={`${a.name}${a.last4 ? ` ${a.last4}` : ""}`}
+                    selected={a.id === accountId}
+                    onPress={() => {
+                      setAccountId(a.id);
+                      setAccountPicker(false);
+                    }}
+                  />
+                ))}
+                {!accounts.length && <Txt color={t.muted}>还没有可用账户</Txt>}
+              </ScrollView>
               <Button
                 secondary
                 label={zh.addAccount}
-                onPress={() =>
-                  router.push({ pathname: "/account", params: { scope } })
-                }
+                onPress={() => {
+                  setAccountPicker(false);
+                  router.push({ pathname: "/account", params: { scope } });
+                }}
               />
-            )}
-          </HorizontalStrip>
-        </View>
-      </View>
+            </View>
+          </View>
+        </Modal>
+      </>
     );
   }
   function tile(c: (typeof roots)[number], child = false) {
@@ -465,7 +523,11 @@ function Entry() {
             width: 46,
             height: 46,
             borderRadius: 16,
-            backgroundColor: selected ? shown.color : t.card,
+            backgroundColor: selected
+              ? shown.kind === "income"
+                ? t.incomeIcon
+                : t.expenseIcon
+              : t.idleIconBackground,
             alignItems: "center",
             justifyContent: "center",
           }}
@@ -473,7 +535,7 @@ function Entry() {
           <Icon
             name={shown.icon}
             size={25}
-            color={selected ? "#fff" : shown.color}
+            color={selected ? "#fff" : t.idleIcon}
           />
           {hasChildren && (
             <View
@@ -578,6 +640,9 @@ function Entry() {
             <View style={{ gap: 10, paddingVertical: 8 }}>
               {(["from", "to"] as const).map((side) => {
                 const selectedId = side === "from" ? accountId : toId;
+                const selectedAccount = data.accounts.find(
+                  (a) => a.id === selectedId,
+                );
                 return (
                   <Pressable
                     key={side}
@@ -601,12 +666,28 @@ function Entry() {
                     <Txt size={13} color={t.muted}>
                       {side === "from" ? "转出账户" : "转入账户"}
                     </Txt>
-                    <Txt size={18} bold>
-                      {selectedId
-                        ? (data.accounts.find((a) => a.id === selectedId)
-                            ?.name ?? transferAccountName(data, selectedId))
-                        : "请选择账户"}
-                    </Txt>
+                    <Row style={{ gap: 10 }}>
+                      {selectedAccount ? (
+                        <AccountIcon kind={selectedAccount.kind} size={32} />
+                      ) : (
+                        <Icon
+                          name={
+                            privacyMemberId(selectedId)
+                              ? "lock.fill"
+                              : "creditcard.fill"
+                          }
+                          color={t.blue}
+                          size={24}
+                        />
+                      )}
+                      <Txt size={18} bold style={{ flex: 1 }}>
+                        {selectedId
+                          ? (selectedAccount?.name ??
+                            transferAccountName(data, selectedId))
+                          : "请选择账户"}
+                      </Txt>
+                      <Icon name="chevron.down" size={14} color={t.muted} />
+                    </Row>
                   </Pressable>
                 );
               })}
@@ -683,8 +764,9 @@ function Entry() {
                               (a.scope === scope || a.scope === "family"),
                           )
                           .map((a) => (
-                            <Chip
+                            <AccountChip
                               key={a.id}
+                              kind={a.kind}
                               label={
                                 a.name +
                                 " · " +
@@ -840,13 +922,14 @@ function Entry() {
         </ScrollView>
         <View style={{ gap: 6, paddingTop: 6 }}>
           <Row style={{ gap: 8 }}>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              {type !== "transfer" && accountStrip()}
+            <View style={{ flexShrink: 1, minWidth: 0 }}>
+              {type !== "transfer" && accountSelector()}
             </View>
             {scope === "family" && type === "expense" && (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={zh.collaboration.entryOptions}
+                accessibilityState={{ selected: !!selectedTrip }}
                 accessibilityHint={
                   selectedTrip?.name ?? zh.collaboration.noTrip
                 }
@@ -863,16 +946,16 @@ function Entry() {
                   maxWidth: "40%",
                   paddingHorizontal: 10,
                   borderRadius: 14,
-                  backgroundColor: t.soft,
+                  backgroundColor: selectedTrip ? t.primary : t.soft,
                 }}
               >
-                <Icon name="suitcase.fill" size={17} color={t.blue} />
+                <Icon name="suitcase.fill" size={17} color={selectedTrip ? "#FFFFFF" : t.blue} />
                 <Text
                   numberOfLines={1}
                   style={{
                     flexShrink: 1,
                     fontSize: 13,
-                    color: t.blue,
+                    color: selectedTrip ? "#FFFFFF" : t.blue,
                     fontWeight: "600",
                   }}
                 >
@@ -880,6 +963,7 @@ function Entry() {
                 </Text>
               </Pressable>
             )}
+            <View style={{ flex: 1 }} />
             <IconButton
               name="gearshape.fill"
               label="更多设置"

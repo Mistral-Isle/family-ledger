@@ -1,4 +1,5 @@
 import { VaultGate } from "../components/VaultGate";
+import { AccountChip } from "../components/AccountChip";
 import { useSubmissionGuard } from "../components/useSubmissionGuard";
 import { useState } from "react";
 import { View } from "react-native";
@@ -104,8 +105,9 @@ function AccountEditor() {
             {(
               ["bank", "wechat", "alipay", "cash", "credit", "loan"] as const
             ).map((k) => (
-              <Chip
+              <AccountChip
                 key={k}
+                kind={k}
                 label={zh.accountKinds[k]}
                 selected={kind === k}
                 onPress={() => setKind(k)}

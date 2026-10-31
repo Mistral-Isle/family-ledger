@@ -1,6 +1,6 @@
 import { useReducedMotion } from "../components/useReducedMotion";
 import { SyncRunner } from "../components/SyncRunner";
-import { isBudgetDemo } from "../demo/config";
+import { isBudgetDemo, isLocalPreview } from "../demo/config";
 import { useEffect } from "react";
 import { AppState } from "react-native";
 import { useVault } from "../state/vault";
@@ -21,7 +21,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <LedgerProvider>
-        {!isBudgetDemo && <SyncRunner />}
+        {!isBudgetDemo && !isLocalPreview && <SyncRunner />}
         <StatusBar style={t.dark ? "light" : "dark"} />
         <Stack
           screenOptions={{

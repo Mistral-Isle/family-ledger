@@ -3,12 +3,24 @@ import type { Category } from "./types";
 // Categorical colors for statistics, independent of the app's warm accent and
 // the editable category swatches. Keep gray exclusively for grouped slices.
 export const chartPalette = [
-  "#4D83F3", // blue
-  "#EF6C78", // coral
-  "#20AB9D", // teal
-  "#9670DD", // violet
-  "#F39B45", // orange
-  "#55A64E", // green
+  "#EF747B",
+  "#F29D58",
+  "#EAC44F",
+  "#66B99B",
+  "#49ADC0",
+  "#679DDF",
+  "#8586D5",
+  "#AF83CD",
+  "#D580AD",
+  "#CF8370",
+  "#B3AF54",
+  "#7BAC6C",
+  "#5EAAA6",
+  "#648CB7",
+  "#9B91C5",
+  "#C99ABC",
+  "#CEAC7A",
+  "#88A6A0",
 ] as const;
 export const chartOtherColor = "#8B95A5";
 
@@ -27,17 +39,10 @@ export function categoryChartColors(
         colors.set(category.id, chartPalette[index % chartPalette.length]!);
       });
   }
-  const used = new Set<string>();
-  // Prioritize the visible slices (the report is amount-sorted). Resolve reuse
-  // from large category sets before drawing, and share this map with the list.
-  visibleIds.forEach((id, index) => {
-    const preferred = colors.get(id) ?? chartPalette[0];
-    const color = !used.has(preferred)
-      ? preferred
-      : (chartPalette.find((candidate) => !used.has(candidate)) ??
-        chartPalette[index % chartPalette.length]!);
-    colors.set(id, color);
-    used.add(color);
+  // Assign from the complete category order, never the month or amount ranking.
+  // The same category therefore keeps its color in the plot and list across filters.
+  visibleIds.forEach((id) => {
+    if (!colors.has(id)) colors.set(id, chartOtherColor);
   });
   return colors;
 }

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import Svg, { Circle, G, Polyline, Text as SvgText } from "react-native-svg";
 import { donutLayout, shareLabel, type DonutItem } from "../domain/donut";
 import { formatMoney } from "../domain/money";
@@ -33,6 +33,12 @@ export function CategoryDonut({
     width < 320 ? 18 : 21,
     Math.floor(centerWidth / (amount.length * 0.58)),
   );
+  const labelFont =
+    Platform.OS === "web"
+      ? "system-ui, -apple-system, sans-serif"
+      : Platform.OS === "ios"
+        ? "System"
+        : "sans-serif";
   const labelSize = width < 280 ? 10 : 11.5;
   return (
     <View
@@ -69,36 +75,42 @@ export function CategoryDonut({
           </G>
         ))}
         {labels.map((label) => {
-          const name = label.name.replace(/[\s/／]+/g, "");
+          const name = label.displayName;
           return (
             <G key={label.id}>
               <Polyline
                 points={`${label.x},${label.anchorY} ${label.elbowX},${label.y} ${label.endX},${label.y}`}
                 stroke={label.color}
-                strokeWidth={1.5}
+                strokeWidth={1.25}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 fill="none"
               />
               <SvgText
-                x={label.endX + label.side * 6}
-                y={label.y - 4}
+                x={label.endX + label.side * 5}
+                y={label.twoLine ? label.y - 3 : label.y + 4}
                 textAnchor={label.side === 1 ? "start" : "end"}
                 fontSize={labelSize}
-                fontWeight="600"
+                fontFamily={labelFont}
+                fontWeight="400"
                 fill={t.text}
               >
-                {shareLabel(label.share, 1)}
+                {label.twoLine
+                  ? shareLabel(label.share, 1)
+                  : name + " " + shareLabel(label.share, 1)}
               </SvgText>
-              <SvgText
-                x={label.endX + label.side * 6}
-                y={label.y + 12}
-                textAnchor={label.side === 1 ? "start" : "end"}
-                fontSize={labelSize}
-                fill={t.muted}
-              >
-                {name.length > 4 ? name.slice(0, 3) + "…" : name}
-              </SvgText>
+              {label.twoLine && (
+                <SvgText
+                  x={label.endX + label.side * 5}
+                  y={label.y + 12}
+                  textAnchor={label.side === 1 ? "start" : "end"}
+                  fontSize={labelSize}
+                  fontFamily={labelFont}
+                  fill={t.text}
+                >
+                  {name}
+                </SvgText>
+              )}
             </G>
           );
         })}

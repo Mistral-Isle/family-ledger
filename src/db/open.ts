@@ -6,7 +6,8 @@ import { LedgerRepository } from "./repository";
 import { migrations } from "./migration";
 import { acquireDatabaseLease } from "./databaseLease";
 import * as schema from "./schema";
-import { isBudgetDemo } from "../demo/config";
+import { isBudgetDemo, isLocalPreview } from "../demo/config";
+import { zh } from "../i18n/zh";
 import { thisMonth } from "../domain/date";
 
 let repository: LedgerRepository | undefined;
@@ -27,6 +28,29 @@ async function initialize(): Promise<LedgerRepository> {
     isBudgetDemo ? "budget-preview-demo.db" : "family-ledger.db",
   );
   try {
+    // User-authorized disposable preview reset. The exact default catalog is
+    // the revision: future category edits cannot leave an older test catalog.
+    const previewRevision = JSON.stringify([
+      "preview-reset-v1",
+      zh.defaultCategories,
+      zh.defaultExpenseOrder,
+    ]);
+    const previewKey = isBudgetDemo
+      ? "ledger-demo-catalog"
+      : "ledger-preview-catalog";
+    if (
+      isLocalPreview &&
+      localStorage.getItem(previewKey) !== previewRevision
+    ) {
+      await sqlite.execAsync("PRAGMA foreign_keys = OFF;");
+      const tables = await sqlite.getAllAsync<{ name: string }>(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+      );
+      await sqlite.withTransactionAsync(async () => {
+        for (const { name } of tables)
+          await sqlite.execAsync(`DROP TABLE "${name.replace(/"/g, '""')}";`);
+      });
+    }
     await sqlite.execAsync(
       "PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;",
     );
@@ -37,6 +61,11 @@ async function initialize(): Promise<LedgerRepository> {
       const { seedBudgetDemo } = await import("../demo/seedBudgetDemo");
       seedBudgetDemo(next, thisMonth());
     }
+    if (isLocalPreview && !isBudgetDemo) {
+      const { seedIconPreview } = await import("../demo/seedIconPreview");
+      seedIconPreview(next);
+    }
+    if (isLocalPreview) localStorage.setItem(previewKey, previewRevision);
     repository = next;
     return next;
   } catch (error) {

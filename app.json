@@ -18,7 +18,7 @@
         },
         "NSCameraUsageDescription": "扫描另一位家庭成员的账本配对二维码"
       },
-      "buildNumber": "4"
+      "buildNumber": "5"
     },
     "web": {
       "bundler": "metro",

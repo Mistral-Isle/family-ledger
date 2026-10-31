@@ -5,3 +5,9 @@ export const isBudgetDemo =
   document
     .querySelector('meta[name="ledger-preview"]')
     ?.getAttribute("content") === "budget-demo";
+
+// These two localhost servers are disposable UI previews, never installed ledgers.
+export const isLocalPreview =
+  typeof location !== "undefined" &&
+  ["localhost", "127.0.0.1"].includes(location.hostname) &&
+  ["4173", "4175"].includes(location.port);

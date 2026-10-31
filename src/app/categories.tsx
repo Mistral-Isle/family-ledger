@@ -82,12 +82,12 @@ export default function Categories() {
                 width: 34,
                 height: 34,
                 borderRadius: 11,
-                backgroundColor: t.soft,
+                backgroundColor: category.kind === "income" ? t.incomeIcon : t.expenseIcon,
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <Icon name={category.icon} color={category.color} size={18} />
+              <Icon name={category.icon} color="#fff" size={18} />
             </View>
             <View style={{ flex: 1 }}>
               <Txt bold={!child}>{category.name}</Txt>

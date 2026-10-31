@@ -227,16 +227,14 @@ function TransactionRow({ txn }: { txn: Txn }) {
                 width: 44,
                 height: 44,
                 borderRadius: 14,
-                backgroundColor: t.dark
-                  ? t.soft
-                  : `${category?.color ?? blue}18`,
+                backgroundColor: txn.type === "income" ? t.incomeIcon : txn.type === "expense" ? t.expenseIcon : t.transferIcon,
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
               <Icon
                 name={category?.icon ?? "arrow.left.arrow.right"}
-                color={category?.color ?? blue}
+                color="#fff"
                 size={21}
               />
             </View>

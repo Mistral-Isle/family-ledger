@@ -1,3 +1,6 @@
+import { approvedCategoryIcons } from "./approvedCategoryIcons";
+import { roundedCategoryIconLayers } from "./roundedCategoryIcons";
+
 export const categoryIconGroups = [
   "全部",
   "餐饮",
@@ -8,7 +11,7 @@ export const categoryIconGroups = [
   "财务",
 ] as const;
 // Shared vectors keep custom category icons consistent on iOS and web.
-export const categoryIcons = [
+const legacyCategoryIcons = [
   [
     "bowl",
     "米饭",
@@ -212,8 +215,32 @@ export const categoryIcons = [
   group: group!,
   path: path!,
 }));
+export const categoryIcons = [
+  ...approvedCategoryIcons,
+  {
+    name: "category:leisure-6",
+    label: "娱乐 · 纪念品",
+    group: "生活",
+    layers: roundedCategoryIconLayers["category:leisure-6"]!,
+  },
+  ...legacyCategoryIcons,
+];
+export const categoryIconLayers: Record<
+  string,
+  { d: string; transform?: string }[]
+> = {
+  ...Object.fromEntries(
+    approvedCategoryIcons.map((i) => [
+      i.name,
+      i.layers
+        .filter((layer) => !layer.transform?.includes("translate(14 14)"))
+        .map((layer) => ({ d: layer.d })),
+    ]),
+  ),
+  ...roundedCategoryIconLayers,
+};
 export const categoryIconPaths = Object.fromEntries(
-  categoryIcons.map((i) => [i.name, i.path]),
+  legacyCategoryIcons.map((i) => [i.name, i.path]),
 );
 export const categoryIconAliases: Record<string, string> = {
   "fork.knife": "utensils",

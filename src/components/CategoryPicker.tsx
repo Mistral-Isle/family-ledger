@@ -106,7 +106,7 @@ export function CategoryPicker({
                         style={{
                           width: 48,
                           height: 48,
-                          backgroundColor: value === c.id ? c.color : t.card,
+                          backgroundColor: value === c.id ? (c.kind === "income" ? t.incomeIcon : t.expenseIcon) : t.idleIconBackground,
                           borderRadius: 18,
                           alignItems: "center",
                           justifyContent: "center",
@@ -114,7 +114,7 @@ export function CategoryPicker({
                       >
                         <Icon
                           name={c.icon}
-                          color={value === c.id ? "#fff" : c.color}
+                          color={value === c.id ? "#fff" : t.idleIcon}
                           size={24}
                         />
                       </View>

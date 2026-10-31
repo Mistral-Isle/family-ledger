@@ -1,6 +1,7 @@
 import {
   categoryIconPaths,
   categoryIconAliases,
+  categoryIconLayers,
 } from "../domain/categoryIcons";
 import React, { useRef, useState } from "react";
 import {
@@ -52,6 +53,11 @@ export function useTheme() {
   const warm = appearance === "warm";
   return {
     dark,
+    expenseIcon: "#EF7564",
+    incomeIcon: "#58A67B",
+    transferIcon: "#6C91C2",
+    idleIconBackground: dark ? "#3C3F41" : "#FFFFFF",
+    idleIcon: dark ? "#B8BBBF" : "#77797D",
     bg: dark ? darcula.bg : warm ? "#F5F1EA" : "#F2F2F7",
     card: dark ? darcula.card : warm ? "#FFFDFA" : "#FFFFFF",
     text: dark ? darcula.text : "#1C1C1E",
@@ -69,6 +75,8 @@ export function useTheme() {
   };
 }
 const symbols = [
+  "eye",
+  "eye.slash",
   "clock",
   "delete.left",
   "calendar",
@@ -136,6 +144,8 @@ const symbols = [
 ] as const;
 export type IconName = (typeof symbols)[number];
 const paths: Record<string, string> = {
+  eye: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0",
+  "eye.slash": "M3 3l18 18M9 5.5A12 12 0 0 1 12 5c6.5 0 10 7 10 7a19 19 0 0 1-3 4M6 6.5A20 20 0 0 0 2 12s3.5 7 10 7a12 12 0 0 0 5-1M9.9 9.9a3 3 0 0 0 4.2 4.2",
   "suitcase.fill": "M8 5V3H16V5M4 5H20V21H4ZM8 5V21M16 5V21",
   clock: "M22 12A10 10 0 1 1 2 12A10 10 0 1 1 22 12ZM12 6V12L16 14",
   "sun.max.fill":
@@ -202,6 +212,24 @@ export function Icon({
   size?: number;
   color?: string;
 }) {
+  const layers = categoryIconLayers[name];
+  if (layers)
+    return (
+      <Svg width={size} height={size} viewBox="0 0 24 24">
+        {layers.map((layer, index) => (
+          <Path
+            key={index}
+            d={layer.d}
+            transform={layer.transform}
+            fill="none"
+            stroke={color}
+            strokeWidth={1.8}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        ))}
+      </Svg>
+    );
   const customPath =
     categoryIconPaths[name] ??
     categoryIconPaths["category:" + categoryIconAliases[name]];

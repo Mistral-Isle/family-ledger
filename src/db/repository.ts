@@ -1,4 +1,5 @@
 import { privacyAccountId, privacyMemberId } from "../domain/privacyTransfer";
+import { defaultCategoryIconUpdates } from "../domain/defaultCategoryIconUpdates";
 import {
   summaryPreferences,
   type SummaryPreferences,
@@ -392,6 +393,12 @@ export class LedgerRepository {
   getShowIncomeCalendar(): boolean {
     return this.pref("showIncomeCalendar", true);
   }
+  getAssetAmountsHidden(): boolean {
+    return this.pref<boolean>("assetAmountsHidden", false) === true;
+  }
+  setAssetAmountsHidden(value: boolean) {
+    this.db.withTransactionSync(() => this.setPref("assetAmountsHidden", value));
+  }
   setShowIncomeCalendar(value: boolean) {
     this.db.withTransactionSync(() =>
       this.setPref("showIncomeCalendar", value),
@@ -518,6 +525,31 @@ export class LedgerRepository {
     );
     this.setPref("seq", seq);
   }
+  private upgradeDefaultCategoryIcons() {
+    if (this.pref("defaultCategoryIconsV1", false)) return;
+    const categories = this.all<Category>("category");
+    for (const category of categories) {
+      if (category.deleted) continue;
+      const parent = category.parentId
+        ? categories.find((p) => p.id === category.parentId && !p.deleted)
+        : null;
+      if (category.parentId && !parent) continue;
+      const update = defaultCategoryIconUpdates.find(
+        (u) =>
+          u.kind === category.kind &&
+          u.name === category.name &&
+          u.parent === (parent?.name ?? null) &&
+          u.previousIcon === category.icon,
+      );
+      if (update)
+        this.write("category", {
+          ...category,
+          ...this.stamp(category),
+          icon: update.icon,
+        });
+    }
+    this.setPref("defaultCategoryIconsV1", true);
+  }
   private upgradeDefaultCategoryOrder() {
     if (this.pref("defaultCategoryOrderV2", false)) return;
     const roots = this.all<Category>("category")
@@ -556,6 +588,7 @@ export class LedgerRepository {
             });
         this.setPref("monthBudgets", {});
         this.upgradeDefaultCategoryOrder();
+        this.upgradeDefaultCategoryIcons();
         return;
       }
       this.setPref("deviceId", this.uuid());
@@ -616,6 +649,7 @@ export class LedgerRepository {
       this.setPref("preferences", { ...emptyPrefs(), pinned });
       this.setPref("initialized", true);
       this.setPref("defaultCategoryOrderV2", true);
+      this.setPref("defaultCategoryIconsV1", true);
     });
   }
   snapshot(): Snapshot {

@@ -23,7 +23,7 @@ test("calendar defaults to visible and persists independently of ledger and sync
   }
 });
 
-test("donut preserves positive amounts when grouping tiny categories, with no negative slices", () => {
+test("donut preserves every positive category, with no negative slices", () => {
   const items = Array.from({ length: 12 }, (_, i) => ({
     id: String(i),
     name: `分类${i}`,
@@ -31,8 +31,8 @@ test("donut preserves positive amounts when grouping tiny categories, with no ne
     color: "#FFFFFF",
   }));
   const slices = donutSlices(items);
-  expect(slices).toHaveLength(6);
-  expect(slices.at(-1)?.name).toBe("其他");
+  expect(slices).toHaveLength(11);
+  expect(slices.every((s) => s.id !== "donut-other")).toBe(true);
   expect(slices.reduce((sum, s) => sum + s.amount, 0)).toBe(66);
   expect(slices.reduce((sum, s) => sum + s.share, 0)).toBeCloseTo(1);
   expect(donutSlices([{ ...items[0]!, amount: 0 }])).toEqual([]);

@@ -8,7 +8,7 @@ export type DonutItem = {
 };
 
 /** Small slices are grouped visually only; the underlying category list stays complete. */
-export function donutSlices(items: DonutItem[], limit = 6) {
+export function donutSlices(items: DonutItem[], limit = Infinity) {
   const positive = items
     .filter((item) => item.amount > 0)
     .sort((a, b) => b.amount - a.amount);
@@ -94,8 +94,8 @@ export function donutLabels(
   return labels;
 }
 
-/** Choose an orientation with room for short leaders, especially tiny slices.
- * Rotation changes neither the proportions nor the amount-sorted list. */
+/** Keep every slice, but label only the largest readable categories. Labels follow
+ * the circumference; short radial leaders take priority over column alignment. */
 export function donutLayout(
   items: DonutItem[],
   width: number,
@@ -105,66 +105,142 @@ export function donutLayout(
   const source = donutSlices(items);
   const cx = width / 2,
     cy = height / 2;
-  const baseRotation = source.length ? -source[0]!.angle : 0;
-  let best: ReturnType<typeof candidate> | undefined;
-  function candidate(rotation: number, lift: boolean) {
-    const slices = source.map((slice) => ({
-      ...slice,
-      start: slice.start + rotation / (2 * Math.PI),
-      angle: slice.angle + rotation,
+  const fontSize = width < 280 ? 10 : 11.5;
+  const textWidth = (text: string) =>
+    Array.from(text).reduce(
+      (sum, char) => sum + (/[^\x00-\x7F]/.test(char) ? 1 : 0.57) * fontSize,
+      0,
+    );
+  const candidates = source
+    .filter((s, i) => i === 0 || s.share >= 0.02)
+    .slice(0, width < 280 ? 6 : 10);
+  function candidate(rotation: number, count: number) {
+    const slices = source.map((s) => ({
+      ...s,
+      start: s.start + rotation / (Math.PI * 2),
+      angle: s.angle + rotation,
     }));
-    let score = 0;
-    const labels = donutLabels(
-      slices,
-      cy,
-      lift ? outerRadius : outerRadius - 18,
-      height,
-      lift,
-    ).map((label) => {
-      const cos = Math.cos(label.angle),
-        sin = Math.sin(label.angle);
-      const x = cx + cos * outerRadius,
-        y = cy + sin * outerRadius;
-      const elbowX = cx + label.side * (outerRadius + 6);
-      const edge = width < 280 ? 46 : 54;
-      const endX = label.side === 1 ? width - edge : edge;
-      const dx = elbowX - x,
-        dy = label.y - y;
-      // Connect the ring directly to one elbow; avoid an extra radial kink.
-      // Penalize any segment entering the circle, rather than routing a long
-      // rectangular line across the top of the chart to reach a moved label.
-      const lengthSquared = dx * dx + dy * dy;
-      const projection = lengthSquared
-        ? Math.max(
-            0,
-            Math.min(1, -((x - cx) * dx + (y - cy) * dy) / lengthSquared),
-          )
-        : 0;
-      const clearance = Math.hypot(
-        x + projection * dx - cx,
-        y + projection * dy - cy,
-      );
-      // Prefer upward leaders and turns of at least 30 degrees; circle clearance
-      // takes priority when a narrow chart or dense cluster needs a fallback.
-      score +=
-        lengthSquared +
-        (dy > -8 ? 2000 : 0) +
-        Math.max(0, Math.abs(dx) * 0.58 - Math.abs(dy)) * 100 +
-        (clearance < outerRadius - 0.000001 ? 1e9 : 0) +
-        Math.max(0, outerRadius - clearance) * 100000;
-      return { ...label, x, anchorY: y, elbowX, endX };
-    });
-    return { slices, labels, score };
-  }
-  // Only six slices are drawn; this bounded search is cheap and keeps a dense
-  // cluster beside the ring rather than directly above or below it.
-  for (let step = 0; step < 72; step++) {
-    for (const lift of [true, false]) {
-      const layout = candidate(baseRotation + (step * Math.PI) / 36, lift);
-      if (!best || layout.score < best.score - 0.01) best = layout;
+    const ids = new Set(candidates.slice(0, count).map((s) => s.id));
+    const labels = slices
+      .filter((s) => ids.has(s.id))
+      .map((slice) => {
+        const cos = Math.cos(slice.angle),
+          sin = Math.sin(slice.angle);
+        const side = cos >= 0 ? 1 : -1;
+        const x = cx + cos * outerRadius,
+          anchorY = cy + sin * outerRadius;
+        const naturalY = cy + sin * (outerRadius + 12);
+        const name = slice.name.replace(/[\s/／]+/g, "");
+        const shortName = name.length > 4 ? name.slice(0, 3) + "…" : name;
+        const available = width / 2 - Math.abs(cos * (outerRadius + 12)) - 12;
+        const singleText = shortName + " " + shareLabel(slice.share, 1);
+        const twoLine = slice.share >= 0.1 || textWidth(singleText) > available;
+        return {
+          ...slice,
+          side,
+          x,
+          anchorY,
+          naturalY,
+          y: naturalY,
+          elbowX: 0,
+          endX: 0,
+          twoLine,
+          displayName: shortName,
+          labelHeight: twoLine ? 29 : 16,
+        };
+      });
+    for (const side of [-1, 1]) {
+      const group = labels
+        .filter((l) => l.side === side)
+        .sort((a, b) => a.anchorY - b.anchorY);
+      group.forEach((l, i) => {
+        l.y = Math.max(
+          24,
+          l.y,
+          i
+            ? group[i - 1]!.y +
+                (group[i - 1]!.labelHeight + l.labelHeight) / 2 +
+                6
+            : 24,
+        );
+      });
+      for (let i = group.length - 1; i >= 0; i--)
+        group[i]!.y = Math.min(
+          group[i]!.y,
+          i === group.length - 1
+            ? height - 24
+            : group[i + 1]!.y -
+                (group[i + 1]!.labelHeight + group[i]!.labelHeight) / 2 -
+                6,
+        );
     }
+    let valid = true,
+      score = Math.abs(rotation) * 8;
+    for (const l of labels) {
+      const dy = l.y - cy;
+      l.elbowX =
+        cx +
+        l.side *
+          Math.max(
+            Math.abs(l.x - cx) + 5,
+            Math.sqrt(Math.max(0, (outerRadius + 12) ** 2 - dy ** 2)),
+          );
+      l.endX = l.elbowX + l.side * 7;
+      const dx = l.elbowX - l.x,
+        deltaY = l.y - l.anchorY;
+      // A line leaving the ring must point outward, including after label avoidance.
+      if ((l.x - cx) * dx + (l.anchorY - cy) * deltaY < -1e-6 || l.y < 24)
+        valid = false;
+      const available = l.side === 1 ? width - l.endX - 5 : l.endX - 5;
+      if (
+        !l.twoLine &&
+        textWidth(l.displayName + " " + shareLabel(l.share, 1)) > available
+      ) {
+        valid = false;
+      }
+      const needed = l.twoLine
+        ? Math.max(textWidth(l.displayName), textWidth(shareLabel(l.share, 1)))
+        : textWidth(l.displayName + " " + shareLabel(l.share, 1));
+      if (needed > available) valid = false;
+      score += (l.y - l.naturalY) ** 2 * 8 + dx * dx + deltaY * deltaY;
+    }
+    // Avoid crossed leaders or text boxes, even for dense, uneven distributions.
+    const cross = (a: number[], b: number[], c: number[]) =>
+      (b[0]! - a[0]!) * (c[1]! - a[1]!) - (b[1]! - a[1]!) * (c[0]! - a[0]!);
+    const points = (l: (typeof labels)[number]) => [
+      [l.x, l.anchorY],
+      [l.elbowX, l.y],
+      [l.endX, l.y],
+    ];
+    labels.forEach((l, i) =>
+      labels.slice(i + 1).forEach((other) => {
+        const a = points(l),
+          b = points(other);
+        for (let j = 0; j < 2; j++)
+          for (let k = 0; k < 2; k++)
+            if (
+              cross(a[j]!, a[j + 1]!, b[k]!) *
+                cross(a[j]!, a[j + 1]!, b[k + 1]!) <
+                -1e-6 &&
+              cross(b[k]!, b[k + 1]!, a[j]!) *
+                cross(b[k]!, b[k + 1]!, a[j + 1]!) <
+                -1e-6
+            )
+              valid = false;
+      }),
+    );
+    return { slices, labels, score, valid };
   }
-  return best!;
+  for (let count = candidates.length; count >= 0; count--) {
+    let best: ReturnType<typeof candidate> | undefined;
+    for (let step = 0; step < 72; step++) {
+      const rotation = ((step <= 36 ? step : step - 72) * Math.PI) / 36;
+      const next = candidate(rotation, count);
+      if (next.valid && (!best || next.score < best.score)) best = next;
+    }
+    if (best) return best;
+  }
+  return candidate(0, 0);
 }
 
 export function shareLabel(amount: number, total: number) {

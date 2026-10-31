@@ -2,12 +2,15 @@ import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useLedger } from "../../components/LedgerProvider";
+import { AccountIcon } from "../../components/AccountIcon";
 import {
   Button,
   Card,
   Chip,
   Heading,
+  ErrorText,
   Icon,
+  IconButton,
   Page,
   Row,
   Txt,
@@ -20,10 +23,25 @@ import { formatMoney } from "../../domain/money";
 import { today } from "../../domain/date";
 import { zh } from "../../i18n/zh";
 export default function Assets() {
-  const { data } = useLedger();
+  const { data, repo } = useLedger();
   const t = useTheme();
   const router = useRouter();
   const [archived, setArchived] = useState(false);
+  const [amountsHidden, setAmountsHidden] = useState(() =>
+    repo.getAssetAmountsHidden(),
+  );
+  const [error, setError] = useState("");
+  const displayMoney = (amount: number) =>
+    amountsHidden ? "***" : formatMoney(amount);
+  const toggleAmounts = () => {
+    try {
+      repo.setAssetAmountsHidden(!amountsHidden);
+      setAmountsHidden(!amountsHidden);
+      setError("");
+    } catch {
+      setError("未能保存金额显示设置，请重试。");
+    }
+  };
   const rentalAccounts = rentAccountIds(data);
   const accounts = data.accounts
     .filter((a) => a.scope === "family" && !a.deleted)
@@ -57,11 +75,19 @@ export default function Assets() {
           gap: 16,
         }}
       >
-        <Txt size={12} color={t.blue}>
-          {zh.netAssets}
-        </Txt>
+        <Row style={{ gap: 2, marginVertical: -10 }}>
+          <Txt size={12} color={t.blue}>
+            {zh.netAssets}
+          </Txt>
+          <IconButton
+            name={amountsHidden ? "eye.slash" : "eye"}
+            label={amountsHidden ? "显示资产金额" : "隐藏资产金额"}
+            onPress={toggleAmounts}
+            color={t.muted}
+          />
+        </Row>
         <Txt size={36} bold>
-          {formatMoney(total)}
+          {displayMoney(total)}
         </Txt>
         <Row>
           <View style={{ flex: 1, gap: 5 }}>
@@ -69,7 +95,7 @@ export default function Assets() {
               {zh.totalAssets}
             </Txt>
             <Txt size={17} bold>
-              {formatMoney(assets)}
+              {displayMoney(assets)}
             </Txt>
           </View>
           <View style={{ flex: 1, gap: 5 }}>
@@ -77,15 +103,16 @@ export default function Assets() {
               {zh.liabilities}
             </Txt>
             <Txt size={17} bold>
-              {formatMoney(debt)}
+              {displayMoney(debt)}
             </Txt>
           </View>
         </Row>
       </Card>
+      <ErrorText message={error} />
       <Card>
         <Txt>
           {zh.finance.available} ·{" "}
-          {formatMoney(
+          {displayMoney(
             accounts
               .filter(
                 (a) => !["deposit", "prepaid", "loan"].includes(a.account.kind),
@@ -95,7 +122,7 @@ export default function Assets() {
         </Txt>
         <Txt>
           {zh.finance.frozen} ·{" "}
-          {formatMoney(
+          {displayMoney(
             accounts
               .filter((a) => ["deposit", "prepaid"].includes(a.account.kind))
               .reduce((sum, a) => sum + a.balance, 0),
@@ -140,28 +167,12 @@ export default function Assets() {
                 style={{ padding: 19, opacity: account.archived ? 0.6 : 1 }}
               >
                 <Row>
-                  <View
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 14,
-                      backgroundColor: t.soft,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Icon
-                      name={
-                        account.kind === "cash"
-                          ? "banknote.fill"
-                          : "creditcard.fill"
-                      }
-                      color={t.blue}
-                    />
-                  </View>
-                  <View style={{ flex: 1, gap: 4 }}>
+                  <AccountIcon kind={account.kind} />
+                  <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
                     <Row style={{ gap: 8 }}>
-                      <Txt bold>{account.name}</Txt>
+                      <Txt bold style={{ flexShrink: 1 }}>
+                        {account.name}
+                      </Txt>
                       {data.preferences.pinned.includes(account.id) && (
                         <Icon name="pin.fill" size={11} color={blue} />
                       )}
@@ -177,7 +188,7 @@ export default function Assets() {
                     </Txt>
                   </View>
                   <Txt size={19} bold>
-                    {formatMoney(balance)}
+                    {displayMoney(balance)}
                   </Txt>
                   <Icon name="chevron.right" size={13} color={t.muted} />
                 </Row>

@@ -36,9 +36,9 @@ test("chart colors distinguish legacy yellow categories and keep list/plot mappi
     [...stable].reverse(),
   );
   stable.forEach((id) => expect(after.get(id)).toBe(before.get(id)));
-  expect(donutSlices(items([100, 90, 80, 70, 60, 50, 40])).at(-1)?.color).toBe(
-    chartOtherColor,
-  );
+  expect(
+    donutSlices(items([100, 90, 80, 70, 60, 50, 40]), 6).at(-1)?.color,
+  ).toBe(chartOtherColor);
 });
 
 type Point = { x: number; y: number };
@@ -103,11 +103,13 @@ test.each([240, 256, 287, 311, 326, 358, 440])(
           .filter((label) => label.side === side)
           .sort((a, b) => a.y - b.y);
         group.forEach((label, i) => {
-          expect(label.y).toBeGreaterThanOrEqual(28 - 0.000001);
-          expect(label.y).toBeLessThanOrEqual(height - 28 + 0.000001);
+          expect(label.y).toBeGreaterThanOrEqual(24 - 0.000001);
+          expect(label.y).toBeLessThanOrEqual(height - 24 + 0.000001);
           if (i)
             expect(label.y - group[i - 1]!.y).toBeGreaterThanOrEqual(
-              36 - 0.000001,
+              (label.labelHeight + group[i - 1]!.labelHeight) / 2 +
+                6 -
+                0.000001,
             );
         });
       }
@@ -128,24 +130,32 @@ test.each([240, 256, 287, 311, 326, 358, 440])(
 );
 
 test.each([326, 440])(
-  "example leaders rise with visible bends at %ipx",
+  "labels follow the ring with short leaders at %ipx",
   (width) => {
-    const height = Math.max(240, width * 0.86);
     const radius = Math.min(width * 0.3, width / 2 - 66);
-    const { labels } = donutLayout(
+    const layout = donutLayout(
       items([4800, 1200, 400, 200, 200]),
       width,
-      height,
+      Math.max(240, width * 0.86),
       radius,
     );
-    for (const label of labels) {
-      expect(label.y).toBeLessThan(label.anchorY);
-      const turn =
-        (Math.atan2(label.anchorY - label.y, Math.abs(label.elbowX - label.x)) *
-          180) /
-        Math.PI;
-      expect(turn).toBeGreaterThan(20);
-      expect(turn).toBeLessThan(80);
-    }
+    expect(layout.labels.length).toBeGreaterThanOrEqual(4);
+    for (const l of layout.labels)
+      expect(Math.hypot(l.elbowX - l.x, l.y - l.anchorY)).toBeLessThan(48);
+    expect(layout.labels.some((l) => l.y > l.anchorY)).toBe(true);
   },
 );
+test("dense charts preserve slices and choose a bounded set of readable labels", () => {
+  const input = items(Array.from({ length: 30 }, (_, i) => 30 - i));
+  const layout = donutLayout(input, 326, 280.36, 97);
+  expect(layout.slices).toHaveLength(30);
+  expect(layout.labels.length).toBeGreaterThan(0);
+  expect(layout.labels.length).toBeLessThanOrEqual(10);
+  const cats = input.map((x, i) => ({ id: x.id, parentId: null, sort: i }));
+  const all = categoryChartColors(
+    cats,
+    cats.map((c) => c.id),
+  );
+  const filtered = categoryChartColors(cats, ["19", "7", "0"]);
+  for (const id of ["19", "7", "0"]) expect(filtered.get(id)).toBe(all.get(id));
+});
