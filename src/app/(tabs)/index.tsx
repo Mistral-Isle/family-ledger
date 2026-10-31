@@ -21,7 +21,6 @@ import {
   Txt,
   useTheme,
   blue,
-  coral,
   confirmAction,
 } from "../../components/ui";
 import { SwipeActions } from "../../components/SwipeActions";
@@ -192,7 +191,7 @@ function TransactionRow({ txn }: { txn: Txn }) {
         <Row style={{ justifyContent: "flex-end" }}>
           <IconButton
             name="trash"
-            color={coral}
+            color={t.red}
             label={zh.remove}
             onPress={() =>
               confirmAction(zh.deleteEntry, zh.deleteEntryHint, () => {

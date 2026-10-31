@@ -43,14 +43,16 @@ export default function TabsLayout() {
                 width: 58,
                 height: 58,
                 borderRadius: 29,
-                backgroundColor: t.blue,
+                backgroundColor: t.primary,
                 alignItems: "center",
                 justifyContent: "center",
-                boxShadow: "0 6px 20px rgba(0,85,200,.24)",
+                boxShadow: t.dark
+                  ? "0 6px 20px rgba(0,0,0,.24)"
+                  : "0 6px 20px rgba(0,85,200,.24)",
                 transform: [{ scale: pressed ? 0.94 : 1 }],
               })}
             >
-              <Icon name="plus" color={t.dark ? "#101114" : "#fff"} size={26} />
+              <Icon name="plus" color="#fff" size={26} />
             </Pressable>
             <Segmented
               value={state.routes[state.index]!.name}

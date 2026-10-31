@@ -15,9 +15,7 @@ export function GlassSurface({
         {
           borderRadius: 32,
           padding: 5,
-          backgroundColor: t.dark
-            ? "rgba(36,36,40,.94)"
-            : "rgba(255,255,255,.92)",
+          backgroundColor: t.dark ? t.card : "rgba(255,255,255,.92)",
           boxShadow: "0 3px 18px rgba(0,0,0,.08)",
           borderWidth: 1,
           borderColor: t.line,

@@ -2,6 +2,7 @@ import { Pressable, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useLedger } from "../components/LedgerProvider";
 import {
+  darcula,
   Card,
   Chip,
   Heading,
@@ -56,10 +57,10 @@ export default function Appearance() {
               },
               {
                 id: "ink",
-                name: "深色",
-                bg: "#101114",
-                card: "#1D2026",
-                accent: "#9CBFFF",
+                name: "Darcula 深色",
+                bg: darcula.bg,
+                card: darcula.card,
+                accent: darcula.blue,
               },
             ] as const
           ).map((item) => (
@@ -105,7 +106,7 @@ export default function Appearance() {
                 <Txt
                   bold
                   size={24}
-                  color={item.id === "ink" ? "#F5F5F7" : "#1C1C1E"}
+                  color={item.id === "ink" ? darcula.text : "#1C1C1E"}
                 >
                   ¥ 2,680.00
                 </Txt>

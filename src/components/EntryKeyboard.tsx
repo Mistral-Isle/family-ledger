@@ -85,7 +85,7 @@ export function EntryKeyboard({
           style={({ pressed }) => ({
             minHeight: 44,
             borderRadius: 14,
-            backgroundColor: t.blue,
+            backgroundColor: t.primary,
             alignItems: "center",
             justifyContent: "center",
             opacity: pressed ? 0.6 : 1,

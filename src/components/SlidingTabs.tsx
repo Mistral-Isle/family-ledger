@@ -70,7 +70,7 @@ export function Segmented<T extends string>({
               left: 0,
               width: step,
               borderRadius: 25,
-              backgroundColor: t.soft,
+              backgroundColor: t.selected,
               transform: [{ translateX: x }],
             }}
           />

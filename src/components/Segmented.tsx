@@ -69,7 +69,7 @@ export function Segmented<T extends string>({
               left: 0,
               width: step,
               borderRadius: 25,
-              backgroundColor: t.card,
+              backgroundColor: t.dark ? t.selected : t.card,
               boxShadow: "0 2px 5px rgba(0,0,0,0.07)",
               transform: [{ translateX: x }],
             }}

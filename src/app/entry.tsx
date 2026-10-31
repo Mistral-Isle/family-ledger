@@ -42,7 +42,6 @@ import {
   Row,
   Txt,
   useTheme,
-  coral,
   confirmAction,
 } from "../components/ui";
 import { calculate, formatMoney, moneyInput } from "../domain/money";
@@ -903,7 +902,7 @@ function Entry() {
             }}
           >
             <Row style={{ gap: 6 }}>
-              <Txt size={27} color={type === "income" ? t.green : coral}>
+              <Txt size={27} color={type === "income" ? t.green : t.red}>
                 ¥
               </Txt>
               <TextInput
@@ -918,7 +917,7 @@ function Entry() {
                 style={{
                   fontSize: 32,
                   fontWeight: "600",
-                  color: type === "income" ? t.green : coral,
+                  color: type === "income" ? t.green : t.red,
                   flex: 1,
                   minWidth: 0,
                   minHeight: 48,

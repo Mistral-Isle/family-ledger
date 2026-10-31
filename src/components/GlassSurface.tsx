@@ -29,7 +29,7 @@ export function GlassSurface({
     borderCurve: "continuous",
     padding: 5,
   };
-  if (Platform.OS === "ios" && isLiquidGlassAvailable() && !reduce)
+  if (Platform.OS === "ios" && isLiquidGlassAvailable() && !reduce && !t.dark)
     return (
       <GlassView glassEffectStyle="regular" style={[base, style]}>
         {children}

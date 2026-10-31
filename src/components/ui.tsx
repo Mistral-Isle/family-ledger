@@ -25,6 +25,20 @@ import { zh } from "../i18n/zh";
 import { isBudgetDemo } from "../demo/config";
 export const blue = "#007AFF";
 export const coral = "#D9363E";
+// Darcula-inspired neutral surfaces and restrained semantic accents.
+export const darcula = {
+  bg: "#2B2B2B",
+  card: "#3C3F41",
+  text: "#D8D8D8",
+  muted: "#A9ADB3",
+  line: "#55585A",
+  soft: "#45494A",
+  blue: "#8AAED0",
+  primary: "#4B6EAF",
+  selected: "#31465E",
+  green: "#A5C261",
+  red: "#E38B83",
+};
 export function useTheme() {
   const system = useColorScheme();
   const preference = useUi((s) => s.theme);
@@ -35,14 +49,17 @@ export function useTheme() {
   const warm = appearance === "warm";
   return {
     dark,
-    bg: dark ? "#101114" : warm ? "#F5F1EA" : "#F2F2F7",
-    card: dark ? "#1D2026" : warm ? "#FFFDFA" : "#FFFFFF",
-    text: dark ? "#F5F5F7" : "#1C1C1E",
-    muted: dark ? "#ABABB2" : "#67676F",
-    line: dark ? "#38383A" : warm ? "#DDD3C5" : "#E5E5EA",
-    soft: dark ? "#2B3039" : warm ? "#EDE5D9" : "#E9E9EF",
-    blue: dark ? "#9CBFFF" : warm ? "#8B6844" : blue,
-    green: dark ? "#6BDA89" : "#247342",
+    bg: dark ? darcula.bg : warm ? "#F5F1EA" : "#F2F2F7",
+    card: dark ? darcula.card : warm ? "#FFFDFA" : "#FFFFFF",
+    text: dark ? darcula.text : "#1C1C1E",
+    muted: dark ? darcula.muted : "#67676F",
+    line: dark ? darcula.line : warm ? "#DDD3C5" : "#E5E5EA",
+    soft: dark ? darcula.soft : warm ? "#EDE5D9" : "#E9E9EF",
+    blue: dark ? darcula.blue : warm ? "#8B6844" : blue,
+    primary: dark ? darcula.primary : warm ? "#8B6844" : blue,
+    selected: dark ? darcula.selected : warm ? "#EDE5D9" : "#E9E9EF",
+    red: dark ? darcula.red : coral,
+    green: dark ? darcula.green : "#247342",
   };
 }
 const symbols = [
@@ -456,7 +473,7 @@ export function Button({
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => ({
-        backgroundColor: secondary ? t.soft : t.blue,
+        backgroundColor: secondary ? t.soft : t.primary,
         opacity: disabled ? 0.4 : pressed ? 0.75 : 1,
         paddingVertical: 14,
         paddingHorizontal: 18,
@@ -525,7 +542,7 @@ export function Chip({
       aria-selected={!!selected}
       onPress={onPress}
       style={({ pressed }) => ({
-        backgroundColor: selected ? t.blue : pressed ? t.soft : t.card,
+        backgroundColor: selected ? t.primary : pressed ? t.soft : t.card,
         borderRadius: 14,
         borderCurve: "continuous",
         minHeight: 44,
@@ -534,11 +551,7 @@ export function Chip({
         paddingHorizontal: 14,
       })}
     >
-      <Txt
-        size={13}
-        color={selected ? (t.dark ? "#000" : "#fff") : t.text}
-        bold={selected}
-      >
+      <Txt size={13} color={selected ? "#fff" : t.text} bold={selected}>
         {label}
       </Txt>
     </Pressable>
@@ -591,8 +604,9 @@ export function Heading({
   );
 }
 export function ErrorText({ message }: { message: string }) {
+  const t = useTheme();
   return message ? (
-    <Txt size={13} color={coral}>
+    <Txt size={13} color={t.red}>
       {message}
     </Txt>
   ) : null;

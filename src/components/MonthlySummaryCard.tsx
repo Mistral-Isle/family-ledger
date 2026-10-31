@@ -9,7 +9,7 @@ import { useUi } from "../state/ui";
 import { Popover } from "./HelpBubble";
 import { useLedger } from "./LedgerProvider";
 import { SummaryPager } from "./SummaryPager";
-import { ErrorText, Icon, Row, Txt, coral, useTheme } from "./ui";
+import { ErrorText, Icon, Row, Txt, useTheme } from "./ui";
 
 const cashflowOptions = [
   { value: "expense", label: "本月支出", short: "支出" },
@@ -353,7 +353,7 @@ export function MonthlySummaryCard({ month }: { month: string }) {
                           ? "未设置"
                           : formatMoney(budget.remaining)
                       }
-                      color={overBudget ? coral : undefined}
+                      color={overBudget ? t.red : undefined}
                     />
                   ) : (
                     <Explanation
@@ -364,7 +364,7 @@ export function MonthlySummaryCard({ month }: { month: string }) {
                           value={dailyRemaining}
                           color={
                             (budgetDays.dailyRemaining ?? 0) < 0
-                              ? coral
+                              ? t.red
                               : undefined
                           }
                         />
@@ -387,7 +387,7 @@ export function MonthlySummaryCard({ month }: { month: string }) {
                       <Row style={{ gap: 5, flexShrink: 1 }}>
                         <Txt
                           size={12}
-                          color={overBudget ? coral : t.muted}
+                          color={overBudget ? t.red : t.muted}
                           style={{ flexShrink: 1 }}
                         >
                           {budget.title} · {usage}
@@ -444,7 +444,7 @@ export function MonthlySummaryCard({ month }: { month: string }) {
                         height: 4,
                         width: `${budget.progress * 100}%`,
                         borderRadius: 2,
-                        backgroundColor: overBudget ? coral : t.blue,
+                        backgroundColor: overBudget ? t.red : t.blue,
                       }}
                     />
                   </View>
