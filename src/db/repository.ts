@@ -418,6 +418,12 @@ export class LedgerRepository {
   getAssetAmountsHidden(): boolean {
     return this.pref<boolean>("assetAmountsHidden", false) === true;
   }
+  getAssetView(): "mine" | "family" {
+    return this.pref<string>("assetView", "mine") === "family" ? "family" : "mine";
+  }
+  setAssetView(value: "mine" | "family") {
+    this.setPref("assetView", value === "family" ? "family" : "mine");
+  }
   setAssetAmountsHidden(value: boolean) {
     this.db.withTransactionSync(() =>
       this.setPref("assetAmountsHidden", value),

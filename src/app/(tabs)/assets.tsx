@@ -1,3 +1,5 @@
+import { assetViewAccounts, assetAccountGroups } from "../../domain/assetView";
+import { Segmented } from "../../components/Segmented";
 import { InlineReorderList } from "../../components/InlineReorderList";
 import { AccountActionSheet } from "../../components/AccountActionSheet";
 import { useState } from "react";
@@ -29,6 +31,7 @@ export default function Assets() {
   const t = useTheme();
   const router = useRouter();
   const [archived, setArchived] = useState(false);
+  const [view, setView] = useState(() => repo.getAssetView());
   const [amountsHidden, setAmountsHidden] = useState(() =>
     repo.getAssetAmountsHidden(),
   );
@@ -49,12 +52,8 @@ export default function Assets() {
     }
   };
   const rentalAccounts = rentAccountIds(data);
-  const accounts = data.accounts
-    .filter((a) => a.scope === "family" && !a.deleted)
-    .map((account) => ({
-      account,
-      balance: accountBalance(account, data.txns, today()),
-    }));
+  const accounts = assetViewAccounts(data, view, today());
+  const groups = assetAccountGroups(data, accounts.filter(a => !rentalAccounts.has(a.account.id) && (archived || !a.account.archived)));
   const total = accounts.reduce((sum, a) => sum + a.balance, 0);
   const assets = accounts
     .filter((a) => a.balance > 0)
@@ -74,6 +73,9 @@ export default function Assets() {
           />
         }
       />
+      <Segmented height={40} value={view}
+        options={[{ value: "mine", label: "我的资产" }, { value: "family", label: "家庭总资产" }]}
+        onChange={(next) => { try { repo.setAssetView(next); setView(next); setError(""); } catch { setError("未能保存显示范围，请重试。"); } }} />
       <Card
         style={{
           backgroundColor: t.soft,
@@ -83,7 +85,7 @@ export default function Assets() {
       >
         <Row style={{ gap: 2, marginVertical: -10 }}>
           <Txt size={12} color={t.blue}>
-            {zh.netAssets}
+            {view === "mine" ? "我的净资产" : "家庭净资产"}
           </Txt>
           <IconButton
             name={amountsHidden ? "eye.slash" : "eye"}
@@ -145,8 +147,11 @@ export default function Assets() {
           onPress={() => setArchived(!archived)}
         />
       </Row>
+      {groups.map(group => (
+      <View key={group.id || "shared"} style={{ gap: 8 }}>
+        <Txt size={14} bold color={t.muted}>{group.name}</Txt>
       <InlineReorderList
-        items={accounts
+        items={group.rows
           .filter(
             (a) =>
               !rentalAccounts.has(a.account.id) &&
@@ -189,6 +194,9 @@ export default function Assets() {
               })
         }
       />
+      </View>
+      ))}
+      {!groups.length && <Txt color={t.muted}>{view === "mine" ? "暂无属于你的账户，可添加账户或在账户编辑中调整归属成员。" : "暂无可显示的账户。"}</Txt>}
       {accountAction && (
         <AccountActionSheet
           id={accountAction.id}
