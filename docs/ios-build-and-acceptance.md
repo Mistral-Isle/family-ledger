@@ -2,7 +2,14 @@
 
 ## 安装包状态
 
-当前源码版本为 **0.3.0 / build 3**，Bundle ID 保持 `com.dwigh.familyledger`。已通过类型检查、201 项自动测试、Web / iOS 资源导出和卡片浏览器交互验收；本次 macOS / Xcode IPA 构建待完成后补充结果。
+**0.3.0 / build 3 已于 2026-10-31 构建并下载校验成功。** Bundle ID 保持 `com.dwigh.familyledger`。
+
+- 本地文件：`dist/releases/family-ledger-0.3.0-sidestore.ipa`，13,988,426 字节（约 14 MB）。
+- [GitHub 构建与下载](https://github.com/Mistral-Isle/family-ledger/actions/runs/41210487982)：下载 Artifacts 中的 `family-ledger-unsigned` 并解压；本次产物保留至 2026-11-07 22:47（北京时间）。
+- 构建源码：`230cffe62826236bd6e4e953cb6b1b65582b9a14`；本地及 macOS 均通过 TypeScript、33 个套件共 201 项自动测试。
+- IPA SHA-256：`a85d9fdd0bad488cad1b85c1c515a927ee514d89a361bf783a82f089caf1289e`。
+- 已核验 GitHub 产物摘要、ZIP 完整性、Payload、Bundle ID、版本号、iPhoneOS arm64 可执行文件、iOS 16.4 最低版本、执行权限及无加密状态。
+- 已核验内置 Hermes 字节码 5,248,227 字节和 `LedgerCategoryOrder` 原生组件。此检查不等同于 SideStore 签名或 iPhone 真机运行验收。
 
 构建分支为 `codex/sidestore-0-3-0`。工作流使用 Release 真机配置，不签入开发证书；产物供 SideStore 使用用户自己的 Apple Account 重新签名。仅运行 `export:ios` 不会生成可安装 IPA。
 
@@ -30,3 +37,7 @@ SideStore 的签名有效期和刷新状态以其 My Apps 显示为准。官方�
 GitHub Actions 的 `Unsigned iOS build` 在 `codex/sidestore-*` 分支推送或手动触发时运行：锁定依赖安装 → 类型与数据测试 → Expo prebuild → Xcode Release 真机 arm64 编译 → 打包 Payload → 上传 IPA。
 
 网页已核验 320/375/390px、深色、减少动态效果、鼠标与触屏切页、浮层、预算边界和明细间距。SideStore 签名与覆盖安装、原生分类拖动、VoiceOver、系统大字体、日期选择器、Face ID、相机配对、真实双机同步仍需用户 iPhone 验收。
+
+补查 `scripts/smoke-entry-settings.cjs tmp/budget-demo-web` 通过：直接进入记账页的关闭／保存／删除、页面返回、使用后分类顺序、行程与更多设置保存、时间取消／确认、390×844 与 375×667 布局。
+
+交互预览可运行 `node scripts/preview.cjs --demo`，访问 `http://127.0.0.1:4175`。示例模式使用独立数据库；正式 IPA 不包含该网页示例标记或示例账单。
