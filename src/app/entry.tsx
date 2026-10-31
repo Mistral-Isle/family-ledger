@@ -126,6 +126,9 @@ function Entry() {
   );
   const [forWhom] = useState<Txn["forWhom"]>(existing?.forWhom ?? "both");
   const [sharedOptions, setSharedOptions] = useState(false);
+  const selectedTrip = data.trips?.find(
+    (trip) => trip.id === tripId && !trip.deleted,
+  );
   const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[]>(
     [],
   );
@@ -841,29 +844,56 @@ function Entry() {
             <View style={{ flex: 1, minWidth: 0 }}>
               {type !== "transfer" && accountStrip()}
             </View>
+            {scope === "family" && type === "expense" && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={zh.collaboration.entryOptions}
+                accessibilityHint={
+                  selectedTrip?.name ?? zh.collaboration.noTrip
+                }
+                onPress={() => {
+                  finishText();
+                  setSharedOptions(true);
+                  setOptions(true);
+                }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 5,
+                  minHeight: 44,
+                  maxWidth: "40%",
+                  paddingHorizontal: 10,
+                  borderRadius: 14,
+                  backgroundColor: t.soft,
+                }}
+              >
+                <Icon name="suitcase.fill" size={17} color={t.blue} />
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    flexShrink: 1,
+                    fontSize: 13,
+                    color: t.blue,
+                    fontWeight: "600",
+                  }}
+                >
+                  {selectedTrip?.name ?? zh.collaboration.entryOptions}
+                </Text>
+              </Pressable>
+            )}
             <IconButton
               name="gearshape.fill"
               label="更多设置"
               onPress={() => setOptions(true)}
             />
           </Row>
-          {type !== "transfer" &&
-            (excludeBudget ||
-              excludeTotals ||
-              (scope === "family" && type === "expense" && tripId)) && (
-              <Text numberOfLines={1} style={{ fontSize: 11, color: t.muted }}>
-                {[
-                  scope === "family" &&
-                    type === "expense" &&
-                    data.trips?.find((x) => x.id === tripId && !x.deleted)
-                      ?.name,
-                  excludeBudget && "不计预算",
-                  excludeTotals && "不计收支",
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </Text>
-            )}
+          {type !== "transfer" && (excludeBudget || excludeTotals) && (
+            <Text numberOfLines={1} style={{ fontSize: 11, color: t.muted }}>
+              {[excludeBudget && "不计预算", excludeTotals && "不计收支"]
+                .filter(Boolean)
+                .join(" · ")}
+            </Text>
+          )}
           <View
             style={{
               backgroundColor: t.card,
@@ -1129,9 +1159,7 @@ function Entry() {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="完成设置"
-                  onPress={() =>
-                    sharedOptions ? setSharedOptions(false) : closeOptions()
-                  }
+                  onPress={closeOptions}
                   style={{
                     minHeight: 44,
                     minWidth: 44,
@@ -1146,7 +1174,7 @@ function Entry() {
                 <SharedEntryFields
                   embedded
                   visible
-                  onClose={() => setSharedOptions(false)}
+                  onClose={closeOptions}
                   tripId={tripId}
                   onTrip={setTripId}
                 />
@@ -1155,32 +1183,6 @@ function Entry() {
                   keyboardShouldPersistTaps="handled"
                   contentContainerStyle={{ gap: 14 }}
                 >
-                  {scope === "family" && type === "expense" && (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={zh.collaboration.entryOptions}
-                      onPress={() => setSharedOptions(true)}
-                      style={{
-                        minHeight: 52,
-                        padding: 14,
-                        borderRadius: 16,
-                        backgroundColor: t.card,
-                      }}
-                    >
-                      <Row>
-                        <Icon name="suitcase.fill" color={t.muted} size={20} />
-                        <View style={{ flex: 1, gap: 3 }}>
-                          <Txt>关联行程</Txt>
-                          <Txt size={12} color={t.muted}>
-                            {data.trips?.find(
-                              (x) => x.id === tripId && !x.deleted,
-                            )?.name ?? zh.collaboration.noTrip}
-                          </Txt>
-                        </View>
-                        <Icon name="chevron.right" color={t.muted} size={16} />
-                      </Row>
-                    </Pressable>
-                  )}
                   {type !== "transfer" &&
                     [
                       {

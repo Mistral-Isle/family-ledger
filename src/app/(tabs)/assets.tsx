@@ -15,6 +15,7 @@ import {
   blue,
 } from "../../components/ui";
 import { accountBalance } from "../../domain/selectors";
+import { rentAccountIds } from "../../domain/rentAccounts";
 import { formatMoney } from "../../domain/money";
 import { today } from "../../domain/date";
 import { zh } from "../../i18n/zh";
@@ -23,6 +24,7 @@ export default function Assets() {
   const t = useTheme();
   const router = useRouter();
   const [archived, setArchived] = useState(false);
+  const rentalAccounts = rentAccountIds(data);
   const accounts = data.accounts
     .filter((a) => a.scope === "family" && !a.deleted)
     .map((account) => ({
@@ -112,7 +114,11 @@ export default function Assets() {
       </Row>
       <View style={{ gap: 12 }}>
         {accounts
-          .filter((a) => archived || !a.account.archived)
+          .filter(
+            (a) =>
+              !rentalAccounts.has(a.account.id) &&
+              (archived || !a.account.archived),
+          )
           .sort((a, b) => a.account.sort - b.account.sort)
           .map(({ account, balance }) => (
             <Pressable

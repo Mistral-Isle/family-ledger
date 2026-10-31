@@ -49,13 +49,10 @@ const server = http.createServer((req, res) => {
       return JSON.parse(JSON.parse(raw.toString()).payload);
     }
     async function openTrip() {
-      await b("更多设置").click();
       await b("关联行程").click();
     }
     async function expectNoTrip() {
-      await b("更多设置").click();
-      await page.getByText("不关联行程", { exact: true }).waitFor();
-      await b("完成设置").click();
+      assert.equal((await b("关联行程").innerText()).trim(), "关联行程");
     }
     await go("/entry");
     await b("餐饮").waitFor();
@@ -83,7 +80,6 @@ const server = http.createServer((req, res) => {
     });
     await b("创建并关联").click();
     await b("关联行程").waitFor();
-    await b("完成设置").click();
     await openTrip();
     await page.waitForTimeout(400);
     await page.screenshot({
@@ -100,16 +96,13 @@ const server = http.createServer((req, res) => {
     await openTrip();
     await b("杭州周末游").click();
     await b("关联行程").waitFor();
-    await b("完成设置").click();
     await openTrip();
     await b("不关联行程").click();
     await b("关联行程").waitFor();
-    await b("完成设置").click();
     await expectNoTrip();
     await openTrip();
     await b("杭州周末游").click();
     await b("关联行程").waitFor();
-    await b("完成设置").click();
     assert.equal(await input("金额").inputValue(), "28");
     assert.equal(await input("备注").inputValue(), "旅行午餐");
     await page.waitForTimeout(400);
@@ -177,11 +170,9 @@ const server = http.createServer((req, res) => {
     await openTrip();
     await b("结束行程").click();
     await b("关联行程").waitFor();
-    await b("完成设置").click();
     await openTrip();
     await b("杭州周末游 · 已结束").click();
     await b("关联行程").waitFor();
-    await b("完成设置").click();
     await go("/entry");
     await expectNoTrip();
     await go("/category-defaults");

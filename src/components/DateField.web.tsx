@@ -58,8 +58,10 @@ export function DateField({
       />
       {optional && (
         <button
+          type="button"
           onClick={() => onChange("")}
           style={{
+            alignSelf: "flex-start",
             border: 0,
             background: "transparent",
             color: t.blue,
