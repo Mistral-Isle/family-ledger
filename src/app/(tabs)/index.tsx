@@ -572,7 +572,7 @@ export default function Details() {
                       }} />
                   ))}
                 </Row>
-                <Txt size={12} color={t.muted}>我：本人付款的账单；共同：全部家庭账单。退款跟随原账单的付款人。</Txt>
+                <Txt size={12} color={t.muted}>我：本人的支出和收入；共同：全部家庭账单。收入按收款账户所属成员归属，共同账户按记录人归属；退款跟随原账单。</Txt>
                 <Txt size={17} bold>
                   交易类型
                 </Txt>

@@ -113,6 +113,7 @@ function Entry() {
   const [amount, setAmount] = useState(
     existing ? moneyInput(existing.amount) : "",
   );
+  const amountColor = type === "income" ? t.green : t.red;
   const [accountId, setAccountId] = useState(
     existing?.accountId ??
       data.accounts.find(
@@ -919,7 +920,7 @@ function Entry() {
             }}
           >
             <Row style={{ gap: 6 }}>
-              <Txt size={27} color={type === "income" ? t.green : t.red}>
+              <Txt size={32} bold color={amountColor}>
                 ¥
               </Txt>
               <TextInput
@@ -930,11 +931,11 @@ function Entry() {
                 onFocus={finishText}
                 showSoftInputOnFocus={false}
                 maxLength={36}
-                placeholderTextColor={t.muted}
+                placeholderTextColor={amountColor}
                 style={{
                   fontSize: 32,
                   fontWeight: "600",
-                  color: type === "income" ? t.green : t.red,
+                  color: amountColor,
                   flex: 1,
                   minWidth: 0,
                   minHeight: 48,

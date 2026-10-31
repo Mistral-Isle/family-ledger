@@ -73,6 +73,7 @@ export function calculate(input: string): number {
 
 /** Keep each calculator operand at cent precision before submission. */
 export function moneyKey(input: string, key: string): string {
+  if (key === "clear") return "0";
   if (key === "⌫") return input.slice(0, -1);
   if (input.length >= 36) return input;
   const operand = input.split(/[+−×÷]/).at(-1) ?? "";
@@ -84,6 +85,11 @@ export function moneyKey(input: string, key: string): string {
   if (["+", "−", "×", "÷"].includes(key)) {
     if (!input) return key === "−" ? key : input;
     if (!operand) return input === "−" ? input : input.slice(0, -1) + key;
+    if (/[+−×÷]/.test(input.replace(/^−/, ""))) {
+      try {
+        return moneyInput(calculate(input)).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1").replace(/^-/, "−") + key;
+      } catch { return input; }
+    }
     return input + key;
   }
   return input;

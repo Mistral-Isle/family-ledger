@@ -1,4 +1,4 @@
-import { Pressable, View } from "react-native";
+import { Pressable, View, useWindowDimensions } from "react-native";
 import { Icon, Txt, useTheme } from "./ui";
 import { zh } from "../i18n/zh";
 export function EntryKeyboard({
@@ -11,17 +11,22 @@ export function EntryKeyboard({
   onAgain?: () => void;
 }) {
   const t = useTheme();
+  const { height } = useWindowDimensions();
+  const keyHeight = Math.max(54, Math.min(72, Math.round(height * 0.07)));
   const key = (value: string, label = value) => (
     <Pressable
       key={value}
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={() => onKey(value)}
+      delayLongPress={450}
+      onLongPress={value === "⌫" ? () => onKey("clear") : undefined}
+      accessibilityHint={value === "⌫" ? "长按归零" : undefined}
       style={({ pressed }) => ({
         flex: 1,
-        minHeight: 44,
-        borderRadius: 14,
-        backgroundColor: pressed ? t.line : t.soft,
+        height: keyHeight,
+        borderRadius: 20,
+        backgroundColor: pressed ? t.line : t.card,
         opacity: pressed ? 0.6 : 1,
         transform: [{ scale: pressed ? 0.94 : 1 }],
         alignItems: "center",
@@ -29,10 +34,10 @@ export function EntryKeyboard({
       })}
     >
       {value === "⌫" ? (
-        <Icon name="delete.left" size={25} color={t.text} />
+        <Icon name="delete.left" size={27} color={t.text} />
       ) : (
         <Txt
-          size={23}
+          size={28}
           color={["+", "−", "×", "÷"].includes(value) ? t.buttonText : t.text}
         >
           {value}
@@ -41,25 +46,25 @@ export function EntryKeyboard({
     </Pressable>
   );
   return (
-    <View style={{ flexDirection: "row", gap: 6 }}>
-      <View style={{ flex: 1, gap: 6 }}>
+    <View style={{ flexDirection: "row", gap: 8 }}>
+      <View style={{ flex: 3, gap: 8 }}>
         {[
           ["1", "2", "3"],
           ["4", "5", "6"],
           ["7", "8", "9"],
           [".", "0", "⌫"],
         ].map((r, i) => (
-          <View key={i} style={{ flexDirection: "row", gap: 6 }}>
+          <View key={i} style={{ flexDirection: "row", gap: 8 }}>
             {r.map((v) => key(v, v === "⌫" ? zh.backspace : v))}
           </View>
         ))}
       </View>
-      <View style={{ width: 94, gap: 6 }}>
-        <View style={{ flexDirection: "row", gap: 6 }}>
+      <View style={{ flex: 1, gap: 8 }}>
+        <View style={{ flexDirection: "row", gap: 8 }}>
           {key("+", zh.add)}
           {key("×", zh.multiply)}
         </View>
-        <View style={{ flexDirection: "row", gap: 6 }}>
+        <View style={{ flexDirection: "row", gap: 8 }}>
           {key("−", zh.subtract)}
           {key("÷", zh.divide)}
         </View>
@@ -68,9 +73,9 @@ export function EntryKeyboard({
           accessibilityLabel={zh.continue}
           onPress={onAgain ?? onSave}
           style={({ pressed }) => ({
-            minHeight: 44,
-            borderRadius: 14,
-            backgroundColor: t.soft,
+            height: keyHeight,
+            borderRadius: 20,
+            backgroundColor: t.card,
             alignItems: "center",
             justifyContent: "center",
             opacity: pressed ? 0.6 : 1,
@@ -85,16 +90,15 @@ export function EntryKeyboard({
           accessibilityLabel="完成"
           onPress={onSave}
           style={({ pressed }) => ({
-            minHeight: 44,
-            borderRadius: 14,
-            flex: onAgain ? undefined : 1,
+            borderRadius: 20,
+            height: onAgain ? keyHeight : keyHeight * 2 + 8,
             backgroundColor: t.primary,
             alignItems: "center",
             justifyContent: "center",
             opacity: pressed ? 0.6 : 1,
           })}
         >
-          <Txt size={16} bold color={t.onPrimary}>
+          <Txt size={18} bold color={t.onPrimary}>
             完成
           </Txt>
         </Pressable>

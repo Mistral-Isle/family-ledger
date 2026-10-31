@@ -477,7 +477,7 @@ export const zh = {
     noMissing: "默认分类已齐全",
     keepOld: "暂时保留原分类",
     migrateOld: "迁移所选旧分类",
-    allPayers: "全部付款人",
+    allPayers: "全部成员",
     recordBasis: "按记录人",
     payerBasis: "按付款人",
     allRecorders: "全部记录人",

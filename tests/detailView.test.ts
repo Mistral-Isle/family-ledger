@@ -31,7 +31,7 @@ test("mine uses payer rather than recorder or purpose, attributes refunds to the
     const original = structuredClone(data);
     const mine = detailViewSnapshot(data, "mine");
     const rows = filterMonthTransactions(mine, "2026-11", [], "");
-    expect(rows.map(t => t.id).sort()).toEqual(["future", "mine", "refund"]);
+    expect(rows.map(t => t.id).sort()).toEqual(["future", "income", "mine", "refund"]);
     expect(totals(rows)).toEqual(totals(rangeTxns(reportingSnapshot(data, data.meId, false, "payer").txns, { start: "2026-11-01", end: "2026-11-30" })));
     expect(filterMonthTransactions(mine, "2026-11", ["refund"], "测试").map(t => t.id)).toEqual(["refund"]);
     expect(totals(filterMonthTransactions(mine, "2026-11", [], "", new Date("2026-11-02T00:00:00Z"))).expense).toBe(9000);
@@ -52,6 +52,29 @@ test("detail view defaults to shared and remembers the local selection without c
     expect(reopened.snapshot()).toEqual(before);
     reopened.setDetailView("shared");
     expect(new LedgerRepository(f.driver, randomUUID).getDetailView()).toBe("shared");
+  } finally { f.sqlite.close(); }
+});
+
+test("income attribution uses receiving account owner and falls back to recorder for shared accounts", () => {
+  const f = fixture();
+  try {
+    const data = f.repo.snapshot();
+    f.repo.saveTxn({ type: "income", amount: 50000, accountId: data.accounts[0]!.id,
+      categoryId: data.categories.find(c => c.kind === "income")!.id, occurredAt: "2026-11-01", forWhom: "both", note: "工资" });
+    const snapshot = f.repo.snapshot();
+    const income = snapshot.txns[0]!;
+    const account = snapshot.accounts.find(a => a.id === income.accountId)!;
+    account.ownerMemberId = snapshot.meId;
+    income.recorderMemberId = "partner";
+    expect(detailViewSnapshot(snapshot, "mine").txns).toHaveLength(1);
+    account.ownerMemberId = "partner";
+    income.recorderMemberId = snapshot.meId;
+    expect(detailViewSnapshot(snapshot, "mine").txns).toHaveLength(0);
+    account.ownerMemberId = "";
+    expect(detailViewSnapshot(snapshot, "mine").txns).toHaveLength(1);
+    income.recorderMemberId = "partner";
+    expect(detailViewSnapshot(snapshot, "mine").txns).toHaveLength(0);
+    expect(detailViewSnapshot(snapshot, "shared").txns).toHaveLength(1);
   } finally { f.sqlite.close(); }
 });
 
