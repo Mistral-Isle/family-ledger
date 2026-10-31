@@ -4,6 +4,8 @@
 
 **0.3.0 / build 3 已于 2026-10-31 构建并下载校验成功。** Bundle ID 保持 `com.dwigh.familyledger`。
 
+构建后预览又修正了演示分类、预付/押金余额文案并补充偏好保存错误日志；这些后续改动尚未重新打包进下列 IPA。正式新账本的默认分类已包含在本 IPA 内；已有账本需通过分类管理的整理预览迁移历史分类。
+
 - 本地文件：`dist/releases/family-ledger-0.3.0-sidestore.ipa`，13,988,426 字节（约 14 MB）。
 - [GitHub 构建与下载](https://github.com/Mistral-Isle/family-ledger/actions/runs/41210487982)：下载 Artifacts 中的 `family-ledger-unsigned` 并解压；本次产物保留至 2026-11-07 22:47（北京时间）。
 - 构建源码：`230cffe62826236bd6e4e953cb6b1b65582b9a14`；本地及 macOS 均通过 TypeScript、33 个套件共 201 项自动测试。

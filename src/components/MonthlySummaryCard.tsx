@@ -208,7 +208,8 @@ export function MonthlySummaryCard({ month }: { month: string }) {
     try {
       repo.setSummaryPreferences(next);
       setError("");
-    } catch {
+    } catch (error) {
+      console.error("[summary-preferences] Save failed", error);
       setError("显示已切换，但暂时无法记住选择。");
     }
   };

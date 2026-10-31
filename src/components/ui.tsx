@@ -315,7 +315,7 @@ export function Page({
             示例账本 · 可放心体验
           </Txt>
           <Txt size={12} color={t.muted}>
-            包含固定支出与日常消费，数据独立保存。
+            使用已确认分类和示例账单，数据独立保存。
           </Txt>
         </View>
       )}

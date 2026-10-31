@@ -161,7 +161,11 @@ export default function Assets() {
                       )}
                     </Row>
                     <Txt size={11} color={t.muted}>
-                      {zh.accountKinds[account.kind]}
+                      {account.kind === "prepaid"
+                        ? "预付余额 · 尚未计入支出"
+                        : account.kind === "deposit"
+                          ? "押金余额 · 尚未退回"
+                          : zh.accountKinds[account.kind]}
                       {account.last4 ? ` · ${account.last4}` : ""}
                       {account.archived ? ` · ${zh.archived}` : ""}
                     </Txt>
