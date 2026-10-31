@@ -2,7 +2,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AppState, Platform } from "react-native";
 import * as LocalAuthentication from "expo-local-authentication";
-import { useVault } from "../state/vault";
+import { useVault, vaultAuthentication } from "../state/vault";
 import { Button, Card, ErrorText, Heading, IconButton, Page, Txt } from "./ui";
 import { zh } from "../i18n/zh";
 export function VaultGate({ children }: { children: ReactNode }) {
@@ -12,17 +12,12 @@ export function VaultGate({ children }: { children: ReactNode }) {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      vaultAuthentication.invalidate();
     };
   }, []);
-  const { unlocked, setUnlocked } = useVault();
+  const { unlocked } = useVault();
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
-  useEffect(() => {
-    const listener = AppState.addEventListener("change", (state) => {
-      if (state !== "active") setUnlocked(false);
-    });
-    return () => listener.remove();
-  }, [setUnlocked]);
   if (unlocked) return <>{children}</>;
   return (
     <Page>
@@ -48,19 +43,16 @@ export function VaultGate({ children }: { children: ReactNode }) {
         onPress={() => {
           setBusy(true);
           setError("");
+          const token = vaultAuthentication.begin(AppState.currentState);
           LocalAuthentication.authenticateAsync({
             promptMessage: zh.vault.unlock,
             cancelLabel: zh.cancel,
             disableDeviceFallback: false,
           })
             .then((result) => {
-              if (
-                result.success &&
-                mounted.current &&
-                AppState.currentState === "active"
-              )
-                setUnlocked(true);
-              else setError(zh.vault.failed);
+              if (!mounted.current) return;
+              if (!vaultAuthentication.complete(token, result.success))
+                setError(zh.vault.failed);
             })
             .catch((e) => setError(String(e)))
             .finally(() => setBusy(false));

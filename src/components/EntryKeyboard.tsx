@@ -22,6 +22,8 @@ export function EntryKeyboard({
         minHeight: 44,
         borderRadius: 14,
         backgroundColor: pressed ? t.line : t.soft,
+        opacity: pressed ? 0.6 : 1,
+        transform: [{ scale: pressed ? 0.94 : 1 }],
         alignItems: "center",
         justifyContent: "center",
       })}
@@ -61,9 +63,9 @@ export function EntryKeyboard({
           {key("−", zh.subtract)}
           {key("÷", zh.divide)}
         </View>
-        <Pressable
+        {onAgain && <Pressable
           accessibilityRole="button"
-          accessibilityLabel={onAgain ? zh.continue : zh.save}
+          accessibilityLabel={zh.continue}
           onPress={onAgain ?? onSave}
           style={({ pressed }) => ({
             minHeight: 44,
@@ -75,16 +77,17 @@ export function EntryKeyboard({
           })}
         >
           <Txt size={14} bold color={t.buttonText}>
-            {onAgain ? zh.continue : zh.save}
+            {zh.continue}
           </Txt>
-        </Pressable>
+        </Pressable>}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="完成记账"
+          accessibilityLabel="完成"
           onPress={onSave}
           style={({ pressed }) => ({
             minHeight: 44,
             borderRadius: 14,
+            flex: onAgain ? undefined : 1,
             backgroundColor: t.primary,
             alignItems: "center",
             justifyContent: "center",

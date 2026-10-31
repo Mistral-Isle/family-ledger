@@ -1,120 +1,78 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Animated, PanResponder, View } from "react-native";
-import { useReducedMotion } from "./useReducedMotion";
-import { resistedPosition, swipeTarget } from "./swipePhysics";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useRef, useState, type ReactNode } from "react";
+import { View } from "react-native";
+import ReanimatedSwipeable, {
+  type SwipeableMethods,
+} from "react-native-gesture-handler/ReanimatedSwipeable";
+
+// Only one row exposes actions at a time, like the native account list.
+let openRow: { id: symbol; close: () => void } | null = null;
+
 export function SwipeActions({
   children,
   actions,
   startActions,
   disabled = false,
+  actionWidth = 80,
+  startWidth = 80,
 }: {
   children: ReactNode;
   actions: ReactNode;
   startActions?: ReactNode;
   disabled?: boolean;
+  actionWidth?: number;
+  startWidth?: number;
 }) {
-  const reduced = useReducedMotion();
-  const config = useRef({ disabled, start: !!startActions, reduced });
-  config.current = { disabled, start: !!startActions, reduced };
-  const [side, setSide] = useState(0);
-  const offset = useRef(new Animated.Value(0)).current;
-  const base = useRef(0);
-  const current = useRef(0);
-  useEffect(() => {
-    const listener = offset.addListener(({ value }) => {
-      current.current = value;
-      setSide(Math.sign(value));
-    });
-    return () => {
-      offset.stopAnimation();
-      offset.removeListener(listener);
-    };
-  }, [offset]);
-  const settle = (value: number, velocity = 0) => {
-    base.current = value;
-    if (config.current.reduced) {
-      offset.setValue(value);
-      return;
-    }
-    Animated.spring(offset, {
-      toValue: value,
-      useNativeDriver: true,
-      stiffness: 576,
-      damping: 48,
-      mass: 1,
-      velocity,
-    }).start();
+  const swipe = useRef<SwipeableMethods>(null);
+  const id = useRef(Symbol("swipe-row")).current;
+  const [focused, setFocused] = useState(true);
+  useFocusEffect(
+    useCallback(() => {
+      setFocused(true);
+      return () => {
+        // Unmount the recognizer on blur so a cancelled drag cannot survive a tab change.
+        setFocused(false);
+        if (openRow?.id === id) openRow = null;
+      };
+    }, [id]),
+  );
+  const claimRow = () => {
+    if (openRow?.id !== id) openRow?.close();
+    openRow = { id, close: () => swipe.current?.close() };
   };
-  const responder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) =>
-        !config.current.disabled &&
-        Math.abs(g.dx) > 8 &&
-        Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
-      onPanResponderGrant: () => {
-        base.current = current.current;
-        offset.stopAnimation((value) => {
-          base.current = value;
-          current.current = value;
-        });
-      },
-      onPanResponderMove: (_, g) => {
-        current.current = resistedPosition(
-          base.current + g.dx,
-          config.current.start ? 80 : 0,
-        );
-        setSide(Math.sign(current.current));
-        offset.setValue(current.current);
-      },
-      onPanResponderRelease: (_, g) => {
-        const velocity = Math.max(-1500, Math.min(1500, g.vx * 1000));
-        settle(
-          swipeTarget(current.current, velocity, config.current.start ? 80 : 0),
-          velocity,
-        );
-      },
-      onPanResponderTerminate: () =>
-        settle(swipeTarget(base.current, 0, config.current.start ? 80 : 0)),
-    }),
-  ).current;
+  if (!focused || disabled) return <View>{children}</View>;
   return (
-    <View style={{ overflow: "hidden" }}>
-      <View
-        accessibilityElementsHidden={side >= 0}
-        importantForAccessibility={side >= 0 ? "no-hide-descendants" : "auto"}
-        pointerEvents={side < 0 ? "auto" : "none"}
-        style={{
-          position: "absolute",
-          right: 0,
-          top: 0,
-          bottom: 0,
-          width: 80,
-          justifyContent: "center",
-        }}
-      >
-        {actions}
-      </View>
-      <View
-        accessibilityElementsHidden={side <= 0}
-        importantForAccessibility={side <= 0 ? "no-hide-descendants" : "auto"}
-        pointerEvents={side > 0 ? "auto" : "none"}
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 0,
-          bottom: 0,
-          width: 80,
-          justifyContent: "center",
-        }}
-      >
-        {startActions}
-      </View>
-      <Animated.View
-        {...responder.panHandlers}
-        style={{ transform: [{ translateX: offset }] }}
-      >
-        {children}
-      </Animated.View>
-    </View>
+    <ReanimatedSwipeable
+      ref={swipe}
+      friction={1}
+      dragOffsetFromLeftEdge={6}
+      dragOffsetFromRightEdge={6}
+      leftThreshold={startWidth * 0.32}
+      rightThreshold={actionWidth * 0.32}
+      overshootLeft={false}
+      overshootRight={false}
+      enableTrackpadTwoFingerGesture
+      onSwipeableOpenStartDrag={claimRow}
+      onSwipeableWillOpen={claimRow}
+      onSwipeableClose={() => {
+        if (openRow?.id === id) openRow = null;
+      }}
+      renderLeftActions={
+        startActions
+          ? () => (
+              <View style={{ width: startWidth, justifyContent: "center" }}>
+                {startActions}
+              </View>
+            )
+          : undefined
+      }
+      renderRightActions={() => (
+        <View style={{ width: actionWidth, justifyContent: "center" }}>
+          {actions}
+        </View>
+      )}
+    >
+      {children}
+    </ReanimatedSwipeable>
   );
 }

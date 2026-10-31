@@ -58,7 +58,7 @@ export function CategoryDeletionSheet({
       presentationStyle="pageSheet"
     >
       <View style={{ flex: 1, backgroundColor: theme.bg }}>
-        <Page>
+        <Page modal>
           <Heading
             title={`删除「${impact.source.name}」`}
             action={

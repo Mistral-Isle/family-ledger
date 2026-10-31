@@ -1,4 +1,6 @@
-# 两个人的账本
+# 合页
+
+两个人的账本。两页相合，一起记录生活。
 
 离线优先的双人家庭记账 App，使用 Expo / React Native / TypeScript、SQLite 和整数分金额。Bundle ID 固定为 `com.dwigh.familyledger`。
 

@@ -1,7 +1,6 @@
 import { useRouter } from "expo-router";
 
 import { BudgetCard } from "../components/BudgetCard";
-import { MonthPicker } from "../components/MonthPicker";
 import { Heading, IconButton, Page, Row } from "../components/ui";
 import { useUi } from "../state/ui";
 
@@ -21,7 +20,7 @@ export default function Budget() {
         />
         <Heading title="预算" />
       </Row>
-      <MonthPicker />
+
 
       <BudgetCard key={month} month={month} editable />
     </Page>

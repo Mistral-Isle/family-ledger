@@ -1,3 +1,4 @@
+import { isFutureTransaction } from "../domain/transactionFilters";
 import { useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
@@ -42,10 +43,10 @@ function MetricPicker<T extends string>({
       contentStyle={{ padding: 5, gap: 0 }}
       triggerContent={
         <Row style={{ gap: 6 }}>
-          <Txt size={14} color={t.blue}>
+          <Txt size={16} color={t.blue}>
             {options.find((option) => option.value === value)?.label}
           </Txt>
-          <Icon name="chevron.down" size={12} color={t.blue} />
+          <Icon name="chevron.down" size={14} color={t.blue} />
         </Row>
       }
     >
@@ -101,7 +102,7 @@ function MainAmount({ amount }: { amount: number | null }) {
   const [whole, decimal] = formatMoney(amount, false).split(".");
   const size = Math.max(
     24,
-    Math.min(38, (38 * 12) / formatMoney(amount).length),
+    Math.min(42, (42 * 12) / formatMoney(amount).length),
   );
   return (
     <Text
@@ -141,10 +142,10 @@ function Auxiliary({
         rowGap: 2,
       }}
     >
-      <Txt size={12} color={t.muted}>
+      <Txt size={14} color={t.muted}>
         {label}
       </Txt>
-      <Txt size={14} color={color} style={{ flexShrink: 1 }}>
+      <Txt size={18} bold color={color} style={{ flexShrink: 1 }}>
         {value}
       </Txt>
     </View>
@@ -167,17 +168,26 @@ function Explanation({
   );
 }
 
-export function MonthlySummaryCard({ month }: { month: string }) {
+export function MonthlySummaryCard({
+  month,
+  asOf,
+}: {
+  month: string;
+  asOf?: Date;
+}) {
   const { data, repo } = useLedger();
   const t = useTheme();
   const router = useRouter();
   const [choices, setChoices] = useState(() => repo.getSummaryPreferences());
   const [error, setError] = useState("");
+  const txns = asOf
+    ? data.txns.filter((t) => !isFutureTransaction(t, asOf))
+    : data.txns;
   const summary = totals(
-    visibleTxns(data.txns).filter((txn) => txn.occurredAt.startsWith(month)),
+    visibleTxns(txns).filter((txn) => txn.occurredAt.startsWith(month)),
   );
   const budget = detailBudget(
-    data.txns,
+    txns,
     data.categories,
     month,
     repo.monthBudget(month),
@@ -501,12 +511,12 @@ export function MonthlySummaryCard({ month }: { month: string }) {
 
 const styles = StyleSheet.create({
   card: { borderRadius: 24, borderCurve: "continuous", overflow: "hidden" },
-  pane: { padding: 18, flex: 1 },
+  pane: { padding: 16, flex: 1 },
   heading: { minHeight: 44, paddingRight: 106, alignItems: "flex-start" },
   amount: {
-    minHeight: 52,
+    minHeight: 50,
     marginTop: 4,
-    marginBottom: 10,
+    marginBottom: 4,
     justifyContent: "center",
   },
   auxiliary: { flexDirection: "row", gap: 14, minHeight: 44 },
@@ -523,7 +533,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 8,
     minHeight: 44,
-    marginTop: "auto",
+    marginTop: 2,
     paddingTop: 4,
   },
   progressSpace: { height: 4 },

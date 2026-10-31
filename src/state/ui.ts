@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { thisMonth } from "../domain/date";
 type Ui = {
+  selectingTransactions: boolean;
   statsView: "expense" | "income" | "balance";
   statsRequest: number;
   openStats: (view: Ui["statsView"]) => void;
@@ -12,6 +13,7 @@ type Ui = {
   setTheme: (theme: Ui["theme"]) => void;
 };
 export const useUi = create<Ui>((set) => ({
+  selectingTransactions: false,
   statsView: "expense",
   statsRequest: 0,
   openStats: (statsView) =>

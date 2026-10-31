@@ -1,3 +1,5 @@
+import { InlineReorderList } from "../../components/InlineReorderList";
+import { AccountActionSheet } from "../../components/AccountActionSheet";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { useRouter } from "expo-router";
@@ -23,7 +25,7 @@ import { formatMoney } from "../../domain/money";
 import { today } from "../../domain/date";
 import { zh } from "../../i18n/zh";
 export default function Assets() {
-  const { data, repo } = useLedger();
+  const { data, repo, run } = useLedger();
   const t = useTheme();
   const router = useRouter();
   const [archived, setArchived] = useState(false);
@@ -31,6 +33,10 @@ export default function Assets() {
     repo.getAssetAmountsHidden(),
   );
   const [error, setError] = useState("");
+  const [accountAction, setAccountAction] = useState<{
+    id: string;
+    action: "delete" | "balance";
+  } | null>(null);
   const displayMoney = (amount: number) =>
     amountsHidden ? "***" : formatMoney(amount);
   const toggleAmounts = () => {
@@ -139,63 +145,61 @@ export default function Assets() {
           onPress={() => setArchived(!archived)}
         />
       </Row>
-      <View style={{ gap: 12 }}>
-        {accounts
+      <InlineReorderList
+        items={accounts
           .filter(
             (a) =>
               !rentalAccounts.has(a.account.id) &&
               (archived || !a.account.archived),
           )
           .sort((a, b) => a.account.sort - b.account.sort)
-          .map(({ account, balance }) => (
-            <Pressable
-              key={account.id}
-              accessibilityRole="button"
-              onPress={() =>
-                data.plans.some(
-                  (p) =>
-                    !p.deleted && JSON.parse(p.data).accountId === account.id,
-                )
-                  ? router.push("/finance")
-                  : router.push({
-                      pathname: "/account",
-                      params: { id: account.id },
-                    })
-              }
-            >
-              <Card
-                style={{ padding: 19, opacity: account.archived ? 0.6 : 1 }}
-              >
-                <Row>
-                  <AccountIcon kind={account.kind} />
-                  <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
-                    <Row style={{ gap: 8 }}>
-                      <Txt bold style={{ flexShrink: 1 }}>
-                        {account.name}
-                      </Txt>
-                      {data.preferences.pinned.includes(account.id) && (
-                        <Icon name="pin.fill" size={11} color={blue} />
-                      )}
-                    </Row>
-                    <Txt size={11} color={t.muted}>
-                      {account.kind === "prepaid"
-                        ? "预付余额 · 尚未计入支出"
-                        : account.kind === "deposit"
-                          ? "押金余额 · 尚未退回"
-                          : zh.accountKinds[account.kind]}
-                      {account.last4 ? ` · ${account.last4}` : ""}
-                      {account.archived ? ` · ${zh.archived}` : ""}
-                    </Txt>
-                  </View>
-                  <Txt size={19} bold>
-                    {displayMoney(balance)}
-                  </Txt>
-                  <Icon name="chevron.right" size={13} color={t.muted} />
-                </Row>
-              </Card>
-            </Pressable>
-          ))}
-      </View>
+          .map(({ account, balance }) => ({
+            id: account.id,
+            accountKind: account.kind,
+            color: ["wechat", "alipay"].includes(account.kind)
+              ? t.dark
+                ? "#4DA6FF"
+                : "#007AFF"
+              : t.blue,
+            name: account.name,
+            subtitle:
+              zh.accountKinds[account.kind] +
+              (account.last4 ? ` · ${account.last4}` : "") +
+              (account.archived ? " · 已归档" : ""),
+            amount: displayMoney(balance),
+            symbol:
+              account.kind === "cash"
+                ? "banknote"
+                : account.kind === "wechat"
+                  ? "message.fill"
+                  : "creditcard.fill",
+            leading: "balance",
+            trailing: "delete,edit",
+          }))}
+        onReorder={(ids) => {
+          run(() => repo.reorderAccounts(ids));
+          setError("");
+        }}
+        onError={setError}
+        onPress={(id) =>
+          router.push({ pathname: "/account-detail", params: { id } })
+        }
+        onAction={(id, action) =>
+          action === "edit"
+            ? router.push({ pathname: "/account", params: { id } })
+            : setAccountAction({
+                id,
+                action: action === "delete" ? "delete" : "balance",
+              })
+        }
+      />
+      {accountAction && (
+        <AccountActionSheet
+          id={accountAction.id}
+          action={accountAction.action}
+          onClose={() => setAccountAction(null)}
+        />
+      )}
       <Button
         label={zh.addAccount}
         secondary

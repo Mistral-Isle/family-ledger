@@ -1,11 +1,14 @@
+import { MoneyField } from "./MoneyField";
+import { usePathname } from "expo-router";
 import {
   categoryIconPaths,
   categoryIconAliases,
   categoryIconLayers,
 } from "../domain/categoryIcons";
-import React, { useRef, useState } from "react";
+import React, { createContext, useContext, useEffect, useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
   Alert,
+  Keyboard,
   Platform,
   Pressable,
   ScrollView,
@@ -34,12 +37,12 @@ export const darcula = {
   muted: "#A9ADB3",
   line: "#55585A",
   soft: "#45494A",
-  blue: "#8ABEF0",
-  primary: "#82B9EF",
-  onPrimary: "#202B36",
-  buttonText: "#D6E7F6",
-  selected: "#78ADE0",
-  onSelected: "#202B36",
+  blue: "#4DA6FF",
+  primary: "#1687FF",
+  onPrimary: "#FFFFFF",
+  buttonText: "#66B5FF",
+  selected: "#1687FF",
+  onSelected: "#FFFFFF",
   green: "#A5C261",
   red: "#E38B83",
 };
@@ -96,6 +99,7 @@ const symbols = [
   "ellipsis",
   "checkmark",
   "arrow.left.arrow.right",
+  "arrow.clockwise",
   "magnifyingglass",
   "arrow.up.right",
   "arrow.down.left",
@@ -174,6 +178,7 @@ const paths: Record<string, string> = {
   "person.crop.circle":
     "M20 21v-3a6 6 0 00-6-6h-4a6 6 0 00-6 6v3M16 5a4 4 0 11-8 0 4 4 0 018 0",
   "arrow.left.arrow.right": "M4 7h16l-4-4M20 17H4l4 4M20 7l-4 4M4 17l4-4",
+  "arrow.clockwise": "M20 7V2M20 7h-5M20 7a9 9 0 1 0 1 8",
   magnifyingglass: "M21 21l-6-6M17 10a7 7 0 11-14 0 7 7 0 0114 0",
   "arrow.up.right": "M6 18L18 6M6 6h12v12",
   "arrow.down.left": "M18 6L6 18M6 6v12h12",
@@ -323,24 +328,62 @@ export function Txt({
     </Text>
   );
 }
+const RevealInput = createContext<() => void>(() => {});
+function useInputReveal(scroller: React.RefObject<ScrollView | null>) {
+  const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const revealInput = useCallback(() => {
+    if (Platform.OS === "web") return;
+    if (revealTimer.current) clearTimeout(revealTimer.current);
+    revealTimer.current = setTimeout(() => {
+      const input = TextInput.State.currentlyFocusedInput();
+      if (input) scroller.current?.scrollResponderScrollNativeHandleToKeyboard(input, 28, true);
+    }, 320);
+  }, []);
+  useEffect(() => {
+    const shown = Keyboard.addListener("keyboardDidShow", revealInput);
+    const changed = Keyboard.addListener("keyboardWillChangeFrame", revealInput);
+    return () => { shown.remove(); changed.remove(); if (revealTimer.current) clearTimeout(revealTimer.current); };
+  }, [revealInput]);
+  return revealInput;
+}
+export function FormScrollView({children, ...props}: ScrollViewProps) {
+  const scroller = useRef<ScrollView>(null);
+  const reveal = useInputReveal(scroller);
+  return <ScrollView ref={scroller} automaticallyAdjustKeyboardInsets keyboardShouldPersistTaps="handled" {...props}><RevealInput.Provider value={reveal}>{children}</RevealInput.Provider></ScrollView>;
+}
 export function Page({
   children,
   scroll = true,
   footer,
   revealSearch,
   searchActive = false,
+  modal = false,
 }: {
   children: React.ReactNode;
   scroll?: boolean;
   footer?: React.ReactNode;
   revealSearch?: React.ReactNode;
   searchActive?: boolean;
+  modal?: boolean;
 }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
+  const sheet = Platform.OS === "ios" && (modal || ["/account", "/refund"].includes(pathname));
   const scroller = useRef<ScrollView>(null);
-  const searchPositioned = useRef(false);
+  const revealInput = useInputReveal(scroller);
   const [viewportHeight, setViewportHeight] = useState(0);
+  const hasSearch = !!revealSearch;
+  const [searchReady, setSearchReady] = useState(!hasSearch || searchActive);
+  useLayoutEffect(() => {
+    if (!hasSearch || !viewportHeight) return;
+    // Wait until the measured viewport and minimum scroll content have committed.
+    const frame = requestAnimationFrame(() => {
+      scroller.current?.scrollTo({ y: searchActive ? 0 : 64, animated: false });
+      setSearchReady(true);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [hasSearch, viewportHeight, searchActive]);
   const content = (
     <View
       style={{
@@ -348,9 +391,9 @@ export function Page({
         maxWidth: 760,
         alignSelf: "center",
         paddingHorizontal: 20,
-        paddingTop: revealSearch ? 20 : insets.top + 20,
-        paddingBottom: footer ? 24 : 180 + insets.bottom,
-        gap: 20,
+        paddingTop: revealSearch ? 8 : sheet ? 12 : insets.top + 12,
+        paddingBottom: footer ? 24 : (["/", "/stats", "/assets", "/me"].includes(pathname) ? 170 : 24) + insets.bottom,
+        gap: 14,
       }}
     >
       {isBudgetDemo && (
@@ -370,29 +413,19 @@ export function Page({
           </Txt>
         </View>
       )}
-      {children}
+      <RevealInput.Provider value={revealInput}>{children}</RevealInput.Provider>
     </View>
   );
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
+    <View style={{ flex: 1, backgroundColor: t.bg, paddingTop: revealSearch ? insets.top : 0, overflow: "hidden" }}>
       {scroll ? (
         <ScrollView
           ref={scroller}
+          automaticallyAdjustKeyboardInsets
+          keyboardDismissMode="interactive"
+          automaticallyAdjustContentInsets={false}
+          contentInsetAdjustmentBehavior="never"
           onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}
-          onContentSizeChange={(_, height) => {
-            if (
-              revealSearch &&
-              viewportHeight > 0 &&
-              height >= viewportHeight + 63 &&
-              !searchPositioned.current
-            ) {
-              searchPositioned.current = true;
-              scroller.current?.scrollTo({
-                y: searchActive ? 0 : 64,
-                animated: false,
-              });
-            }
-          }}
           contentOffset={
             revealSearch && !searchActive ? { x: 0, y: 64 } : undefined
           }
@@ -401,14 +434,14 @@ export function Page({
             flexGrow: 1,
             minHeight: revealSearch ? viewportHeight + 64 : undefined,
           }}
-          style={{ flex: 1 }}
+          style={{ flex: 1, opacity: searchReady ? 1 : 0 }}
         >
           {revealSearch && (
             <View
               style={{
-                height: 64 + insets.top,
+                height: 64,
                 paddingHorizontal: 20,
-                paddingTop: insets.top + 4,
+                paddingTop: 4,
                 maxWidth: 760,
                 width: "100%",
                 alignSelf: "center",
@@ -535,19 +568,24 @@ export function IconButton({
   label,
   onPress,
   color,
+  disabled = false,
 }: {
   name: string;
   label: string;
   onPress: () => void;
   color?: string;
+  disabled?: boolean;
 }) {
   const t = useTheme();
   return (
     <Pressable
+      disabled={disabled}
+      accessibilityState={{ disabled }}
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
       style={({ pressed }) => ({
+        opacity: disabled ? 0.4 : 1,
         padding: 11,
         minWidth: 44,
         minHeight: 44,
@@ -593,6 +631,8 @@ export function Chip({
 }
 export function Field({ label, ...props }: TextInputProps & { label: string }) {
   const t = useTheme();
+  const reveal = useContext(RevealInput);
+  if (props.keyboardType === "decimal-pad" || props.keyboardType === "numbers-and-punctuation") return <MoneyField label={label} {...props} />;
   return (
     <View style={{ gap: 8 }}>
       <Txt size={12} color={t.muted}>
@@ -601,6 +641,7 @@ export function Field({ label, ...props }: TextInputProps & { label: string }) {
       <TextInput
         {...props}
         accessibilityLabel={label}
+        onFocus={(event) => { props.onFocus?.(event); reveal(); }}
         placeholderTextColor={t.muted}
         style={[
           styles.input,

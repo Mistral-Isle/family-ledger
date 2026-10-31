@@ -278,7 +278,7 @@ export default function Finance() {
         />
       )}
       {creating && kind === "rent" && (
-        <Card>
+        <Card style={{ padding: 14, gap: 8 }}>
           <LeaseForm
             onSaved={() => {
               setCreating(false);

@@ -87,7 +87,10 @@ export function CategoryEditor({
         style={{
           flex: 1,
           backgroundColor: t.bg,
-          paddingTop: Math.max(insets.top, 12),
+          paddingTop: Platform.OS === "ios" ? 12 : Math.max(insets.top, 12),
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
+        overflow: "hidden",
         }}
       >
         <View

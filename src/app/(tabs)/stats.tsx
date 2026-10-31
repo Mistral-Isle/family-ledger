@@ -102,7 +102,7 @@ export default function Stats() {
       <Heading
         title={zh.tabs.stats}
         action={
-          <Row style={{ gap: 0 }}>
+          <Row style={{ gap: 8, flexShrink: 1, flexWrap: "wrap", justifyContent: "flex-end" }}>
             <Popover
               label="选择统计成员"
               triggerText={

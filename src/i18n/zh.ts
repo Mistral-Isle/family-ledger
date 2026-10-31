@@ -200,7 +200,7 @@ export const zh = {
     import: "选择备份文件",
     hint: "备份包含本机全部账户、流水、分类、常用项和恢复记录，也包含私有数据。文件未加密，请保存到自己的安全位置，不要作为家庭同步包分享。恢复会停止本机同步，确认账本身份后再重新连接。",
     invalid: "备份损坏或内容不完整，原账本未改变",
-    version: "此备份版本不受支持，请使用匹配版本的 App",
+    version: "v0.3.4 · build 8",
     tooLarge: "备份超过 20 MB，暂不支持导入",
     confirm: "确认替换本机账本",
     warning:
@@ -220,7 +220,7 @@ export const zh = {
       t +
       " 笔（含已删除及丢弃记录）",
   },
-  appName: "两个人的账本",
+  appName: "合页",
   family: "家庭账本",
   tagline: "把小日子，记成好日子。",
   tabs: {
@@ -392,7 +392,7 @@ export const zh = {
   futureVault: "小金库",
   futureLoans: "财务计划",
   progress: "两个人，一起好好生活",
-  version: "v0.3.0",
+  version: "v0.3.3 · build 7",
   errorTitle: "暂时无法完成",
   loading: "正在打开账本…",
   retry: "重试",

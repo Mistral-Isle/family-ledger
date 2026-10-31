@@ -1,14 +1,19 @@
 export const swipeWidth = 80;
-export function resistedPosition(value: number, max: number) {
-  const bound = value < -swipeWidth ? -swipeWidth : value > max ? max : value;
+export function resistedPosition(
+  value: number,
+  max: number,
+  endWidth = swipeWidth,
+) {
+  const bound = value < -endWidth ? -endWidth : value > max ? max : value;
   const over = value - bound;
   return bound + (over * 24 * 0.55) / (24 + 0.55 * Math.abs(over));
 }
-export function swipeTarget(position: number, velocity: number, max: number) {
+export function swipeTarget(
+  position: number,
+  velocity: number,
+  max: number,
+  endWidth = swipeWidth,
+) {
   const projected = position + ((velocity / 1000) * 0.99) / (1 - 0.99);
-  return projected < -swipeWidth / 2
-    ? -swipeWidth
-    : projected > swipeWidth / 2
-      ? max
-      : 0;
+  return projected < -endWidth * 0.32 ? -endWidth : projected > max * 0.32 ? max : 0;
 }
