@@ -1,11 +1,10 @@
 import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
-import timezone from "dayjs/plugin/timezone";
 import { zh } from "../i18n/zh";
-dayjs.extend(utc);
-dayjs.extend(timezone);
-dayjs.tz.setDefault("Asia/Shanghai");
-export const today = () => dayjs().tz("Asia/Shanghai").format("YYYY-MM-DD");
+// The ledger uses present-day Shanghai time (UTC+8), regardless of device zone.
+// Do not round-trip toLocaleString through Date.parse: Hermes/iOS may reject
+// the localized text that Day.js's timezone plugin generates.
+export const today = () =>
+  new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
 export const thisMonth = () => today().slice(0, 7);
 export function validDate(value: string): string {
   if (
