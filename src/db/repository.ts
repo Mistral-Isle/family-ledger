@@ -389,7 +389,7 @@ export class LedgerRepository {
     return this.pref("theme", "system");
   }
   getIncludeRepayments(): boolean {
-    return this.pref("includeRepayments", false);
+    return this.pref("includeRepayments", true);
   }
   getShowIncomeCalendar(): boolean {
     return this.pref("showIncomeCalendar", false);

@@ -57,7 +57,7 @@ describe("reporting preferences and actual ledger stay separate", () => {
   afterEach(() => f.sqlite.close());
   test("preference persists after reopening without changing data or sync operations", () => {
     const before = f.repo.snapshot();
-    expect(f.repo.getIncludeRepayments()).toBe(false);
+    expect(f.repo.getIncludeRepayments()).toBe(true);
     f.repo.setIncludeRepayments(true);
     const reopened = new LedgerRepository(f.driver, randomUUID);
     reopened.initialize();

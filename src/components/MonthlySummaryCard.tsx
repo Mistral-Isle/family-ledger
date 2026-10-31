@@ -115,7 +115,7 @@ function MainAmount({ amount }: { amount: number | null }) {
         fontVariant: ["tabular-nums"],
       }}
     >
-      <Text style={{ fontSize: size * 0.64 }}>¥</Text>
+      <Text>¥</Text>
       {whole}
       <Text style={{ fontSize: size * 0.65 }}>.{decimal}</Text>
     </Text>

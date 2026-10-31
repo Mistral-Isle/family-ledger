@@ -2,7 +2,7 @@
   "expo": {
     "name": "合页",
     "slug": "family-ledger",
-    "version": "0.3.7",
+    "version": "0.3.8",
     "scheme": "familyledger",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
@@ -21,7 +21,7 @@
         },
         "NSCameraUsageDescription": "扫描另一位家庭成员的账本配对二维码"
       },
-      "buildNumber": "11"
+      "buildNumber": "12"
     },
     "web": {
       "bundler": "metro",

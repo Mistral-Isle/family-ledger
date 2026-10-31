@@ -321,7 +321,7 @@ export default function Stats() {
         }}
       />
       <Card style={{ padding: 24, gap: 18 }}>
-        <Row style={{ justifyContent: "space-between" }}>
+        <Row style={{ justifyContent: "space-between", minHeight: 44 }}>
           <Txt size={14} color={t.blue}>
             {title}
           </Txt>
@@ -338,11 +338,14 @@ export default function Stats() {
                   <Txt size={17} bold>
                     统计口径
                   </Txt>
-                  <Row style={{ flexWrap: "wrap", gap: 0 }}>
-                    <Txt>{zh.includeRepayments}</Txt>
+                  <Row style={{ justifyContent: "space-between", alignItems: "center", minHeight: 44, gap: 8 }}>
+                    <Row style={{ flex: 1, gap: 0, alignItems: "center" }}>
+                    <Txt style={{ flexShrink: 1 }}>{zh.includeRepayments}</Txt>
                     <HelpBubble label="计入还款本金">
                       开启后，统计本月归还本金所付出的金额。此开关只影响统计展示，不改变实际账务；本人账户间转账始终不计入。
                     </HelpBubble>
+                    </Row>
+                    <View style={{ height: 44, justifyContent: "center", alignItems: "center" }}>
                     <Switch
                       accessibilityLabel="计入还款本金"
                       value={includeRepayments}
@@ -357,6 +360,7 @@ export default function Stats() {
                         }
                       }}
                     />
+                    </View>
                   </Row>
                 </>
               )}
@@ -372,11 +376,13 @@ export default function Stats() {
           <Txt size={38} bold>
             {formatMoney(value)}
           </Txt>
+          <View style={{ height: 18 }}>
           {includeRepayments && view !== "income" && (
             <Txt size={12} color={t.muted}>
               含还款本金
             </Txt>
           )}
+          </View>
         </View>
         <View style={{ height: 1, backgroundColor: t.line }} />
         <Row style={{ flexWrap: "wrap", alignItems: "flex-start" }}>

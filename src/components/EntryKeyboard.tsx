@@ -12,7 +12,7 @@ export function EntryKeyboard({
 }) {
   const t = useTheme();
   const { height } = useWindowDimensions();
-  const keyHeight = Math.max(54, Math.min(72, Math.round(height * 0.07)));
+  const keyHeight = Math.max(50, Math.min(64, Math.round(height * 0.063)));
   const key = (value: string, label = value) => (
     <Pressable
       key={value}
