@@ -675,7 +675,12 @@ export default function Details() {
                   </Txt>
                 </Row>
                 <Card
-                  style={{ paddingVertical: 0, paddingHorizontal: 17, gap: 0 }}
+                  style={{
+                    paddingVertical: 0,
+                    paddingHorizontal: 17,
+                    gap: 0,
+                    overflow: "hidden",
+                  }}
                 >
                   {financialRowGroups(data, group.txns).map((row, i) => (
                     <View

@@ -1,3 +1,4 @@
+import { AccountIcon } from "./AccountIcon";
 import {
   requireNativeViewManager,
   requireOptionalNativeModule,
@@ -49,7 +50,8 @@ export function InlineReorderList({
         backgroundColor: t.card,
       }}
     >
-      {NativeList && !items.some((item) => item.symbol?.startsWith("category:")) ? (
+      {NativeList &&
+      !items.some((item) => item.symbol?.startsWith("category:")) ? (
         <NativeList
           key={revision}
           items={items}
@@ -65,14 +67,77 @@ export function InlineReorderList({
           }
         />
       ) : (
-        <DragOrderFallback items={items} onChange={reorder} rowHeight={rowHeight} renderItem={(row) => {
-          const item = items.find((i) => i.id === row.id)!;
-          const actions = (item.trailing ?? "").split(",").filter(Boolean);
-          const labels: Record<string, string> = { hide: "隐藏", show: "显示", delete: "删除", edit: "编辑", balance: "调整余额", remove: "移除" };
-          return <SwipeActions actionWidth={actions.length * 76} disabled={!actions.length} actions={<Row style={{ gap: 4 }}>{actions.map((action) => <Button key={action} secondary label={labels[action] ?? action} onPress={() => onAction?.(item.id, action)} />)}</Row>}>
-            <Pressable accessibilityRole="button" accessibilityLabel={item.name} onPress={() => onPress?.(item.id)} style={{ minHeight: rowHeight, justifyContent: "center", backgroundColor: t.card, paddingHorizontal: 8 }}><Row><Icon name={item.symbol ?? "star.fill"} color={item.color ?? t.blue} size={24} /><View style={{ flex: 1 }}><Txt bold>{item.name}</Txt>{!!item.subtitle && <Txt size={12} color={t.muted}>{item.subtitle}</Txt>}</View></Row></Pressable>
-          </SwipeActions>;
-        }} />
+        <DragOrderFallback
+          items={items}
+          onChange={reorder}
+          rowHeight={rowHeight}
+          renderItem={(row) => {
+            const item = items.find((i) => i.id === row.id)!;
+            const actions = (item.trailing ?? "").split(",").filter(Boolean);
+            const labels: Record<string, string> = {
+              hide: "隐藏",
+              show: "显示",
+              delete: "删除",
+              edit: "编辑",
+              balance: "调整余额",
+              remove: "移除",
+            };
+            return (
+              <SwipeActions
+                actionWidth={actions.length * 76}
+                disabled={!actions.length}
+                actions={
+                  <Row style={{ gap: 4 }}>
+                    {actions.map((action) => (
+                      <Button
+                        key={action}
+                        secondary
+                        label={labels[action] ?? action}
+                        onPress={() => onAction?.(item.id, action)}
+                      />
+                    ))}
+                  </Row>
+                }
+              >
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={item.name}
+                  onPress={() => onPress?.(item.id)}
+                  style={{
+                    minHeight: rowHeight,
+                    justifyContent: "center",
+                    backgroundColor: t.card,
+                    paddingHorizontal: 8,
+                  }}
+                >
+                  <Row>
+                    {item.accountKind ? (
+                      <AccountIcon
+                        kind={item.accountKind}
+                        size={40}
+                        selected={item.selected === "true"}
+                      />
+                    ) : (
+                      <Icon
+                        name={item.symbol ?? "star.fill"}
+                        color={item.color ?? t.blue}
+                        size={24}
+                      />
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Txt bold>{item.name}</Txt>
+                      {!!item.subtitle && (
+                        <Txt size={12} color={t.muted}>
+                          {item.subtitle}
+                        </Txt>
+                      )}
+                    </View>
+                  </Row>
+                </Pressable>
+              </SwipeActions>
+            );
+          }}
+        />
       )}
     </View>
   );

@@ -109,7 +109,8 @@ final class LedgerCategoryOrderView: ExpoView, UITableViewDataSource, UITableVie
       content.secondaryText = [item["subtitle"], item["amount"]].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
       content.secondaryTextProperties.color = .secondaryLabel
       content.secondaryTextProperties.numberOfLines = 2
-      content.image = UIImage(systemName: item["symbol"] ?? "circle.fill")
+      content.image = LedgerPaymentIcon.image(for: item["accountKind"])
+        ?? UIImage(systemName: item["symbol"] ?? "circle.fill")
       content.imageProperties.tintColor = item["selected"] == "true" ? .systemBlue : tint(item["color"])
       if item["selected"] == "true" { content.textProperties.color = .systemBlue }
       content.imageProperties.maximumSize = CGSize(width: 28, height: 28)

@@ -1,3 +1,4 @@
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useReducedMotion } from "../components/useReducedMotion";
 import { SyncRunner } from "../components/SyncRunner";
 import { isBudgetDemo, isLocalPreview } from "../demo/config";
@@ -19,24 +20,26 @@ export default function RootLayout() {
     return () => listener.remove();
   }, []);
   return (
-    <SafeAreaProvider>
-      <LedgerProvider>
-        {!isBudgetDemo && !isLocalPreview && <SyncRunner />}
-        <StatusBar style={t.dark ? "light" : "dark"} />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            animation: reducedMotion ? "fade" : "default",
-            contentStyle: { backgroundColor: t.bg },
-          }}
-        >
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="entry" options={{ presentation: "modal" }} />
-          <Stack.Screen name="refund" options={{ presentation: "modal" }} />
-          <Stack.Screen name="account" options={{ presentation: "modal" }} />
-          <Stack.Screen name="categories" />
-        </Stack>
-      </LedgerProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <LedgerProvider>
+          {!isBudgetDemo && !isLocalPreview && <SyncRunner />}
+          <StatusBar style={t.dark ? "light" : "dark"} />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              animation: reducedMotion ? "fade" : "default",
+              contentStyle: { backgroundColor: t.bg },
+            }}
+          >
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="entry" options={{ presentation: "modal" }} />
+            <Stack.Screen name="refund" options={{ presentation: "modal" }} />
+            <Stack.Screen name="account" options={{ presentation: "modal" }} />
+            <Stack.Screen name="categories" />
+          </Stack>
+        </LedgerProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
