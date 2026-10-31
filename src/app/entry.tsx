@@ -1,3 +1,5 @@
+import { moneyKey, validMoneyExpressionInput } from "../domain/money";
+import { FavoriteList } from "../components/FavoriteList";
 import {
   privacyAccountId,
   privacyMemberId,
@@ -77,7 +79,12 @@ function Entry() {
     null,
   );
   const router = useRouter();
-  const { id, scope: requestedScope } = useLocalSearchParams<{
+  const {
+    id,
+    scope: requestedScope,
+    account: requestedAccount,
+  } = useLocalSearchParams<{
+    account?: string;
     id?: string;
     scope?: string;
   }>();
@@ -106,13 +113,16 @@ function Entry() {
   );
   const [accountId, setAccountId] = useState(
     existing?.accountId ??
-      data.preferences.pinned.find((p) =>
-        data.accounts.some(
-          (a) => a.id === p && a.scope === scope && !a.deleted && !a.archived,
-        ),
-      ) ??
-      data.accounts.find((a) => a.scope === scope && !a.deleted && !a.archived)
-        ?.id ??
+      data.accounts.find(
+        (a) =>
+          a.id === requestedAccount &&
+          a.scope === scope &&
+          !a.deleted &&
+          !a.archived,
+      )?.id ??
+      [...data.accounts]
+        .sort((a, b) => a.sort - b.sort)
+        .find((a) => a.scope === scope && !a.deleted && !a.archived)?.id ??
       "",
   );
   // Keep historical attribution until the payment account is changed.
@@ -174,9 +184,10 @@ function Entry() {
       : new Date().toTimeString().slice(0, 5),
   );
   const [accountPicker, setAccountPicker] = useState(false);
-  const [mode, setMode] = useState(
-    scope === "private" ? "standard" : data.preferences.mode,
-  );
+  const [modes, setModes] = useState(() => repo.getEntryModes());
+  const mode =
+    scope === "private" || type === "transfer" ? "standard" : modes[type];
+  const [selectedFavorite, setSelectedFavorite] = useState("");
   const [error, setError] = useState("");
   const [favoriteName, setFavoriteName] = useState("");
   const [message, setMessage] = useState("");
@@ -209,6 +220,7 @@ function Entry() {
   const selectedCategory = data.categories.find((c) => c.id === categoryId);
   function selectCategory(id: string) {
     setCategoryId(id);
+    setSelectedFavorite("");
     if (addingFavorite) {
       setAddingFavorite(false);
       setAdvancedOptions(true);
@@ -220,19 +232,13 @@ function Entry() {
     const last = data.preferences.lastAccount[id];
     if (last && accounts.some((a) => a.id === last && !a.archived))
       setAccountId(last);
-    else
-      setAccountId(
-        data.preferences.pinned.find((p) =>
-          accounts.some((a) => a.id === p && !a.archived),
-        ) ??
-          accounts[0]?.id ??
-          "",
-      );
+    else setAccountId(accounts[0]?.id ?? "");
   }
   function selectMode(next: "standard" | "daily") {
     if (scope === "private") return;
-    setMode(next);
-    run(() => repo.updatePreferences({ mode: next }));
+    if (type === "transfer") return;
+    setModes((current) => ({ ...current, [type]: next }));
+    run(() => repo.setEntryMode(type, next));
   }
   function applyFavorite(favorite: Favorite) {
     const category = data.categories.find(
@@ -241,6 +247,7 @@ function Entry() {
     if (!category) return;
     setType(category.kind);
     selectCategory(category.id);
+    setSelectedFavorite(favorite.id);
     setExpanded(category.parentId ?? category.id);
     if (accounts.some((a) => a.id === favorite.accountId && !a.archived))
       setAccountId(favorite.accountId);
@@ -338,7 +345,14 @@ function Entry() {
           note,
         }),
       );
-      setMessage(zh.favoriteSaved);
+      selectMode("daily");
+      setSelectedFavorite(
+        repo.snapshot().preferences.favorites.at(-1)?.id ?? "",
+      );
+      setOptions(false);
+      setAddingFavorite(false);
+      setFavoriteName("");
+      setMessage("");
       setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -346,12 +360,8 @@ function Entry() {
   }
   function key(key: string) {
     setMessage("");
-    if (key === "⌫") {
-      setAmount(amount.slice(0, -1));
-      return;
-    }
     setError("");
-    if (amount.length < 36) setAmount(amount + key);
+    setAmount((current) => moneyKey(current, key));
   }
   function newCategory(parentId: string | null = null) {
     setCategoryDraft({
@@ -450,6 +460,7 @@ function Entry() {
                   onPress={() => setAccountPicker(false)}
                 />
               </Row>
+
               <ScrollView
                 keyboardShouldPersistTaps="handled"
                 contentContainerStyle={{ gap: 8 }}
@@ -541,17 +552,17 @@ function Entry() {
             <View
               style={{
                 position: "absolute",
-                right: -3,
+                right: -2,
                 bottom: -2,
-                width: 22,
-                height: 22,
-                borderRadius: 9,
+                width: 15,
+                height: 13,
+                borderRadius: 6,
                 backgroundColor: t.card,
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <Icon name="ellipsis" size={17} color={t.blue} />
+              <Icon name="ellipsis" size={12} color={t.idleIcon} />
             </View>
           )}
         </View>
@@ -581,7 +592,7 @@ function Entry() {
           width: "100%",
           maxWidth: 600,
           alignSelf: "center",
-          paddingTop: Math.max(insets.top, 8),
+          paddingTop: Platform.OS === "ios" ? 8 : Math.max(insets.top, 8),
           paddingBottom: Math.max(insets.bottom, 10),
           paddingHorizontal: 16,
         }}
@@ -596,6 +607,8 @@ function Entry() {
               )}
               onChange={(kind) => {
                 setType(kind);
+                setSelectedFavorite("");
+                setAddingFavorite(false);
                 if (
                   kind !== "transfer" &&
                   !accounts.some((a) => a.id === accountId)
@@ -744,6 +757,7 @@ function Entry() {
                         onPress={() => setTransferPicker(false)}
                       />
                     </Row>
+
                     <ScrollView keyboardShouldPersistTaps="handled">
                       {" "}
                       <View
@@ -763,6 +777,7 @@ function Entry() {
                               ) &&
                               (a.scope === scope || a.scope === "family"),
                           )
+                          .sort((a, b) => a.sort - b.sort)
                           .map((a) => (
                             <AccountChip
                               key={a.id}
@@ -827,45 +842,23 @@ function Entry() {
             </View>
           ) : mode === "daily" ? (
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {data.preferences.favorites
-                .filter((f) => {
-                  const c = data.categories.find((c) => c.id === f.categoryId);
-                  return (
-                    c &&
-                    !c.deleted &&
-                    !c.hidden &&
-                    c.kind === type &&
-                    !data.categories.find((p) => p.id === c.parentId)?.hidden
+              <FavoriteList
+                items={data.preferences.favorites.filter((f) => {
+                  const category = data.categories.find(
+                    (c) => c.id === f.categoryId,
                   );
-                })
-                .map((f) => (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={f.label}
-                    key={f.id}
-                    onPress={() => applyFavorite(f)}
-                    style={{
-                      padding: 12,
-                      borderRadius: 16,
-                      backgroundColor:
-                        categoryId === f.categoryId ? t.soft : t.card,
-                      minWidth: "45%",
-                    }}
-                  >
-                    <Row>
-                      <Icon
-                        name={
-                          data.categories.find((c) => c.id === f.categoryId)
-                            ?.icon ?? "star.fill"
-                        }
-                      />
-                      <Txt>{f.label}</Txt>
-                    </Row>
-                    <Txt size={12} color={t.muted}>
-                      {f.amount ? formatMoney(f.amount) : zh.amount}
-                    </Txt>
-                  </Pressable>
-                ))}
+                  return (
+                    !!category &&
+                    !category.deleted &&
+                    !category.hidden &&
+                    category.kind === type &&
+                    !data.categories.find((p) => p.id === category.parentId)
+                      ?.hidden
+                  );
+                })}
+                selectedId={selectedFavorite}
+                onPress={applyFavorite}
+              />
               <Button
                 secondary
                 icon="plus"
@@ -949,7 +942,11 @@ function Entry() {
                   backgroundColor: selectedTrip ? t.primary : t.soft,
                 }}
               >
-                <Icon name="suitcase.fill" size={17} color={selectedTrip ? "#FFFFFF" : t.blue} />
+                <Icon
+                  name="suitcase.fill"
+                  size={17}
+                  color={selectedTrip ? "#FFFFFF" : t.blue}
+                />
                 <Text
                   numberOfLines={1}
                   style={{
@@ -993,7 +990,7 @@ function Entry() {
                 accessibilityLabel={zh.amount}
                 value={amount}
                 placeholder="0.00"
-                onChangeText={setAmount}
+                onChangeText={(value) => { if (validMoneyExpressionInput(value)) setAmount(value); }}
                 onFocus={finishText}
                 showSoftInputOnFocus={false}
                 maxLength={36}
@@ -1372,7 +1369,6 @@ function Entry() {
                                 label={zh.addFavorite}
                                 onPress={() => {
                                   addFavorite();
-                                  setOptions(false);
                                 }}
                               />
                             </>

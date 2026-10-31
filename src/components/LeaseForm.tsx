@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { View } from "react-native";
-import { Button, Chip, ErrorText, Field, Txt, styles } from "./ui";
+import { Button, Chip, ErrorText, Field, Row, Txt, styles } from "./ui";
 import { DateField } from "./DateField";
+import { Popover } from "./HelpBubble";
 import { CategoryPicker } from "./CategoryPicker";
 import { useLedger } from "./LedgerProvider";
 import { useSubmissionGuard } from "./useSubmissionGuard";
@@ -69,11 +70,17 @@ export function LeaseForm({
     previewError = (e as Error).message;
   }
   return (
-    <View style={{ gap: 12 }}>
+    <View style={{ gap: 8 }}>
       <Txt bold>{previous ? "续签合同" : "新增租赁"}</Txt>
       <Field label="租赁名称" value={name} onChangeText={setName} />
-      <DateField label="起租日" value={start} onChange={setStart} />
-      <DateField label="到期日（含当天）" value={end} onChange={setEnd} />
+      <Row style={{ alignItems: "flex-start" }}>
+        <View style={{ flex: 1 }}>
+          <DateField label="起租日" value={start} onChange={setStart} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <DateField label="到期日（含当天）" value={end} onChange={setEnd} />
+        </View>
+      </Row>
       <Txt>付款周期</Txt>
       <View style={styles.wrap}>
         {(Object.keys(leaseCycles) as LeaseCycle[]).map((c) => (
@@ -85,39 +92,66 @@ export function LeaseForm({
           />
         ))}
       </View>
-      <Field
-        label={`${leaseCycles[cycle]}租金（元／期）`}
-        value={rent}
-        onChangeText={setRent}
-        keyboardType="decimal-pad"
-      />
-      <Field
-        label={
-          previous ? "本次新增押金（元，原押金保留）" : "押金（元，无押金填 0）"
-        }
-        value={deposit}
-        onChangeText={setDeposit}
-        keyboardType="decimal-pad"
-      />
-      <DateField label="首期实际付款日期" value={date} onChange={setDate} />
-      <Txt>付款账户</Txt>
-      <View style={styles.wrap}>
-        {accounts.map((a) => (
-          <Chip
-            key={a.id}
-            label={a.name}
-            selected={account === a.id}
-            onPress={() => setAccount(a.id)}
+      <Row style={{ alignItems: "flex-start" }}>
+        <View style={{ flex: 1 }}>
+          <Field
+            label={`${leaseCycles[cycle]}租金（元／期）`}
+            value={rent}
+            onChangeText={setRent}
+            keyboardType="decimal-pad"
           />
-        ))}
-      </View>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Field
+            label={
+              previous
+                ? "本次新增押金（元，原押金保留）"
+                : "押金（元，无押金填 0）"
+            }
+            value={deposit}
+            onChangeText={setDeposit}
+            keyboardType="decimal-pad"
+          />
+        </View>
+      </Row>
+      <Row style={{ alignItems: "flex-start" }}>
+        <View style={{ flex: 1 }}>
+          <DateField label="首期实际付款日期" value={date} onChange={setDate} />
+        </View>
+        <View style={{ flex: 1, gap: 6 }}>
+          <Txt size={12}>付款账户</Txt>
+          <Popover
+            label="选择租赁付款账户"
+            triggerText={
+              accounts.find((a) => a.id === account)?.name ?? "选择账户"
+            }
+            compact
+          >
+            {(close) => (
+              <View style={styles.wrap}>
+                {accounts.map((a) => (
+                  <Chip
+                    key={a.id}
+                    label={a.name}
+                    selected={account === a.id}
+                    onPress={() => {
+                      setAccount(a.id);
+                      close();
+                    }}
+                  />
+                ))}
+              </View>
+            )}
+          </Popover>
+        </View>
+      </Row>
       <CategoryPicker
         label="租金分类"
         value={category}
         onChange={setCategory}
       />
       <Txt size={12}>
-        保存时记录首期租金及押金。后续各期确认付款后入账；已付租金按实际覆盖天数分摊到各月，末期不足一个周期时按天折算。
+        首期租金和押金立即入账；后续确认付款后入账，租金按覆盖天数分摊。
       </Txt>
       {!!schedule.length && (
         <Txt>
@@ -127,32 +161,36 @@ export function LeaseForm({
         </Txt>
       )}
       <ErrorText message={error || previewError} />
-      <Button
-        label={previous ? "保存新合同并记录首期付款" : "保存并记录首期付款"}
-        onPress={() => {
-          try {
-            if (
-              guard.run(() =>
-                run(() =>
-                  repo.createLease({
-                    name,
-                    paymentAccountId: account,
-                    categoryId: category,
-                    lease: { start, end, cycle, rent: calculate(rent) },
-                    deposit: calculate(deposit),
-                    date,
-                    renewedFrom: previous?.id,
-                  }),
-                ),
-              )
-            )
-              onSaved();
-          } catch (e) {
-            setError((e as Error).message);
-          }
-        }}
-      />
-      <Button secondary label="取消" onPress={onCancel} />
+      <Row>
+        <View style={{ flex: 1 }}>
+          <Button
+            label={previous ? "保存新合同并记录首期付款" : "保存并记录首期付款"}
+            onPress={() => {
+              try {
+                if (
+                  guard.run(() =>
+                    run(() =>
+                      repo.createLease({
+                        name,
+                        paymentAccountId: account,
+                        categoryId: category,
+                        lease: { start, end, cycle, rent: calculate(rent) },
+                        deposit: calculate(deposit),
+                        date,
+                        renewedFrom: previous?.id,
+                      }),
+                    ),
+                  )
+                )
+                  onSaved();
+              } catch (e) {
+                setError((e as Error).message);
+              }
+            }}
+          />
+        </View>
+        <Button secondary label="取消" onPress={onCancel} />
+      </Row>
     </View>
   );
 }

@@ -3,7 +3,7 @@ import { SyncRunner } from "../components/SyncRunner";
 import { isBudgetDemo, isLocalPreview } from "../demo/config";
 import { useEffect } from "react";
 import { AppState } from "react-native";
-import { useVault } from "../state/vault";
+import { vaultAuthentication } from "../state/vault";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -14,7 +14,7 @@ export default function RootLayout() {
   const reducedMotion = useReducedMotion();
   useEffect(() => {
     const listener = AppState.addEventListener("change", (state) => {
-      if (state !== "active") useVault.getState().setUnlocked(false);
+      vaultAuthentication.change(state);
     });
     return () => listener.remove();
   }, []);

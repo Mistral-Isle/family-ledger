@@ -220,7 +220,7 @@ export const zh = {
       t +
       " 笔（含已删除及丢弃记录）",
   },
-  appName: "两个人的账本",
+  appName: "合页",
   family: "家庭账本",
   tagline: "把小日子，记成好日子。",
   tabs: {
@@ -392,7 +392,7 @@ export const zh = {
   futureVault: "小金库",
   futureLoans: "财务计划",
   progress: "两个人，一起好好生活",
-  version: "v0.3.0",
+  version: "v0.3.2 · build 6",
   errorTitle: "暂时无法完成",
   loading: "正在打开账本…",
   retry: "重试",

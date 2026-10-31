@@ -1,15 +1,7 @@
 import { Pressable, View } from "react-native";
 import { useRouter, type Href } from "expo-router";
 import { useLedger } from "../../components/LedgerProvider";
-import {
-  Card,
-  Icon,
-  IconButton,
-  Page,
-  Row,
-  Txt,
-  useTheme,
-} from "../../components/ui";
+import { Card, Icon, Page, Row, Txt, useTheme } from "../../components/ui";
 import { HelpBubble } from "../../components/HelpBubble";
 import { zh } from "../../i18n/zh";
 
@@ -69,19 +61,9 @@ function SettingsRow({
 }
 
 export default function Me() {
-  const { data, repo, run } = useLedger();
+  const { data } = useLedger();
   const t = useTheme();
   const me = data.members.find((m) => m.id === data.meId);
-  function moveFavorite(index: number, delta: number) {
-    const favorites = [...data.preferences.favorites];
-    const target = index + delta;
-    if (target < 0 || target >= favorites.length) return;
-    [favorites[index], favorites[target]] = [
-      favorites[target]!,
-      favorites[index]!,
-    ];
-    run(() => repo.updatePreferences({ favorites }));
-  }
 
   return (
     <Page>
@@ -166,6 +148,12 @@ export default function Me() {
           style={{ padding: 0, gap: 0, borderRadius: 20, overflow: "hidden" }}
         >
           <SettingsRow
+            title="常用项管理"
+            icon="star.fill"
+            color="#B9824C"
+            href="/favorites"
+          />
+          <SettingsRow
             title="外观"
             icon="sun.max.fill"
             color="#687C9E"
@@ -203,39 +191,7 @@ export default function Me() {
           {zh.queued(data.pending)}
         </Txt>
       </Row>
-      {data.preferences.favorites.length > 0 && (
-        <Card style={{ gap: 10 }}>
-          <Txt bold>{zh.favorites}</Txt>
-          {data.preferences.favorites.map((favorite, index) => (
-            <Row key={favorite.id}>
-              <Txt style={{ flex: 1 }}>{favorite.label}</Txt>
-              <IconButton
-                name="arrow.up"
-                label={zh.moveUp}
-                onPress={() => moveFavorite(index, -1)}
-              />
-              <IconButton
-                name="arrow.down"
-                label={zh.moveDown}
-                onPress={() => moveFavorite(index, 1)}
-              />
-              <IconButton
-                name="xmark"
-                label={zh.removeFavorite}
-                onPress={() =>
-                  run(() =>
-                    repo.updatePreferences({
-                      favorites: data.preferences.favorites.filter(
-                        (f) => f.id !== favorite.id,
-                      ),
-                    }),
-                  )
-                }
-              />
-            </Row>
-          ))}
-        </Card>
-      )}
+
       <Txt
         size={12}
         color={t.muted}

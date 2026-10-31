@@ -1,15 +1,33 @@
 import { effectiveTripId, memberName, payerId } from "./travel";
-import type { Snapshot, TxnType } from "./types";
+import type { Snapshot, TxnType, Txn } from "./types";
 import { visibleTxns } from "./selectors";
+
+/** Ledger dates and optional times are interpreted in Shanghai time. Date-only entries remain visible today. */
+export function isFutureTransaction(
+  txn: Pick<Txn, "occurredAt" | "occurredTime">,
+  now: Date,
+) {
+  const local = new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString();
+  const date = local.slice(0, 10),
+    time = local.slice(11, 16);
+  return (
+    txn.occurredAt > date ||
+    (txn.occurredAt === date &&
+      !!txn.occurredTime &&
+      txn.occurredTime.slice(0, 5) > time)
+  );
+}
 
 export function filterMonthTransactions(
   data: Snapshot,
   month: string,
   types: TxnType[],
   query: string,
+  asOf?: Date,
 ) {
   const search = query.trim().toLocaleLowerCase();
   return visibleTxns(data.txns).filter((txn) => {
+    if (asOf && isFutureTransaction(txn, asOf)) return false;
     if (
       !txn.occurredAt.startsWith(month) ||
       (types.length && !types.includes(txn.type))

@@ -1,9 +1,11 @@
+import { MoneyField } from "./MoneyField";
+import { usePathname } from "expo-router";
 import {
   categoryIconPaths,
   categoryIconAliases,
   categoryIconLayers,
 } from "../domain/categoryIcons";
-import React, { useRef, useState } from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 import {
   Alert,
   Platform,
@@ -34,12 +36,12 @@ export const darcula = {
   muted: "#A9ADB3",
   line: "#55585A",
   soft: "#45494A",
-  blue: "#8ABEF0",
-  primary: "#82B9EF",
-  onPrimary: "#202B36",
-  buttonText: "#D6E7F6",
-  selected: "#78ADE0",
-  onSelected: "#202B36",
+  blue: "#4DA6FF",
+  primary: "#1687FF",
+  onPrimary: "#FFFFFF",
+  buttonText: "#66B5FF",
+  selected: "#1687FF",
+  onSelected: "#FFFFFF",
   green: "#A5C261",
   red: "#E38B83",
 };
@@ -329,18 +331,32 @@ export function Page({
   footer,
   revealSearch,
   searchActive = false,
+  modal = false,
 }: {
   children: React.ReactNode;
   scroll?: boolean;
   footer?: React.ReactNode;
   revealSearch?: React.ReactNode;
   searchActive?: boolean;
+  modal?: boolean;
 }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
+  const sheet = Platform.OS === "ios" && (modal || ["/account", "/refund"].includes(pathname));
   const scroller = useRef<ScrollView>(null);
-  const searchPositioned = useRef(false);
   const [viewportHeight, setViewportHeight] = useState(0);
+  const hasSearch = !!revealSearch;
+  const [searchReady, setSearchReady] = useState(!hasSearch || searchActive);
+  useLayoutEffect(() => {
+    if (!hasSearch || !viewportHeight) return;
+    // Wait until the measured viewport and minimum scroll content have committed.
+    const frame = requestAnimationFrame(() => {
+      scroller.current?.scrollTo({ y: searchActive ? 0 : 64, animated: false });
+      setSearchReady(true);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [hasSearch, viewportHeight, searchActive]);
   const content = (
     <View
       style={{
@@ -348,9 +364,9 @@ export function Page({
         maxWidth: 760,
         alignSelf: "center",
         paddingHorizontal: 20,
-        paddingTop: revealSearch ? 20 : insets.top + 20,
-        paddingBottom: footer ? 24 : 180 + insets.bottom,
-        gap: 20,
+        paddingTop: revealSearch ? 8 : sheet ? 12 : insets.top + 12,
+        paddingBottom: footer ? 24 : (["/", "/stats", "/assets", "/me"].includes(pathname) ? 170 : 24) + insets.bottom,
+        gap: 14,
       }}
     >
       {isBudgetDemo && (
@@ -374,25 +390,13 @@ export function Page({
     </View>
   );
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
+    <View style={{ flex: 1, backgroundColor: t.bg, paddingTop: revealSearch ? insets.top : 0, overflow: "hidden" }}>
       {scroll ? (
         <ScrollView
           ref={scroller}
+          automaticallyAdjustContentInsets={false}
+          contentInsetAdjustmentBehavior="never"
           onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}
-          onContentSizeChange={(_, height) => {
-            if (
-              revealSearch &&
-              viewportHeight > 0 &&
-              height >= viewportHeight + 63 &&
-              !searchPositioned.current
-            ) {
-              searchPositioned.current = true;
-              scroller.current?.scrollTo({
-                y: searchActive ? 0 : 64,
-                animated: false,
-              });
-            }
-          }}
           contentOffset={
             revealSearch && !searchActive ? { x: 0, y: 64 } : undefined
           }
@@ -401,14 +405,14 @@ export function Page({
             flexGrow: 1,
             minHeight: revealSearch ? viewportHeight + 64 : undefined,
           }}
-          style={{ flex: 1 }}
+          style={{ flex: 1, opacity: searchReady ? 1 : 0 }}
         >
           {revealSearch && (
             <View
               style={{
-                height: 64 + insets.top,
+                height: 64,
                 paddingHorizontal: 20,
-                paddingTop: insets.top + 4,
+                paddingTop: 4,
                 maxWidth: 760,
                 width: "100%",
                 alignSelf: "center",
@@ -593,6 +597,7 @@ export function Chip({
 }
 export function Field({ label, ...props }: TextInputProps & { label: string }) {
   const t = useTheme();
+  if (props.keyboardType === "decimal-pad" || props.keyboardType === "numbers-and-punctuation") return <MoneyField label={label} {...props} />;
   return (
     <View style={{ gap: 8 }}>
       <Txt size={12} color={t.muted}>

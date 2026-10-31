@@ -70,3 +70,24 @@ export function calculate(input: string): number {
     ((numerator % denominator) * 2n >= denominator ? 1n : 0n);
   return assertMoney(Number(sign * cents));
 }
+
+/** Keep each calculator operand at cent precision before submission. */
+export function moneyKey(input: string, key: string): string {
+  if (key === "⌫") return input.slice(0, -1);
+  if (input.length >= 36) return input;
+  const operand = input.split(/[+−×÷]/).at(-1) ?? "";
+  if (/^\d$/.test(key)) {
+    if ((operand.split(".")[1]?.length ?? 0) >= 2) return input;
+    return operand === "0" ? input.slice(0, -1) + key : input + key;
+  }
+  if (key === ".") return operand.includes(".") ? input : input + (operand ? "." : "0.");
+  if (["+", "−", "×", "÷"].includes(key)) {
+    if (!input) return key === "−" ? key : input;
+    if (!operand) return input === "−" ? input : input.slice(0, -1) + key;
+    return input + key;
+  }
+  return input;
+}
+export function validMoneyExpressionInput(value: string): boolean {
+  return value.length <= 36 && /^(?:−|-)?(?:\d+(?:\.\d{0,2})?(?:[+−×÷]\d*(?:\.\d{0,2})?)*)?$/.test(value);
+}

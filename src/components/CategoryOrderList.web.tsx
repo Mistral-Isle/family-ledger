@@ -22,7 +22,7 @@ export function CategoryOrderList({ items, onChange }: CategoryOrderListProps) {
     <div
       ref={container}
       role="list"
-      aria-label="分类排序列表"
+      aria-label="拖动排序列表"
       style={{
         fontFamily:
           '-apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif',
