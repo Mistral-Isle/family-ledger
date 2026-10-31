@@ -1,4 +1,5 @@
 import { isFutureTransaction } from "../domain/transactionFilters";
+import { reportingSnapshot } from "../domain/reports";
 import { useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
@@ -170,9 +171,11 @@ function Explanation({
 export function MonthlySummaryCard({
   month,
   asOf,
+  memberId = "",
 }: {
   month: string;
   asOf?: Date;
+  memberId?: string;
 }) {
   const { data, repo } = useLedger();
   const t = useTheme();
@@ -183,7 +186,7 @@ export function MonthlySummaryCard({
     ? data.txns.filter((t) => !isFutureTransaction(t, asOf))
     : data.txns;
   const summary = totals(
-    visibleTxns(txns).filter((txn) => txn.occurredAt.startsWith(month)),
+    visibleTxns(reportingSnapshot({ ...data, txns }, memberId, false, "payer").txns).filter((txn) => txn.occurredAt.startsWith(month)),
   );
   const budget = detailBudget(
     txns,
@@ -223,7 +226,7 @@ export function MonthlySummaryCard({
     }
   };
   const openStats = (view: SummaryPreferences["cashflowMetric"]) => {
-    useUi.getState().openStats(view);
+    useUi.getState().openStats(view, memberId);
     router.push("/(tabs)/stats");
   };
   const openBudget = () => router.push("/budget");
@@ -399,7 +402,7 @@ export function MonthlySummaryCard({
                           color={overBudget ? t.red : t.muted}
                           style={{ flexShrink: 1 }}
                         >
-                          {budget.title} · {usage}
+                          {memberId ? "共同 · " : ""}{budget.title} · {usage}
                         </Txt>
                         <Icon
                           name="questionmark.circle"
@@ -411,6 +414,7 @@ export function MonthlySummaryCard({
                   >
                     <Txt bold>{budget.title}</Txt>
                     <Txt size={14}>{budget.explanation}</Txt>
+                    {!!memberId && <Txt size={14}>预算按全部家庭账单计算，不受“我”的付款人筛选影响。</Txt>}
                     <Txt size={14}>
                       已用 {formatMoney(budget.expense)}；剩余日均{" "}
                       {dailyRemaining}。

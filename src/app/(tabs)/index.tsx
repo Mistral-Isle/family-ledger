@@ -10,7 +10,7 @@ import {
 import { TxnMetadata } from "../../components/TxnMetadata";
 import { MonthlySummaryCard } from "../../components/MonthlySummaryCard";
 import { Popover } from "../../components/HelpBubble";
-import { filterMonthTransactions } from "../../domain/transactionFilters";
+import { detailViewSnapshot, filterMonthTransactions } from "../../domain/transactionFilters";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Pressable, TextInput, View, Switch } from "react-native";
 import { useRouter } from "expo-router";
@@ -387,6 +387,8 @@ export default function Details() {
   const month = useUi((s) => s.month);
   const [query, setQuery] = useState("");
   const [types, setTypes] = useState<TxnType[]>([]);
+  const [detailView, setDetailView] = useState(() => repo.getDetailView());
+  const viewData = useMemo(() => detailViewSnapshot(data, detailView), [data, detailView]);
   const [hideFuture, setHideFuture] = useState(() =>
     repo.getHideFutureTransactions(),
   );
@@ -398,7 +400,7 @@ export default function Details() {
     return () => clearInterval(timer);
   }, [hideFuture]);
   const filtered = filterMonthTransactions(
-    data,
+    viewData,
     month,
     types,
     query,
@@ -414,7 +416,7 @@ export default function Details() {
   useEffect(() => {
     setSelection(null);
     setSelectionError("");
-  }, [month, query, types, hideFuture]);
+  }, [month, query, types, hideFuture, detailView]);
   useEffect(() => {
     useUi.setState({ selectingTransactions: selection !== null });
     return () => {
@@ -546,16 +548,31 @@ export default function Details() {
         <Row style={{ justifyContent: "space-between" }}>
           <View style={{ gap: 3, flex: 1 }}>
             <Txt size={13} bold color={t.muted}>
-              {zh.family}
+              {zh.family} · {detailView === "mine" ? "我" : "共同"}
             </Txt>
             <Txt size={13} color={t.muted}>
               {today().replaceAll("-", " / ")}
             </Txt>
           </View>
           <IconButton name="arrow.clockwise" label={manualSyncBusy || syncStatus.busy ? "正在同步" : "手动同步"} disabled={manualSyncBusy || syncStatus.busy} onPress={() => void manualSync()} />
-          <Popover label="筛选交易" active={types.length > 0 || hideFuture}>
+          <Popover label="筛选交易" active={detailView === "mine" || types.length > 0 || hideFuture}>
             {(close) => (
               <>
+                <Txt size={17} bold>显示范围</Txt>
+                <Row>
+                  {([{ value: "mine", label: "我" }, { value: "shared", label: "共同" }] as const).map((option) => (
+                    <Chip key={option.value} label={option.label} selected={detailView === option.value}
+                      onPress={() => {
+                        try {
+                          repo.setDetailView(option.value);
+                          setDetailView(option.value);
+                          setFilterError("");
+                          close();
+                        } catch (e) { setFilterError((e as Error).message); }
+                      }} />
+                  ))}
+                </Row>
+                <Txt size={12} color={t.muted}>我：本人付款的账单；共同：全部家庭账单。退款跟随原账单的付款人。</Txt>
                 <Txt size={17} bold>
                   交易类型
                 </Txt>
@@ -637,7 +654,7 @@ export default function Details() {
         </Row>
         {!!syncMessage && <Txt size={12} color={syncStatus.error ? t.red : t.muted}>{syncMessage}</Txt>}
         <MonthPicker />
-        <MonthlySummaryCard month={month} asOf={hideFuture ? now : undefined} />
+        <MonthlySummaryCard month={month} asOf={hideFuture ? now : undefined} memberId={detailView === "mine" ? data.meId : ""} />
         <Row style={{ justifyContent: "space-between" }}>
           <Txt size={20} bold>
             {hideFuture ? "截至现在的明细" : "本月明细"}

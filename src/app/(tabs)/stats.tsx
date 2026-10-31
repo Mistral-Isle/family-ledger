@@ -42,7 +42,7 @@ export default function Stats() {
   const { data, repo } = useLedger();
   const t = useTheme();
 
-  const [memberId, setMemberId] = useState("");
+  const [memberId, setMemberId] = useState(useUi.getState().statsMemberId);
   const [includeRepayments, setIncludeRepayments] = useState(() =>
     repo.getIncludeRepayments(),
   );
@@ -57,7 +57,7 @@ export default function Stats() {
     "payer",
   );
   const month = useUi((s) => s.month);
-  const { statsView, statsRequest } = useUi();
+  const { statsView, statsRequest, statsMemberId } = useUi();
   const [view, setView] = useState<"expense" | "income" | "balance">(statsView);
   const kind = view === "income" ? "income" : "expense";
   const [mode, setMode] = useState<RangeMode>("month");
@@ -71,8 +71,8 @@ export default function Stats() {
     setView(statsView);
     setMode("month");
 
-    setMemberId("");
-  }, [statsView, statsRequest]);
+    setMemberId(statsMemberId);
+  }, [statsView, statsRequest, statsMemberId]);
   const range = reportRange(
     mode,
     mode === "month" ? month + "-01" : anchor,
@@ -110,11 +110,12 @@ export default function Stats() {
               }
               compact
             >
+              {(close) => (
               <View style={styles.wrap}>
                 <Chip
                   label={zh.collaboration.allPayers}
                   selected={!memberId}
-                  onPress={() => setMemberId("")}
+                  onPress={() => { setMemberId(""); close(); }}
                 />
                 {data.members
                   .filter((m) => !m.deleted)
@@ -123,10 +124,11 @@ export default function Stats() {
                       key={m.id}
                       label={m.name}
                       selected={memberId === m.id}
-                      onPress={() => setMemberId(m.id)}
+                      onPress={() => { setMemberId(m.id); close(); }}
                     />
                   ))}
               </View>
+              )}
             </Popover>
             <Popover label="统计显示设置" triggerText="显示设置" compact>
               <Txt bold size={18}>
@@ -160,7 +162,7 @@ export default function Stats() {
         }
       />
       <Segmented
-        compact
+        height={40}
         value={mode}
         options={[
           { value: "week", label: "周" },
@@ -307,7 +309,7 @@ export default function Stats() {
       )}
       <ErrorText message={mode === "custom" ? "" : error} />
       <Segmented
-        compact
+        height={40}
         value={view}
         options={[
           { value: "expense", label: includeRepayments ? "流出" : "支出" },

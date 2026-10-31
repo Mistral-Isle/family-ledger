@@ -397,6 +397,12 @@ export class LedgerRepository {
   getHideFutureTransactions(): boolean {
     return this.pref<boolean>("hideFutureTransactions", false) === true;
   }
+  getDetailView(): "mine" | "shared" {
+    return this.pref<string>("detailView", "shared") === "mine" ? "mine" : "shared";
+  }
+  setDetailView(value: "mine" | "shared") {
+    this.setPref("detailView", value === "mine" ? "mine" : "shared");
+  }
   setHideFutureTransactions(value: boolean) {
     this.setPref("hideFutureTransactions", value);
   }

@@ -1,6 +1,15 @@
 import { effectiveTripId, memberName, payerId } from "./travel";
 import type { Snapshot, TxnType, Txn } from "./types";
 import { visibleTxns } from "./selectors";
+import { reportingSnapshot } from "./reports";
+
+export type DetailView = "mine" | "shared";
+
+/** Use the same payer attribution as statistics, including linked refunds. */
+export function detailViewSnapshot(data: Snapshot, view: DetailView): Snapshot {
+  if (view === "mine" && !data.meId) return { ...data, txns: [] };
+  return reportingSnapshot(data, view === "mine" ? data.meId : "", false, "payer");
+}
 
 /** Ledger dates and optional times are interpreted in Shanghai time. Date-only entries remain visible today. */
 export function isFutureTransaction(

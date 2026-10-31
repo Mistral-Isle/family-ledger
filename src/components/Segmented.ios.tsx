@@ -5,8 +5,10 @@ export function Segmented<T extends string>({
   options,
   onChange,
   compact = false,
+  height,
 }: {
   compact?: boolean;
+  height?: number;
   value: T;
   options: { value: T; label: string; icon?: string }[];
   onChange: (value: T) => void;
@@ -24,7 +26,7 @@ export function Segmented<T extends string>({
       tintColor={t.dark ? t.selected : t.card}
       fontStyle={{ color: t.muted, fontSize: 15 }}
       activeFontStyle={{ color: t.onSelected, fontWeight: "600", fontSize: 15 }}
-      style={{ height: compact ? 32 : 48, borderRadius: compact ? 16 : 24, overflow: "hidden" }}
+      style={{ height: height ?? (compact ? 32 : 48), borderRadius: (height ?? (compact ? 32 : 48)) / 2, overflow: "hidden" }}
     />
   );
 }

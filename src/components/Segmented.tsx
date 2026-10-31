@@ -7,8 +7,10 @@ export function Segmented<T extends string>({
   options,
   onChange,
   compact = false,
+  height,
 }: {
   compact?: boolean;
+  height?: number;
   value: T;
   options: { value: T; label: string; icon?: string }[];
   onChange: (value: T) => void;
@@ -87,8 +89,8 @@ export function Segmented<T extends string>({
             onPress={() => onChange(o.value)}
             style={({ pressed }) => ({
               flex: 1,
-              minHeight: compact ? 28 : o.icon ? 58 : 44,
-              paddingVertical: compact ? 4 : 8,
+              minHeight: height ? height - (compact ? 4 : 8) : compact ? 28 : o.icon ? 58 : 44,
+              paddingVertical: compact || height ? 4 : 8,
               paddingHorizontal: 4,
               gap: 3,
               alignItems: "center",
