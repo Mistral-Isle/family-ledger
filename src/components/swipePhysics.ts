@@ -14,6 +14,6 @@ export function swipeTarget(
   max: number,
   endWidth = swipeWidth,
 ) {
-  const projected = position + ((velocity / 1000) * 0.99) / (1 - 0.99);
-  return projected < -endWidth * 0.32 ? -endWidth : projected > max * 0.32 ? max : 0;
+  const projected = position + ((velocity / 1000) * 0.98) / (1 - 0.98);
+  return projected < -endWidth * 0.45 ? -endWidth : projected > max * 0.45 ? max : 0;
 }

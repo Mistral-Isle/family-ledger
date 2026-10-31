@@ -156,11 +156,7 @@ export default function Assets() {
           .map(({ account, balance }) => ({
             id: account.id,
             accountKind: account.kind,
-            color: ["wechat", "alipay"].includes(account.kind)
-              ? t.dark
-                ? "#4DA6FF"
-                : "#007AFF"
-              : t.blue,
+            color: t.blue,
             name: account.name,
             subtitle:
               zh.accountKinds[account.kind] +

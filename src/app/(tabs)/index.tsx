@@ -368,6 +368,11 @@ export default function Details() {
   const syncStatus = useSyncStatus();
   const [manualSyncBusy, setManualSyncBusy] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
+  useEffect(() => {
+    if (syncMessage !== "同步完成") return;
+    const timeout = setTimeout(() => setSyncMessage(""), 2000);
+    return () => clearTimeout(timeout);
+  }, [syncMessage]);
   async function manualSync() {
     if (manualSyncBusy || syncStatus.busy) return;
     setManualSyncBusy(true); setSyncMessage("");

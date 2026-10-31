@@ -1,3 +1,5 @@
+import { FavoriteCategoryPicker } from "../components/FavoriteCategoryPicker";
+import { AccountChip } from "../components/AccountChip";
 import { Platform } from "react-native";
 import { useState } from "react";
 import { Modal, ScrollView, View } from "react-native";
@@ -98,9 +100,9 @@ export default function Favorites() {
               />
               {creating && <>
                 <Txt bold>分类</Txt>
-                <Row style={{ flexWrap: "wrap" }}>{data.categories.filter(c => !c.deleted && !c.hidden).map(c => <Chip key={c.id} label={(c.kind === "income" ? "收入 · " : "") + (c.parentId ? (data.categories.find(p => p.id === c.parentId)?.name ?? "") + " / " : "") + c.name} selected={draft.categoryId === c.id} onPress={() => setDraft({ ...draft, categoryId: c.id })} />)}</Row>
+                <FavoriteCategoryPicker value={draft.categoryId} onChange={(categoryId) => setDraft({ ...draft, categoryId })} />
                 <Txt bold>账户</Txt>
-                <Row style={{ flexWrap: "wrap" }}>{data.accounts.filter(a => a.scope === "family" && !a.deleted && !a.archived).map(a => <Chip key={a.id} label={a.name} selected={draft.accountId === a.id} onPress={() => setDraft({ ...draft, accountId: a.id })} />)}</Row>
+                <Row style={{ flexWrap: "wrap" }}>{data.accounts.filter(a => a.scope === "family" && !a.deleted && !a.archived).map(a => <AccountChip key={a.id} kind={a.kind} label={a.name} selected={draft.accountId === a.id} onPress={() => setDraft({ ...draft, accountId: a.id })} />)}</Row>
               </>}
               <Field
                 label="预设金额"

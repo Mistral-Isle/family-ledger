@@ -1,3 +1,4 @@
+import { CategoryTile } from "../components/CategoryTile";
 import { FormScrollView } from "../components/ui";
 import { moneyKey, validMoneyExpressionInput } from "../domain/money";
 import { FavoriteList } from "../components/FavoriteList";
@@ -507,79 +508,13 @@ function Entry() {
         (x) => x.parentId === c.id && !x.deleted && !x.hidden,
       );
     return (
-      <Pressable
-        key={c.id}
-        accessibilityRole="button"
-        accessibilityLabel={c.name}
-        accessibilityState={{ selected }}
+      <CategoryTile
+        key={c.id} category={c} shown={shown} selected={selected} hasChildren={hasChildren}
         onPress={() => {
-          if (hasChildren) {
-            setExpanded(c.id);
-            setChildPicker(true);
-          } else {
-            selectCategory(c.id);
-            setExpanded(c.parentId ?? c.id);
-            setChildPicker(false);
-          }
+          if (hasChildren) { setExpanded(c.id); setChildPicker(true); }
+          else { selectCategory(c.id); setExpanded(c.parentId ?? c.id); setChildPicker(false); }
         }}
-        style={({ pressed }) => ({
-          width: "20%",
-          alignItems: "center",
-          paddingVertical: 6,
-          gap: 5,
-          opacity: pressed ? 0.6 : 1,
-        })}
-      >
-        <View
-          style={{
-            width: 46,
-            height: 46,
-            borderRadius: 16,
-            backgroundColor: selected
-              ? shown.kind === "income"
-                ? t.incomeIcon
-                : t.expenseIcon
-              : t.idleIconBackground,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Icon
-            name={shown.icon}
-            size={25}
-            color={selected ? "#fff" : t.idleIcon}
-          />
-          {hasChildren && (
-            <View
-              style={{
-                position: "absolute",
-                right: -2,
-                bottom: -2,
-                width: 15,
-                height: 13,
-                borderRadius: 6,
-                backgroundColor: t.card,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Icon name="ellipsis" size={12} color={t.idleIcon} />
-            </View>
-          )}
-        </View>
-        <Text
-          numberOfLines={2}
-          style={{
-            fontSize: 11,
-            lineHeight: 15,
-            color: selected ? t.text : t.muted,
-            textAlign: "center",
-            paddingHorizontal: 2,
-          }}
-        >
-          {shown.id !== c.id ? `${c.name}·${shown.name}` : c.name}
-        </Text>
-      </Pressable>
+      />
     );
   }
   return (

@@ -39,7 +39,6 @@ function MetricPicker<T extends string>({
       label={label}
       align="start"
       menuWidth={192}
-      animated={false}
       contentStyle={{ padding: 5, gap: 0 }}
       triggerContent={
         <Row style={{ gap: 6 }}>
@@ -476,9 +475,9 @@ export function MonthlySummaryCard({
               }
               style={({ pressed }) => ({
                 minWidth: 46,
-                minHeight: 44,
+                minHeight: 28,
                 paddingHorizontal: 10,
-                paddingVertical: 8,
+                paddingVertical: 4,
                 borderRadius: 10,
                 alignItems: "center",
                 justifyContent: "center",
@@ -540,7 +539,7 @@ const styles = StyleSheet.create({
   progress: { height: 4, borderRadius: 2, overflow: "hidden" },
   tabs: {
     position: "absolute",
-    top: 18,
+    top: 22,
     right: 16,
     flexDirection: "row",
     padding: 2,

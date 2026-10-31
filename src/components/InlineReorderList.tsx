@@ -71,7 +71,7 @@ export function InlineReorderList({
           items={items}
           onChange={reorder}
           rowHeight={rowHeight}
-          renderItem={(row) => {
+          renderItem={(row, dragging) => {
             const item = items.find((i) => i.id === row.id)!;
             const actions = (item.trailing ?? "").split(",").filter(Boolean);
             const labels: Record<string, string> = {
@@ -85,7 +85,7 @@ export function InlineReorderList({
             return (
               <SwipeActions
                 actionWidth={actions.length * 76}
-                disabled={!actions.length}
+                disabled={dragging || !actions.length}
                 actions={
                   <Row style={{ gap: 4 }}>
                     {actions.map((action) => (
@@ -102,6 +102,8 @@ export function InlineReorderList({
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={item.name}
+                  accessibilityHint="长按整行后上下拖动排序"
+                  accessibilityState={{ selected: item.selected === "true" }}
                   onPress={() => onPress?.(item.id)}
                   style={{
                     minHeight: rowHeight,

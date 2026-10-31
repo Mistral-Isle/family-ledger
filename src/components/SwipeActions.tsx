@@ -44,11 +44,12 @@ export function SwipeActions({
   return (
     <ReanimatedSwipeable
       ref={swipe}
-      friction={1}
-      dragOffsetFromLeftEdge={6}
-      dragOffsetFromRightEdge={6}
-      leftThreshold={startWidth * 0.32}
-      rightThreshold={actionWidth * 0.32}
+      friction={1.45}
+      animationOptions={{ damping: 30, stiffness: 180, mass: 1.2, overshootClamping: true }}
+      dragOffsetFromLeftEdge={10}
+      dragOffsetFromRightEdge={10}
+      leftThreshold={startWidth * 0.45}
+      rightThreshold={actionWidth * 0.45}
       overshootLeft={false}
       overshootRight={false}
       enableTrackpadTwoFingerGesture

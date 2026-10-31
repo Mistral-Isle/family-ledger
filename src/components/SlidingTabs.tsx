@@ -27,8 +27,8 @@ export function Segmented<T extends string>({
       Animated.spring(x, {
         toValue: index * step,
         useNativeDriver: true,
-        damping: 24,
-        stiffness: 260,
+        damping: 27,
+        stiffness: 170,
         mass: 1,
       }).start();
   }, [index, step, reduced, x]);
@@ -47,8 +47,8 @@ export function Segmented<T extends string>({
       Animated.spring(x, {
         toValue: target * step,
         useNativeDriver: true,
-        damping: 24,
-        stiffness: 260,
+        damping: 27,
+        stiffness: 170,
       }).start();
     },
     onPanResponderTerminate: () => x.setValue(index * step),

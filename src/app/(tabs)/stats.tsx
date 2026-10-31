@@ -160,6 +160,7 @@ export default function Stats() {
         }
       />
       <Segmented
+        compact
         value={mode}
         options={[
           { value: "week", label: "周" },
@@ -306,6 +307,7 @@ export default function Stats() {
       )}
       <ErrorText message={mode === "custom" ? "" : error} />
       <Segmented
+        compact
         value={view}
         options={[
           { value: "expense", label: includeRepayments ? "流出" : "支出" },
@@ -470,6 +472,7 @@ export default function Stats() {
           range={range}
           previous={previous}
           kind={kind}
+          onKindChange={setView}
           includeRepayments={includeRepayments}
         />
       )}

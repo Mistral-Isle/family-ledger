@@ -111,7 +111,7 @@ final class LedgerCategoryOrderView: ExpoView, UITableViewDataSource, UITableVie
       content.secondaryTextProperties.numberOfLines = 2
       content.image = LedgerPaymentIcon.image(for: item["accountKind"])
         ?? UIImage(systemName: item["symbol"] ?? "circle.fill")
-      content.imageProperties.tintColor = item["selected"] == "true" ? .systemBlue : tint(item["color"])
+      content.imageProperties.tintColor = tint(item["color"])
       if item["selected"] == "true", item["accountKind"] == nil {
         let size = CGSize(width: 40, height: 40)
         let symbol = UIImage(systemName: item["symbol"] ?? "star.fill", withConfiguration: UIImage.SymbolConfiguration(pointSize: 23, weight: .regular))
@@ -128,7 +128,7 @@ final class LedgerCategoryOrderView: ExpoView, UITableViewDataSource, UITableVie
       content.imageProperties.maximumSize = CGSize(width: 40, height: 40)
       if item["selected"] == "true" {
         let check = UIImageView(image: UIImage(systemName: "checkmark.circle.fill"))
-        check.tintColor = .systemBlue
+        check.tintColor = tint(item["color"])
         cell.accessoryView = check
       } else { cell.accessoryView = nil }
       cell.accessibilityHint = "长按拖动排序"
@@ -136,7 +136,7 @@ final class LedgerCategoryOrderView: ExpoView, UITableViewDataSource, UITableVie
       cell.accessoryView = nil
     }
     cell.contentConfiguration = content
-    cell.backgroundColor = items[indexPath.row]["selected"] == "true" ? UIColor.systemBlue.withAlphaComponent(0.12) : surface
+    cell.backgroundColor = items[indexPath.row]["selected"] == "true" ? tint(items[indexPath.row]["color"]).withAlphaComponent(0.12) : surface
     cell.showsReorderControl = !interactive
     cell.selectionStyle = .none
     return cell

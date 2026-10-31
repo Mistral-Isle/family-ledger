@@ -3,7 +3,7 @@ import Svg, { Circle, Path } from "react-native-svg";
 import type { AccountKind } from "../domain/types";
 import { Icon, useTheme } from "./ui";
 
-/** Blue payment glyphs shared with the native account list. */
+/** Theme-colored payment glyphs shared with the native account list. */
 export function AccountIcon({
   kind,
   size = 44,
@@ -15,9 +15,8 @@ export function AccountIcon({
 }) {
   const t = useTheme();
   const brand = kind === "wechat" || kind === "alipay";
-  const paymentBlue = t.dark ? "#4DA6FF" : "#007AFF";
-  const background = selected ? (brand ? paymentBlue : t.primary) : t.soft;
-  const foreground = selected ? "#FFFFFF" : paymentBlue;
+  const background = selected ? t.primary : t.soft;
+  const foreground = selected ? "#FFFFFF" : t.blue;
   return (
     <View
       accessible={false}

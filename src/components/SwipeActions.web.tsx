@@ -54,7 +54,7 @@ export function SwipeActions({
       const dt = Math.min((now - last) / 1000, 0.064);
       last = now;
       const delta = current.current - target,
-        omega = 24;
+        omega = 15;
       const c = velocity + omega * delta,
         decay = Math.exp(-omega * dt);
       const next = (delta + c * dt) * decay;
@@ -151,11 +151,11 @@ export function SwipeActions({
           if (dt > 0)
             g.velocity = Math.max(
               -1500,
-              Math.min(1500, ((e.clientX - g.lastX) / dt) * 1000),
+              Math.min(1500, ((e.clientX - g.lastX) / dt) * 1000 / 1.45),
             );
           g.lastX = e.clientX;
           g.time = e.timeStamp;
-          show(resistedPosition(g.base + dx, max, actionWidth));
+          show(resistedPosition(g.base + dx / 1.45, max, actionWidth));
         }}
         onPointerUp={(e) => {
           const g = gesture.current;
