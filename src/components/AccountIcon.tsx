@@ -32,9 +32,9 @@ export function AccountIcon({
     >
       {brand ? (
         <Svg
-          width={size * 0.82}
-          height={size * 0.82}
-          viewBox="0 0 32 32"
+          width={size * 0.72}
+          height={size * 0.72}
+          viewBox={kind === "alipay" ? "1 1 32 29" : "0 0 32 30"}
           accessible={false}
         >
           {kind === "wechat" ? (
@@ -78,7 +78,7 @@ export function AccountIcon({
                     ? "gift.fill"
                     : "creditcard.fill"
           }
-          size={size * 0.5}
+          size={size * 0.64}
           color={selected ? "#FFFFFF" : t.blue}
         />
       )}

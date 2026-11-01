@@ -1,3 +1,4 @@
+import { EntryAccountChoices } from "../components/EntryAccountChoices";
 import { CategoryTile } from "../components/CategoryTile";
 import { FormScrollView } from "../components/ui";
 import { moneyKey, validMoneyExpressionInput } from "../domain/money";
@@ -124,7 +125,7 @@ function Entry() {
           !a.archived,
       )?.id ??
       [...data.accounts]
-        .sort((a, b) => a.sort - b.sort)
+        .sort((a, b) => Number(b.ownerMemberId === data.meId) - Number(a.ownerMemberId === data.meId) || a.sort - b.sort)
         .find((a) => a.scope === scope && !a.deleted && !a.archived)?.id ??
       "",
   );
@@ -210,7 +211,7 @@ function Entry() {
           a.id === existing?.accountId ||
           a.id === existing?.toAccountId),
     )
-    .sort((a, b) => a.sort - b.sort);
+    .sort((a, b) => Number(b.ownerMemberId === data.meId) - Number(a.ownerMemberId === data.meId) || a.sort - b.sort);
   const roots = data.categories
     .filter((c) => !c.deleted && !c.hidden && !c.parentId && c.kind === type)
     .sort((a, b) => a.sort - b.sort);
@@ -468,18 +469,8 @@ function Entry() {
                 keyboardShouldPersistTaps="handled"
                 contentContainerStyle={{ gap: 8 }}
               >
-                {accounts.map((a) => (
-                  <AccountChip
-                    key={a.id}
-                    kind={a.kind}
-                    label={`${a.name}${a.last4 ? ` ${a.last4}` : ""}`}
-                    selected={a.id === accountId}
-                    onPress={() => {
-                      setAccountId(a.id);
-                      setAccountPicker(false);
-                    }}
-                  />
-                ))}
+                <EntryAccountChoices key={String(accountPicker)} accounts={accounts} selectedId={accountId}
+                  onSelect={(id) => { setAccountId(id); setAccountPicker(false); }} />
                 {!accounts.length && <Txt color={t.muted}>还没有可用账户</Txt>}
               </ScrollView>
               <Button
@@ -704,40 +695,10 @@ function Entry() {
                           gap: 8,
                         }}
                       >
-                        {data.accounts
-                          .filter(
-                            (a) =>
-                              !a.deleted &&
-                              !a.archived &&
-                              !["loan", "deposit", "prepaid"].includes(
-                                a.kind,
-                              ) &&
-                              (a.scope === scope || a.scope === "family"),
-                          )
-                          .sort((a, b) => a.sort - b.sort)
-                          .map((a) => (
-                            <AccountChip
-                              key={a.id}
-                              kind={a.kind}
-                              label={
-                                a.name +
-                                " · " +
-                                (data.members.find(
-                                  (m) => m.id === a.ownerMemberId,
-                                )?.name ?? "成员")
-                              }
-                              selected={
-                                (transferSide === "from" ? accountId : toId) ===
-                                a.id
-                              }
-                              onPress={() => {
-                                transferSide === "from"
-                                  ? setAccountId(a.id)
-                                  : setToId(a.id);
-                                setTransferPicker(false);
-                              }}
-                            />
-                          ))}
+                        <EntryAccountChoices key={String(transferPicker) + transferSide}
+                          accounts={data.accounts.filter(a => !a.deleted && !a.archived && !["loan", "deposit", "prepaid"].includes(a.kind) && (a.scope === scope || a.scope === "family"))}
+                          selectedId={transferSide === "from" ? accountId : toId}
+                          onSelect={(id) => { transferSide === "from" ? setAccountId(id) : setToId(id); setTransferPicker(false); }} />
                         {data.members
                           .filter(
                             (m) =>
