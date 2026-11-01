@@ -45,7 +45,7 @@ npm run export:ios
 
 当前完整检查通过 33 个套件、201 项自动测试；Web 和 iOS 资源导出通过。浏览器实测汇总卡片滑动与浮层、明细行间距、备份往返、预算、导出、财务操作、配对校验与网页私有区锁定。详见 [验证记录](docs/verification.md)。
 
-0.3.0 / build 3 已通过 macOS / Xcode 构建并完成安装包校验，文件为 `dist/releases/family-ledger-0.3.0-sidestore.ipa`，供 SideStore 重新签名。安装包下载与升级步骤见 [iPhone 安装说明](docs/ios-build-and-acceptance.md)。
+0.3.11 / build 15 已通过 GitHub macOS / Xcode 构建，安装包为 `dist/releases/family-ledger-0.3.11-sidestore.ipa`，供 SideStore 签名。换电脑取得代码、修改提交、GitHub 打包、下载命名与安装的完整步骤见 [开发与 IPA 构建指南](docs/ios-build-and-acceptance.md)。
 
 0.2.0 新增三种圆润外观、下拉搜索、悬浮记账按钮、原生日期与时间选择器、可选时间、分类筛选和分层预算校验。[外观对照](docs/ui-styles.html) · [设计技能与原生组件](docs/design-skills.md)。
 
