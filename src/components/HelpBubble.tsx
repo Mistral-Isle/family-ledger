@@ -1,5 +1,7 @@
 import { useRef, useState, useEffect, type ReactNode } from "react";
 import {
+  Animated,
+  Easing,
   Modal,
   Platform,
   Pressable,
@@ -51,11 +53,29 @@ export function Popover({
   } | null>(null);
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const close = () => setAnchor(null);
+  const progress = useRef(new Animated.Value(0)).current;
+  const closing = useRef(false);
+  const close = () => {
+    closing.current = true;
+    progress.stopAnimation();
+    Animated.timing(progress, {
+      toValue: 0, duration: animated ? (reduced ? 100 : 160) : 0,
+      easing: Easing.in(Easing.cubic), useNativeDriver: true,
+    }).start(({ finished }) => { if (finished) setAnchor(null); });
+  };
+  const reveal = () => {
+    closing.current = false;
+    progress.setValue(0);
+    Animated.timing(progress, {
+      toValue: 1, duration: animated ? (reduced ? 100 : 240) : 0,
+      easing: Easing.out(Easing.cubic), useNativeDriver: true,
+    }).start();
+  };
+  useEffect(() => () => progress.stopAnimation(), [progress]);
   useEffect(() => {
     if (!anchor || Platform.OS !== "web") return;
     const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setAnchor(null);
+      if (event.key === "Escape") close();
     };
     window.addEventListener("keydown", escape);
     return () => window.removeEventListener("keydown", escape);
@@ -77,7 +97,7 @@ export function Popover({
         }
         style={({ pressed }) => ({
           minWidth: 44,
-          minHeight: 44,
+          minHeight: compact ? 30 : 44,
           alignItems: "center",
           justifyContent: "center",
           borderRadius: 22,
@@ -113,7 +133,8 @@ export function Popover({
       <Modal
         visible={!!anchor}
         transparent
-        animationType={reduced || !animated ? "none" : "fade"}
+        animationType="none"
+        onShow={reveal}
         onRequestClose={close}
       >
         <View style={{ flex: 1 }}>
@@ -124,9 +145,16 @@ export function Popover({
             style={{ position: "absolute", inset: 0 }}
           />
           {anchor && (
-            <View
+            <Animated.View
+              onLayout={() => { if (!closing.current) reveal(); }}
               accessibilityViewIsModal
               style={{
+                opacity: progress,
+                transform: reduced || !animated ? [] : [
+                  { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [below ? -8 : 8, 0] }) },
+                  { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) },
+                ],
+                transformOrigin: align === "start" ? (below ? "top left" : "bottom left") : (below ? "top right" : "bottom right"),
                 position: "absolute",
                 left: Math.max(
                   16,
@@ -170,7 +198,7 @@ export function Popover({
               >
                 {typeof children === "function" ? children(close) : children}
               </ScrollView>
-            </View>
+            </Animated.View>
           )}
         </View>
       </Modal>

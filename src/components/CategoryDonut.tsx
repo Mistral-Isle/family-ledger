@@ -1,18 +1,22 @@
 import { useMemo, useState } from "react";
-import { Platform, Text, View } from "react-native";
+import { Platform, Pressable, Text, View } from "react-native";
 import Svg, { Circle, G, Polyline, Text as SvgText } from "react-native-svg";
 import { donutLayout, shareLabel, type DonutItem } from "../domain/donut";
 import { formatMoney } from "../domain/money";
-import { Txt, useTheme } from "./ui";
+import { Icon, Txt, useTheme } from "./ui";
 
 export function CategoryDonut({
   items,
   total,
   title,
+  onToggle,
+  toggleLabel,
 }: {
   items: DonutItem[];
   total: number;
   title: string;
+  onToggle?: () => void;
+  toggleLabel?: string;
 }) {
   const t = useTheme();
   const [width, setWidth] = useState(320);
@@ -43,8 +47,8 @@ export function CategoryDonut({
   return (
     <View
       testID="category-donut"
-      accessible
-      accessibilityRole="image"
+      accessible={!onToggle}
+      accessibilityRole={onToggle ? undefined : "image"}
       accessibilityLabel={`${title} ${formatMoney(total)}。${slices.map((s) => `${s.name} ${shareLabel(s.share, 1)}`).join("，")}`}
       onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
       style={{ width: "100%", maxWidth: 440, alignSelf: "center", height }}
@@ -116,7 +120,7 @@ export function CategoryDonut({
         })}
       </Svg>
       <View
-        pointerEvents="none"
+        pointerEvents="box-none"
         style={{
           position: "absolute",
           top: cy - radius + stroke / 2,
@@ -128,9 +132,18 @@ export function CategoryDonut({
           gap: 6,
         }}
       >
-        <Txt size={12} color={t.muted}>
-          {title}
-        </Txt>
+        <Pressable
+          disabled={!onToggle}
+          accessibilityRole={onToggle ? "button" : undefined}
+          accessibilityLabel={toggleLabel ?? title}
+          accessibilityHint={onToggle ? "切换饼图和分类列表的收支类型" : undefined}
+          onPress={onToggle}
+          hitSlop={6}
+          style={({ pressed }) => ({ minHeight: 32, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, opacity: pressed ? 0.6 : 1 })}
+        >
+          <Txt size={12} color={onToggle ? t.blue : t.muted}>{title}</Txt>
+          {onToggle && <Icon name="arrow.left.arrow.right" size={12} color={t.blue} />}
+        </Pressable>
         <Text
           numberOfLines={1}
           adjustsFontSizeToFit

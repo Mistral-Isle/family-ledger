@@ -1,9 +1,11 @@
 import { create } from "zustand";
 import { thisMonth } from "../domain/date";
 type Ui = {
+  selectingTransactions: boolean;
   statsView: "expense" | "income" | "balance";
   statsRequest: number;
-  openStats: (view: Ui["statsView"]) => void;
+  statsMemberId: string;
+  openStats: (view: Ui["statsView"], memberId?: string) => void;
   appearance: "classic" | "warm" | "ink";
   setAppearance: (appearance: Ui["appearance"]) => void;
   month: string;
@@ -12,10 +14,12 @@ type Ui = {
   setTheme: (theme: Ui["theme"]) => void;
 };
 export const useUi = create<Ui>((set) => ({
+  selectingTransactions: false,
   statsView: "expense",
   statsRequest: 0,
-  openStats: (statsView) =>
-    set((s) => ({ statsView, statsRequest: s.statsRequest + 1 })),
+  statsMemberId: "",
+  openStats: (statsView, statsMemberId = "") =>
+    set((s) => ({ statsView, statsMemberId, statsRequest: s.statsRequest + 1 })),
   appearance: "classic",
   setAppearance: (appearance) => set({ appearance }),
   month: thisMonth(),

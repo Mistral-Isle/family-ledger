@@ -27,8 +27,8 @@ export function Segmented<T extends string>({
       Animated.spring(x, {
         toValue: index * step,
         useNativeDriver: true,
-        damping: 24,
-        stiffness: 260,
+        damping: 27,
+        stiffness: 170,
         mass: 1,
       }).start();
   }, [index, step, reduced, x]);
@@ -47,8 +47,8 @@ export function Segmented<T extends string>({
       Animated.spring(x, {
         toValue: target * step,
         useNativeDriver: true,
-        damping: 24,
-        stiffness: 260,
+        damping: 27,
+        stiffness: 170,
       }).start();
     },
     onPanResponderTerminate: () => x.setValue(index * step),
@@ -85,7 +85,7 @@ export function Segmented<T extends string>({
             onPress={() => onChange(o.value)}
             style={({ pressed }) => ({
               flex: 1,
-              minHeight: o.icon ? 58 : 44,
+              minHeight: o.icon ? 62 : 44,
               paddingVertical: 8,
               paddingHorizontal: 4,
               gap: 3,
@@ -97,14 +97,14 @@ export function Segmented<T extends string>({
             {o.icon && (
               <Icon
                 name={o.icon}
-                size={21}
+                size={24}
                 color={
                   value === o.value ? (t.dark ? t.onSelected : t.blue) : t.muted
                 }
               />
             )}
             <Txt
-              size={o.icon ? 10 : 13}
+              size={o.icon ? 12 : 13}
               bold={o.value === value}
               color={
                 value === o.value ? (t.dark ? t.onSelected : t.blue) : t.muted

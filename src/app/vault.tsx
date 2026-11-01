@@ -1,3 +1,4 @@
+import { HelpBubble } from "../components/HelpBubble";
 import { DateField } from "../components/DateField";
 import { useSubmissionGuard } from "../components/useSubmissionGuard";
 import { useState } from "react";
@@ -15,6 +16,7 @@ import {
   Heading,
   IconButton,
   Page,
+  Row,
   Txt,
   styles,
   confirmAction,
@@ -46,7 +48,7 @@ function Vault() {
       (a) => a.scope === "private" && !a.deleted,
     ),
     txns = visibleTxns(data.txns, "private");
-  const value = (n: number) => (hidden ? "••••" : formatMoney(n));
+  const value = (n: number) => (hidden ? "***" : formatMoney(n));
   return (
     <Page>
       <Heading
@@ -59,12 +61,9 @@ function Vault() {
           />
         }
       />
-      <Txt>{zh.vault.hint}</Txt>
+      <Row><Txt bold>小金库说明</Txt><HelpBubble label="小金库">{zh.vault.hint}</HelpBubble></Row>
       <Card>
-        <Txt bold>默认隐私收款账户</Txt>
-        <Txt size={13}>
-          对方只看到“隐私账户”和本次转账金额，账户名称、余额及其他流水不会同步。
-        </Txt>
+        <Row><Txt bold>默认隐私收款账户</Txt><HelpBubble label="隐私收款账户">对方只看到“隐私账户”和本次转账金额，账户名称、余额及其他流水不会同步。未设置默认账户时，转入记录会保留在待入账中。</HelpBubble></Row>
         <View style={styles.wrap}>
           {accounts
             .filter(
@@ -164,7 +163,7 @@ function Vault() {
       <ErrorText message={error} />
       {transfer && (
         <Card>
-          <Txt>{zh.vault.transferHint}</Txt>
+          <Row><Txt bold>转账</Txt><HelpBubble label="小金库转账">{zh.vault.transferHint}</HelpBubble></Row>
           <Txt>{zh.vault.from}</Txt>
           <View style={styles.wrap}>
             {data.accounts

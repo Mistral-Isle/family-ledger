@@ -17,12 +17,14 @@ export function CategoryBreakdown({
   previous,
   kind,
   includeRepayments,
+  onKindChange,
 }: {
   data: Snapshot;
   range: DateRange;
   previous: DateRange | null;
   kind: "expense" | "income";
   includeRepayments: boolean;
+  onKindChange?: (kind: "expense" | "income") => void;
 }) {
   const t = useTheme();
   const [level, setLevel] = useState<"root" | "leaf">("root");
@@ -167,6 +169,8 @@ export function CategoryBreakdown({
         )}
         <CategoryDonut
           title={`${categoryId ? "所选分类" : "总"}${label}`}
+          onToggle={onKindChange ? () => onKindChange(kind === "expense" ? "income" : "expense") : undefined}
+          toggleLabel={`切换为${kind === "expense" ? "收入" : "支出"}分类统计`}
           total={total}
           items={categories.map((c) => ({
             id: c.id,

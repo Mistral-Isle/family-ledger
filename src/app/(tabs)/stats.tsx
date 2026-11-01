@@ -42,7 +42,7 @@ export default function Stats() {
   const { data, repo } = useLedger();
   const t = useTheme();
 
-  const [memberId, setMemberId] = useState("");
+  const [memberId, setMemberId] = useState(useUi.getState().statsMemberId);
   const [includeRepayments, setIncludeRepayments] = useState(() =>
     repo.getIncludeRepayments(),
   );
@@ -57,7 +57,7 @@ export default function Stats() {
     "payer",
   );
   const month = useUi((s) => s.month);
-  const { statsView, statsRequest } = useUi();
+  const { statsView, statsRequest, statsMemberId } = useUi();
   const [view, setView] = useState<"expense" | "income" | "balance">(statsView);
   const kind = view === "income" ? "income" : "expense";
   const [mode, setMode] = useState<RangeMode>("month");
@@ -71,8 +71,8 @@ export default function Stats() {
     setView(statsView);
     setMode("month");
 
-    setMemberId("");
-  }, [statsView, statsRequest]);
+    setMemberId(statsMemberId);
+  }, [statsView, statsRequest, statsMemberId]);
   const range = reportRange(
     mode,
     mode === "month" ? month + "-01" : anchor,
@@ -102,7 +102,7 @@ export default function Stats() {
       <Heading
         title={zh.tabs.stats}
         action={
-          <Row style={{ gap: 0 }}>
+          <Row style={{ gap: 8, flexShrink: 1, flexWrap: "wrap", justifyContent: "flex-end" }}>
             <Popover
               label="选择统计成员"
               triggerText={
@@ -110,11 +110,12 @@ export default function Stats() {
               }
               compact
             >
+              {(close) => (
               <View style={styles.wrap}>
                 <Chip
                   label={zh.collaboration.allPayers}
                   selected={!memberId}
-                  onPress={() => setMemberId("")}
+                  onPress={() => { setMemberId(""); close(); }}
                 />
                 {data.members
                   .filter((m) => !m.deleted)
@@ -123,10 +124,11 @@ export default function Stats() {
                       key={m.id}
                       label={m.name}
                       selected={memberId === m.id}
-                      onPress={() => setMemberId(m.id)}
+                      onPress={() => { setMemberId(m.id); close(); }}
                     />
                   ))}
               </View>
+              )}
             </Popover>
             <Popover label="统计显示设置" triggerText="显示设置" compact>
               <Txt bold size={18}>
@@ -160,6 +162,7 @@ export default function Stats() {
         }
       />
       <Segmented
+        height={40}
         value={mode}
         options={[
           { value: "week", label: "周" },
@@ -306,6 +309,7 @@ export default function Stats() {
       )}
       <ErrorText message={mode === "custom" ? "" : error} />
       <Segmented
+        height={40}
         value={view}
         options={[
           { value: "expense", label: includeRepayments ? "流出" : "支出" },
@@ -316,8 +320,8 @@ export default function Stats() {
           setView(next);
         }}
       />
-      <Card style={{ padding: 24, gap: 18 }}>
-        <Row style={{ justifyContent: "space-between" }}>
+      <Card style={{ padding: 18, gap: 10 }}>
+        <Row style={{ justifyContent: "space-between", minHeight: 44 }}>
           <Txt size={14} color={t.blue}>
             {title}
           </Txt>
@@ -334,11 +338,14 @@ export default function Stats() {
                   <Txt size={17} bold>
                     统计口径
                   </Txt>
-                  <Row style={{ flexWrap: "wrap", gap: 0 }}>
-                    <Txt>{zh.includeRepayments}</Txt>
+                  <Row style={{ justifyContent: "space-between", alignItems: "center", minHeight: 44, gap: 8 }}>
+                    <Row style={{ flex: 1, gap: 0, alignItems: "center" }}>
+                    <Txt style={{ flexShrink: 1 }}>{zh.includeRepayments}</Txt>
                     <HelpBubble label="计入还款本金">
                       开启后，统计本月归还本金所付出的金额。此开关只影响统计展示，不改变实际账务；本人账户间转账始终不计入。
                     </HelpBubble>
+                    </Row>
+                    <View style={{ height: 44, justifyContent: "center", alignItems: "center" }}>
                     <Switch
                       accessibilityLabel="计入还款本金"
                       value={includeRepayments}
@@ -353,6 +360,7 @@ export default function Stats() {
                         }
                       }}
                     />
+                    </View>
                   </Row>
                 </>
               )}
@@ -470,6 +478,7 @@ export default function Stats() {
           range={range}
           previous={previous}
           kind={kind}
+          onKindChange={setView}
           includeRepayments={includeRepayments}
         />
       )}

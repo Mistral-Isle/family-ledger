@@ -1,4 +1,5 @@
-import { Pressable, View } from "react-native";
+import { amountKeyFeedback } from "../services/amountKeyFeedback";
+import { Pressable, View, useWindowDimensions } from "react-native";
 import { Txt, useTheme } from "./ui";
 import { zh } from "../i18n/zh";
 
@@ -17,30 +18,36 @@ const labels: Record<string, string> = {
 };
 export function AmountKeyboard({ onKey }: { onKey: (key: string) => void }) {
   const t = useTheme();
+  const { height } = useWindowDimensions();
+  const keyHeight = Math.max(50, Math.min(64, Math.round(height * 0.063)));
   return (
-    <View style={{ gap: 6 }}>
+    <View style={{ gap: 8 }}>
       {rows.map((row, i) => (
-        <View key={i} style={{ flexDirection: "row", gap: 6 }}>
+        <View key={i} style={{ flexDirection: "row", gap: 8 }}>
           {row.map((key) => (
             <Pressable
               key={key}
               accessibilityRole="button"
               accessibilityLabel={labels[key] ?? key}
+              onPressIn={amountKeyFeedback}
               onPress={() => onKey(key)}
+              delayLongPress={450}
+              onLongPress={key === "⌫" ? () => onKey("clear") : undefined}
               style={({ pressed }) => ({
                 flex: 1,
-                minHeight: 44,
+                height: keyHeight,
                 paddingVertical: 5,
-                borderRadius: 12,
+                borderRadius: 20,
                 borderCurve: "continuous",
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: pressed ? t.line : t.soft,
+                backgroundColor: pressed ? t.line : t.card,
                 opacity: pressed ? 0.65 : 1,
+                transform: [{ scale: pressed ? 0.94 : 1 }],
               })}
             >
               <Txt
-                size={24}
+                size={28}
                 color={
                   ["+", "−", "×", "÷"].includes(key) ? t.buttonText : t.text
                 }

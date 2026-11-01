@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { useLedger } from "./LedgerProvider";
-import { Button, Card, ErrorText, Icon, Row, Txt, useTheme } from "./ui";
+import { Card, ErrorText, Icon, Row, Txt, useTheme } from "./ui";
 import { exportSheets, csvText, excelBytes } from "../domain/export";
 import type { DateRange } from "../domain/reports";
 import { saveReport } from "../services/reportFiles";
@@ -50,11 +50,20 @@ export function ExportCard({ range }: { range: DateRange }) {
     <Card style={{ gap: 12 }}>
       <Row style={{ justifyContent: "space-between" }}>
         <Txt bold>{zh.exports.title}</Txt>
-        <Txt size={13}>已选 {selected.length} 项</Txt>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={selected.length === names.length ? "取消全选" : "全选"}
+          disabled={busy}
+          onPress={() => setSelected(selected.length === names.length ? [] : names.map((_, i) => i))}
+          style={({ pressed }) => ({ minHeight: 32, justifyContent: "center", paddingHorizontal: 4, opacity: busy ? 0.4 : pressed ? 0.6 : 1 })}
+        >
+          <Txt size={12} color={t.blue}>{selected.length === names.length ? "取消全选" : "全选"} · {selected.length} 项</Txt>
+        </Pressable>
       </Row>
-      <Txt size={13}>
-        选择需要的报表，可多选。Excel 合并到一个文件；CSV 每项单独分享。
+      <Txt size={12} color={t.muted}>
+        可多选 · Excel 合并文件，CSV 分项分享
       </Txt>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
       {names.map((name, i) => (
         <Pressable
           key={name}
@@ -68,42 +77,41 @@ export function ExportCard({ range }: { range: DateRange }) {
             )
           }
           style={({ pressed }) => ({
-            minHeight: 44,
-            padding: 10,
-            borderRadius: 12,
-            backgroundColor: pressed ? t.soft : "transparent",
+            minHeight: 36,
+            paddingVertical: 8,
+            paddingHorizontal: 10,
+            borderRadius: 18,
+            backgroundColor: selected.includes(i) || pressed ? t.soft : "transparent",
+            opacity: busy ? 0.4 : pressed ? 0.6 : 1,
           })}
         >
-          <Row>
+          <Row style={{ gap: 5 }}>
             <Icon
               name={selected.includes(i) ? "checkmark.circle.fill" : "circle"}
               color={selected.includes(i) ? t.blue : t.muted}
+              size={17}
             />
-            <Txt>{name}</Txt>
+            <Txt size={13} color={selected.includes(i) ? t.blue : t.muted}>{name}</Txt>
           </Row>
         </Pressable>
       ))}
-      <Button
-        secondary
-        disabled={busy}
-        label={selected.length === names.length ? "取消全选" : "全选"}
-        onPress={() =>
-          setSelected(
-            selected.length === names.length ? [] : names.map((_, i) => i),
-          )
-        }
-      />
-      <Button
-        disabled={busy || !selected.length}
-        label={busy ? "正在导出…" : "导出所选 Excel"}
-        onPress={() => void save(true)}
-      />
-      <Button
-        secondary
-        disabled={busy || !selected.length}
-        label="导出所选 CSV"
-        onPress={() => void save(false)}
-      />
+      </View>
+      <Row style={{ gap: 8 }}>
+        {[true, false].map((excel) => (
+          <Pressable key={String(excel)}
+            accessibilityRole="button"
+            accessibilityLabel={`导出所选 ${excel ? "Excel" : "CSV"}`}
+            accessibilityState={{ disabled: busy || !selected.length }}
+            disabled={busy || !selected.length}
+            onPress={() => void save(excel)}
+            style={({ pressed }) => ({ flex: 1, minHeight: 40, paddingVertical: 10, paddingHorizontal: 8, borderRadius: 20,
+              alignItems: "center", justifyContent: "center", backgroundColor: excel ? t.primary : t.soft,
+              opacity: busy || !selected.length ? 0.4 : pressed ? 0.7 : 1 })}
+          >
+            <Txt size={13} bold color={excel ? t.onPrimary : t.buttonText}>{busy ? "正在导出…" : `导出 ${excel ? "Excel" : "CSV"}`}</Txt>
+          </Pressable>
+        ))}
+      </Row>
       <ErrorText message={error} />
     </Card>
   );

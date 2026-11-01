@@ -1,3 +1,4 @@
+import { HelpBubble } from "../components/HelpBubble";
 import { useEffect, useState } from "react";
 import { Platform, View } from "react-native";
 import { useRouter } from "expo-router";
@@ -15,6 +16,7 @@ import {
   Heading,
   IconButton,
   Page,
+  Row,
   Txt,
   confirmAction,
   styles,
@@ -131,15 +133,18 @@ export default function SyncSettings() {
       <Heading
         title={zh.sync.title}
         action={
+          <Row style={{ gap: 2 }}>
+          <HelpBubble label="家庭同步">{zh.sync.hint + (Platform.OS === "web" ? "\n" + zh.sync.web : "")}</HelpBubble>
+          <IconButton name="arrow.clockwise" label={busy || status.busy ? "正在同步" : "刷新同步"} disabled={!configured || busy || status.busy} onPress={() => void work(() => syncNow(repo, refresh))} />
           <IconButton
             name="xmark"
             label={zh.close}
             onPress={() => router.back()}
           />
+          </Row>
         }
       />
-      <Txt>{zh.sync.hint}</Txt>
-      {Platform.OS === "web" && <Txt>{zh.sync.web}</Txt>}
+
       <Card>
         <Txt>
           {status.busy
@@ -171,6 +176,8 @@ export default function SyncSettings() {
           />
         </View>
       )}
+      <Card>
+      <Txt bold>连接设置</Txt>
       <Field label={zh.sync.member} value={name} onChangeText={setName} />
       <Field
         label={zh.sync.url}
@@ -210,7 +217,7 @@ export default function SyncSettings() {
       )}
       <Button
         disabled={busy || status.busy}
-        label={zh.sync.save}
+        label="保存设置"
         onPress={() => {
           if (joining)
             confirmAction(
@@ -221,12 +228,15 @@ export default function SyncSettings() {
           else void work(save);
         }}
       />
+      </Card>
       {configured && (
         <>
+          <Card>
+          <Txt bold>连接管理</Txt>
           <Button
             disabled={busy}
             secondary
-            label={zh.sync.disconnect}
+            label="停止同步"
             onPress={() =>
               confirmAction(zh.sync.disconnect, zh.sync.disconnectHint, () => {
                 void work(async () => {
@@ -239,15 +249,10 @@ export default function SyncSettings() {
               })
             }
           />
-          <Button
-            disabled={busy || status.busy}
-            secondary
-            label={zh.sync.run}
-            onPress={() => void work(() => syncNow(repo, refresh))}
-          />
+          </Card><Card><Txt bold>成员配对</Txt>
           <Button
             secondary
-            label={visible ? zh.sync.hideKey : zh.sync.showKey}
+            label={visible ? "收起配对信息" : "查看配对信息"}
             onPress={() => setVisible(!visible)}
           />
           {visible && (
@@ -270,10 +275,12 @@ export default function SyncSettings() {
               />
             </Card>
           )}
+          </Card><Card><Txt bold>加密同步包</Txt>
+          <Row><View style={{ flex: 1 }}>
           <Button
             secondary
             disabled={busy || status.busy}
-            label={zh.sync.export}
+            label="导出"
             onPress={() =>
               void work(async () => {
                 const c = await loadSyncConfig();
@@ -291,10 +298,11 @@ export default function SyncSettings() {
               })
             }
           />
+          </View><View style={{ flex: 1 }}>
           <Button
             secondary
             disabled={busy || status.busy}
-            label={zh.sync.import}
+            label="导入"
             onPress={() =>
               void work(async () => {
                 const text = await readBackupFile();
@@ -310,6 +318,7 @@ export default function SyncSettings() {
               })
             }
           />
+          </View></Row></Card>
         </>
       )}
       {!configured && (

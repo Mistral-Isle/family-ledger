@@ -6,7 +6,11 @@ export function Segmented<T extends string>({
   value,
   options,
   onChange,
+  compact = false,
+  height,
 }: {
+  compact?: boolean;
+  height?: number;
   value: T;
   options: { value: T; label: string; icon?: string }[];
   onChange: (value: T) => void;
@@ -53,7 +57,7 @@ export function Segmented<T extends string>({
     onPanResponderTerminate: () => x.setValue(index * step),
   });
   return (
-    <View style={{ backgroundColor: t.soft, borderRadius: 28, padding: 4 }}>
+    <View style={{ backgroundColor: t.soft, borderRadius: 28, padding: compact ? 2 : 4 }}>
       <View
         onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
         {...pan.panHandlers}
@@ -85,8 +89,8 @@ export function Segmented<T extends string>({
             onPress={() => onChange(o.value)}
             style={({ pressed }) => ({
               flex: 1,
-              minHeight: o.icon ? 58 : 44,
-              paddingVertical: 8,
+              minHeight: height ? height - (compact ? 4 : 8) : compact ? 28 : o.icon ? 58 : 44,
+              paddingVertical: compact || height ? 4 : 8,
               paddingHorizontal: 4,
               gap: 3,
               alignItems: "center",
@@ -104,7 +108,7 @@ export function Segmented<T extends string>({
               />
             )}
             <Txt
-              size={o.icon ? 10 : 15}
+              size={compact ? 13 : o.icon ? 10 : 15}
               bold={o.value === value}
               color={value === o.value ? t.onSelected : t.muted}
             >

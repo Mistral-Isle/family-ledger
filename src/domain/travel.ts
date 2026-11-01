@@ -11,6 +11,12 @@ export function sourceExpense(s: Snapshot, txn: Txn) {
 export function payerId(s: Snapshot, txn: Txn): string | null {
   return sourceExpense(s, txn)?.payerMemberId ?? null;
 }
+/** Income belongs to the receiving account owner; shared accounts use the recorder. */
+export function reportMemberId(s: Snapshot, txn: Txn): string | null {
+  if (txn.type === "income")
+    return s.accounts.find((a) => a.id === txn.accountId)?.ownerMemberId || txn.recorderMemberId || null;
+  return payerId(s, txn);
+}
 export function effectiveTripId(s: Snapshot, txn: Txn): string | null {
   const id = sourceExpense(s, txn)?.tripId;
   return s.trips?.some((t) => t.id === id && !t.deleted) ? id! : null;

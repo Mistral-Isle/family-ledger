@@ -1,4 +1,4 @@
-import { payerId } from "./travel";
+import { reportMemberId } from "./travel";
 import { zh } from "../i18n/zh";
 import type { CategoryKind, Snapshot, Txn } from "./types";
 import { categoryAmounts, totals, visibleTxns } from "./selectors";
@@ -142,7 +142,7 @@ export function reportingSnapshot(
       (t) =>
         !memberId ||
         (basis === "payer"
-          ? (payerId(s, t) ?? "unknown")
+            ? (reportMemberId(s, t) ?? "unknown")
           : t.recorderMemberId) === memberId,
     )
     .map((t) =>

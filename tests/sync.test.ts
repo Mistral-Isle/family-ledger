@@ -55,7 +55,8 @@ test("authenticated encryption rejects tampering, wrong family and private paylo
     ).toThrow();
     expect(() => decryptOperations(text, config.keyHex, "other")).toThrow();
     const modified = JSON.parse(text);
-    modified.cipher = modified.cipher.slice(0, -2) + "00";
+    const lastByte = parseInt(modified.cipher.slice(-2), 16);
+    modified.cipher = modified.cipher.slice(0, -2) + (lastByte ^ 1).toString(16).padStart(2, "0");
     expect(() =>
       decryptOperations(
         JSON.stringify(modified),
@@ -90,7 +91,9 @@ test("two offline devices converge with duplicate, reversed delivery and concurr
     await synchronize(a.repo, store, config, randomBytes);
     const sa = a.repo.snapshot();
     expect(sa.members).toHaveLength(2);
-    expect(b.repo.snapshot().accounts).toEqual(sa.accounts);
+    expect(b.repo.snapshot().accounts.sort((a, b) => a.id.localeCompare(b.id))).toEqual(
+      [...sa.accounts].sort((a, b) => a.id.localeCompare(b.id)),
+    );
     const input = {
       type: "expense" as const,
       amount: 100,

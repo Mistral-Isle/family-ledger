@@ -3,8 +3,21 @@ import {
   formatMoney,
   parseMoney,
   moneyInput,
+  moneyKey,
 } from "../src/domain/money";
 describe("integer cents", () => {
+  test("keypad calculates the previous expression when choosing another operator and supports hold-to-clear", () => {
+    const type = (text: string) => [...text].reduce(moneyKey, "");
+    expect(type("2+3×")).toBe("5×");
+    expect(type("20÷4−")).toBe("5−");
+    expect(type("0.1+0.2+")).toBe("0.3+");
+    expect(type("2−5×")).toBe("−3×");
+    expect(type("1÷0+")).toBe("1÷0");
+    expect(type("2+×")).toBe("2×");
+    expect(type("2+3.5")).toBe("2+3.5");
+    expect(moneyKey("123+45", "clear")).toBe("0");
+    expect(moneyKey("123", "⌫")).toBe("12");
+  });
   test.each([
     ["0.01", 1],
     ["1666.67", 166667],

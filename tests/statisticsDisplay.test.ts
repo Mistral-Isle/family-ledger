@@ -4,11 +4,11 @@ import { donutLabels, donutSlices, shareLabel } from "../src/domain/donut";
 import { categoryReport, reportRange } from "../src/domain/reports";
 import { fixture } from "./sqlite";
 
-test("calendar defaults to visible and persists independently of ledger and sync records", () => {
+test("calendar defaults to hidden and persists independently of ledger and sync records", () => {
   const f = fixture();
   try {
     const before = f.repo.snapshot();
-    expect(f.repo.getShowIncomeCalendar()).toBe(true);
+    expect(f.repo.getShowIncomeCalendar()).toBe(false);
     f.repo.setShowIncomeCalendar(false);
     const reopened = new LedgerRepository(f.driver, randomUUID);
     reopened.initialize();

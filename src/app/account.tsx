@@ -156,25 +156,6 @@ function AccountEditor() {
           <View style={{ flex: 1 }}>
             <Button
               secondary
-              label={
-                data.preferences.pinned.includes(existing.id)
-                  ? zh.unpin
-                  : zh.pin
-              }
-              icon="pin.fill"
-              onPress={() => {
-                try {
-                  run(() => repo.togglePin(existing.id));
-                  setError("");
-                } catch (e) {
-                  setError((e as Error).message);
-                }
-              }}
-            />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Button
-              secondary
               label={existing.archived ? zh.unarchive : zh.archive}
               onPress={() =>
                 confirmAction(

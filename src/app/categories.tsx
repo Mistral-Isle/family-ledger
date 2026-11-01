@@ -1,4 +1,5 @@
-import { CategoryOrderSheet } from "../components/CategoryOrderSheet";
+import { InlineReorderList } from "../components/InlineReorderList";
+import { HorizontalStrip } from "../components/HorizontalStrip";
 import { CategoryEditor } from "../components/CategoryEditor";
 import { CategoryDeletionSheet } from "../components/CategoryDeletionSheet";
 import { useState } from "react";
@@ -32,7 +33,8 @@ export default function Categories() {
   const [kind, setKind] = useState<CategoryKind>(
     params.kind === "income" ? "income" : "expense",
   );
-  const [sorting, setSorting] = useState<string | null | undefined>(undefined);
+  const [level, setLevel] = useState<"root" | "child">("root");
+  const [parentId, setParentId] = useState("");
   const [form, setForm] = useState<{
     id?: string;
     name: string;
@@ -61,71 +63,10 @@ export default function Categories() {
       setError((e as Error).message);
     }
   }
-  function row(category: Category, child = false) {
-    return (
-      <Row
-        key={category.id}
-        style={{
-          paddingVertical: 10,
-          paddingLeft: child ? 14 : 0,
-          opacity: category.hidden ? 0.5 : 1,
-        }}
-      >
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => edit(category)}
-          style={{ flex: 1 }}
-        >
-          <Row>
-            <View
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 11,
-                backgroundColor: category.kind === "income" ? t.incomeIcon : t.expenseIcon,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Icon name={category.icon} color="#fff" size={18} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Txt bold={!child}>{category.name}</Txt>
-              {category.hidden && (
-                <Txt size={10} color={t.muted}>
-                  {zh.hidden}
-                </Txt>
-              )}
-            </View>
-          </Row>
-        </Pressable>
-        {!child &&
-          data.categories.filter(
-            (c) => !c.deleted && c.parentId === category.id,
-          ).length > 1 && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={category.name + "子分类排序"}
-              onPress={() => setSorting(category.id)}
-              style={{
-                minHeight: 44,
-                justifyContent: "center",
-                paddingHorizontal: 8,
-              }}
-            >
-              <Txt size={12} color={t.blue}>
-                子类排序
-              </Txt>
-            </Pressable>
-          )}
-        <Pressable accessibilityRole="button" onPress={() => hide(category)}>
-          <Txt size={11} color={t.blue}>
-            {category.hidden ? zh.show : zh.hide}
-          </Txt>
-        </Pressable>
-      </Row>
-    );
-  }
+  const selectedParent = roots.find((c) => c.id === parentId) ?? roots[0];
+  const visible = level === "root" ? roots : data.categories
+    .filter((c) => !c.deleted && c.kind === kind && c.parentId === selectedParent?.id)
+    .sort((a, b) => a.sort - b.sort);
   return (
     <>
       {deletionId && (
@@ -161,12 +102,12 @@ export default function Categories() {
           />
         </Row>
         <ErrorText message={form ? "" : error} />
-        <Button
-          secondary
-          label="调整顺序"
-          disabled={roots.length < 2}
-          onPress={() => setSorting(null)}
-        />
+        <Row>
+          <Chip label="一级分类" selected={level === "root"} onPress={() => setLevel("root")} />
+          <Chip label="二级分类" selected={level === "child"} onPress={() => setLevel("child")} />
+        </Row>
+        {level === "child" && <HorizontalStrip>{roots.map((c) => <Chip key={c.id} label={c.name} selected={selectedParent?.id === c.id} onPress={() => setParentId(c.id)} />)}</HorizontalStrip>}
+        <Txt size={12} color={t.muted}>长按列表或拖动右侧手柄排序；左滑隐藏或删除，点击编辑。</Txt>
         <Button
           secondary
           label={zh.addCategory}
@@ -175,7 +116,7 @@ export default function Categories() {
             setError("");
             setForm({
               name: "",
-              parentId: null,
+              parentId: level === "child" ? selectedParent?.id ?? null : null,
               icon: "category:bag",
               color: "#648BD2",
             });
@@ -186,19 +127,26 @@ export default function Categories() {
           label={zh.collaboration.categoryUpgrade}
           onPress={() => router.push("/category-defaults")}
         />
-        {roots.map((root) => (
-          <Card
-            key={root.id}
-            style={{ paddingVertical: 8, paddingHorizontal: 14 }}
-          >
-            {row(root)}
-            <View style={{ height: 1, backgroundColor: t.line }} />
-            {data.categories
-              .filter((c) => c.parentId === root.id && !c.deleted)
-              .sort((a, b) => a.sort - b.sort)
-              .map((c) => row(c, true))}
-          </Card>
-        ))}
+        <InlineReorderList
+          key={kind + level + (level === "child" ? selectedParent?.id : "")}
+          items={visible.map((c) => ({
+            id: c.id, name: c.name, symbol: c.icon, color: t.idleIcon,
+            subtitle: c.hidden ? "已隐藏" : undefined,
+            trailing: (c.hidden ? "show" : "hide") + ",delete",
+          }))}
+          rowHeight={64}
+          maxHeight={480}
+          onReorder={(ids) => { run(() => repo.reorderCategories(ids)); setError(""); }}
+          onPress={(id) => { const c = visible.find((c) => c.id === id); if (c) edit(c); }}
+          onAction={(id, action) => {
+            const c = visible.find((c) => c.id === id);
+            if (!c) return;
+            if (action === "delete") setDeletionId(id);
+            else hide(c);
+          }}
+          onError={setError}
+        />
+        {!visible.length && <Txt color={t.muted}>暂无二级分类，可点击新增分类。</Txt>}
         {repo.categoryDeletionHistory().length > 0 && (
           <Card>
             <Txt bold>已删除分类 · 可恢复</Txt>
@@ -227,23 +175,6 @@ export default function Categories() {
           </Card>
         )}
       </Page>
-      {sorting !== undefined && (
-        <CategoryOrderSheet
-          items={data.categories
-            .filter(
-              (c) => !c.deleted && c.kind === kind && c.parentId === sorting,
-            )
-            .sort((a, b) => a.sort - b.sort)}
-          title={
-            sorting === null
-              ? "一级分类排序"
-              : (data.categories.find((c) => c.id === sorting)?.name ??
-                  "二级分类") + "排序"
-          }
-          onClose={() => setSorting(undefined)}
-          onSave={(ids) => run(() => repo.reorderCategories(ids))}
-        />
-      )}
       {form && (
         <CategoryEditor
           initial={form}
