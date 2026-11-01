@@ -614,7 +614,10 @@ export function Chip({
       aria-selected={!!selected}
       onPress={onPress}
       style={({ pressed }) => ({
-        backgroundColor: selected ? t.primary : pressed ? t.soft : t.card,
+        backgroundColor: selected ? t.primary : t.soft,
+          opacity: pressed ? 0.75 : 1,
+          borderWidth: 1,
+          borderColor: selected ? t.primary : t.line,
         borderRadius: 14,
         borderCurve: "continuous",
         minHeight: 44,

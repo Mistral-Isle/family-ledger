@@ -473,14 +473,6 @@ function Entry() {
                   onSelect={(id) => { setAccountId(id); setAccountPicker(false); }} />
                 {!accounts.length && <Txt color={t.muted}>还没有可用账户</Txt>}
               </ScrollView>
-              <Button
-                secondary
-                label={zh.addAccount}
-                onPress={() => {
-                  setAccountPicker(false);
-                  router.push({ pathname: "/account", params: { scope } });
-                }}
-              />
             </View>
           </View>
         </Modal>

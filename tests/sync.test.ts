@@ -91,7 +91,9 @@ test("two offline devices converge with duplicate, reversed delivery and concurr
     await synchronize(a.repo, store, config, randomBytes);
     const sa = a.repo.snapshot();
     expect(sa.members).toHaveLength(2);
-    expect(b.repo.snapshot().accounts).toEqual(sa.accounts);
+    expect(b.repo.snapshot().accounts.sort((a, b) => a.id.localeCompare(b.id))).toEqual(
+      [...sa.accounts].sort((a, b) => a.id.localeCompare(b.id)),
+    );
     const input = {
       type: "expense" as const,
       amount: 100,

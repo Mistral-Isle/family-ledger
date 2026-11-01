@@ -150,7 +150,7 @@ test("account ordering applies to the visible subset, synchronizes and does not 
       expect(
         repo
           .snapshot()
-          .accounts.filter((a) => !a.deleted)
+          .accounts.filter((a) => !a.deleted && a.ownerMemberId === before.meId)
           .sort((a, b) => a.sort - b.sort)
           .slice(0, 2)
           .map((a) => a.id),

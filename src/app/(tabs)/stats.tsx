@@ -320,7 +320,7 @@ export default function Stats() {
           setView(next);
         }}
       />
-      <Card style={{ padding: 24, gap: 18 }}>
+      <Card style={{ padding: 18, gap: 10 }}>
         <Row style={{ justifyContent: "space-between", minHeight: 44 }}>
           <Txt size={14} color={t.blue}>
             {title}
@@ -376,13 +376,11 @@ export default function Stats() {
           <Txt size={38} bold>
             {formatMoney(value)}
           </Txt>
-          <View style={{ height: 18 }}>
           {includeRepayments && view !== "income" && (
             <Txt size={12} color={t.muted}>
               含还款本金
             </Txt>
           )}
-          </View>
         </View>
         <View style={{ height: 1, backgroundColor: t.line }} />
         <Row style={{ flexWrap: "wrap", alignItems: "flex-start" }}>

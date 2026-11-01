@@ -4,6 +4,11 @@ import UIKit
 public final class LedgerCategoryOrderModule: Module {
   public func definition() -> ModuleDefinition {
     Name("LedgerCategoryOrder")
+    AsyncFunction("amountKeyFeedback") {
+      let feedback = UISelectionFeedbackGenerator()
+      feedback.prepare()
+      feedback.selectionChanged()
+    }.runOnQueue(.main)
     View(LedgerCategoryOrderView.self) {
       Events("onOrderChange", "onItemPress", "onItemAction")
       Prop("interactive") { (view: LedgerCategoryOrderView, interactive: Bool) in
@@ -48,6 +53,8 @@ final class LedgerCategoryOrderView: ExpoView, UITableViewDataSource, UITableVie
     table.rowHeight = UITableView.automaticDimension
     table.tableFooterView = UIView(frame: .zero)
     table.backgroundColor = surface
+    table.separatorInset = .zero
+    table.separatorInsetReference = .fromCellEdges
     table.register(UITableViewCell.self, forCellReuseIdentifier: "category")
     addSubview(table)
   }
@@ -126,6 +133,7 @@ final class LedgerCategoryOrderView: ExpoView, UITableViewDataSource, UITableVie
         }.withRenderingMode(.alwaysOriginal)
       }
       content.imageProperties.maximumSize = CGSize(width: 40, height: 40)
+      content.imageProperties.reservedLayoutSize = CGSize(width: 40, height: 40)
       if item["selected"] == "true" {
         let check = UIImageView(image: UIImage(systemName: "checkmark.circle.fill"))
         check.tintColor = tint(item["color"])
@@ -135,6 +143,7 @@ final class LedgerCategoryOrderView: ExpoView, UITableViewDataSource, UITableVie
     } else {
       cell.accessoryView = nil
     }
+    cell.separatorInset = .zero
     cell.contentConfiguration = content
     cell.backgroundColor = items[indexPath.row]["selected"] == "true" ? tint(items[indexPath.row]["color"]).withAlphaComponent(0.12) : surface
     cell.showsReorderControl = !interactive

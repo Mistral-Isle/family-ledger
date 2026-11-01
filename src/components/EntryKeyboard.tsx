@@ -1,3 +1,4 @@
+import { amountKeyFeedback } from "../services/amountKeyFeedback";
 import { Pressable, View, useWindowDimensions } from "react-native";
 import { Icon, Txt, useTheme } from "./ui";
 import { zh } from "../i18n/zh";
@@ -18,6 +19,7 @@ export function EntryKeyboard({
       key={value}
       accessibilityRole="button"
       accessibilityLabel={label}
+      onPressIn={amountKeyFeedback}
       onPress={() => onKey(value)}
       delayLongPress={450}
       onLongPress={value === "⌫" ? () => onKey("clear") : undefined}

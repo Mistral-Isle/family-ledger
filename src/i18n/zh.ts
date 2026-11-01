@@ -392,7 +392,7 @@ export const zh = {
   futureVault: "小金库",
   futureLoans: "财务计划",
   progress: "两个人，一起好好生活",
-  version: "v0.3.3 · build 7",
+  version: "v0.3.11 · build 15",
   errorTitle: "暂时无法完成",
   loading: "正在打开账本…",
   retry: "重试",

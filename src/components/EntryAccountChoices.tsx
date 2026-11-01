@@ -21,10 +21,11 @@ export function EntryAccountChoices({ accounts, selectedId, onSelect }: {
     <Txt size={13} bold color={t.muted}>我的账户</Txt>
     {groups.mine.map(a => render(a))}
     {!groups.mine.length && <Txt size={12} color={t.muted}>暂无自己的可用账户</Txt>}
-    {!!groups.more.length && <Button secondary label={more ? "收起共同账户" : "更多共同账户"}
-      onPress={() => setMore(!more)} />}
+    <Button secondary label={more ? "收起" : "更多"}
+      onPress={() => setMore(!more)} />
     {more && <View style={{ gap: 8 }}>
-      <Txt size={13} bold color={t.muted}>其他家庭账户</Txt>
+      <Txt size={13} bold color={t.muted}>共享账户</Txt>
+      {!groups.more.length && <Txt size={12} color={t.muted}>暂无其他可用的共享账户</Txt>}
       {groups.more.map(a => render(a, true))}
     </View>}
   </View>;

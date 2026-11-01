@@ -1,3 +1,4 @@
+import { amountKeyFeedback } from "../services/amountKeyFeedback";
 import { Pressable, View, useWindowDimensions } from "react-native";
 import { Txt, useTheme } from "./ui";
 import { zh } from "../i18n/zh";
@@ -28,6 +29,7 @@ export function AmountKeyboard({ onKey }: { onKey: (key: string) => void }) {
               key={key}
               accessibilityRole="button"
               accessibilityLabel={labels[key] ?? key}
+              onPressIn={amountKeyFeedback}
               onPress={() => onKey(key)}
               delayLongPress={450}
               onLongPress={key === "⌫" ? () => onKey("clear") : undefined}
@@ -41,6 +43,7 @@ export function AmountKeyboard({ onKey }: { onKey: (key: string) => void }) {
                 justifyContent: "center",
                 backgroundColor: pressed ? t.line : t.card,
                 opacity: pressed ? 0.65 : 1,
+                transform: [{ scale: pressed ? 0.94 : 1 }],
               })}
             >
               <Txt

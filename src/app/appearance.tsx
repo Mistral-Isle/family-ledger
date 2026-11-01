@@ -57,7 +57,7 @@ export default function Appearance() {
               },
               {
                 id: "ink",
-                name: "Darcula 深色",
+                name: "深色",
                 bg: darcula.bg,
                 card: darcula.card,
                 accent: darcula.blue,

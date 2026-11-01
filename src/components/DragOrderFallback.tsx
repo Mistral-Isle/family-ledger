@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, ScrollView, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { Icon, Txt, useTheme } from "./ui";
+import { Txt, useTheme } from "./ui";
 import type { CategoryOrderListProps, OrderItem } from "./CategoryOrderList";
 
 // Custom SVG categories use this list even in installed iOS builds.
@@ -42,10 +42,11 @@ export function DragOrderFallback({ items, onChange, renderItem, rowHeight = 56 
       onLayout={(e) => { viewport.current.height = e.nativeEvent.layout.height; }}
       onScroll={(e) => { offset.current = e.nativeEvent.contentOffset.y; }}
     >
-      {items.map((item) => (
+      {items.map((item, index) => (
         <DragRow
           key={item.id}
           item={item}
+          separator={index < items.length - 1}
           rowHeight={rowHeight}
           enabled={items.length > 1}
           renderItem={renderItem}
@@ -80,8 +81,9 @@ export function DragOrderFallback({ items, onChange, renderItem, rowHeight = 56 
   );
 }
 
-function DragRow({ item, renderItem, rowHeight, enabled, onMove, onStart, onDrag, onStop }: {
+function DragRow({ item, separator, renderItem, rowHeight, enabled, onMove, onStart, onDrag, onStop }: {
   item: OrderItem;
+  separator: boolean;
   renderItem?: (item: OrderItem, dragging: boolean) => ReactNode;
   rowHeight: number;
   enabled: boolean;
@@ -122,8 +124,7 @@ function DragRow({ item, renderItem, rowHeight, enabled, onMove, onStart, onDrag
           paddingHorizontal: 12,
           opacity: active ? 0.92 : 1,
           backgroundColor: active ? t.soft : t.card,
-          borderBottomWidth: 0.5,
-          borderBottomColor: t.line,
+
         }}
       >
         <View pointerEvents={active ? "none" : "auto"} style={{ flex: 1 }}>
@@ -144,8 +145,11 @@ function DragRow({ item, renderItem, rowHeight, enabled, onMove, onStart, onDrag
           }}
           style={{ minWidth: 36, minHeight: 44, alignItems: "center", justifyContent: "center" }}
         >
-          <Icon name="line.3.horizontal" color={active ? t.blue : t.muted} />
+          <View accessible={false} style={{ gap: 4 }}>
+            {[0, 1, 2].map(line => <View key={line} style={{ width: 18, height: 2, borderRadius: 1, backgroundColor: active ? t.blue : t.muted }} />)}
+          </View>
         </View>
+        {separator && <View pointerEvents="none" style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 0.5, backgroundColor: t.line }} />}
       </Animated.View>
     </GestureDetector>
   );

@@ -123,7 +123,7 @@ describe("full backup and restore", () => {
     expect(JSON.parse(f.repo.exportBackup()).tables).toEqual(before);
   });
   test("inspection is read-only and includes private rows only in full backup", () => {
-    f.sqlite.exec("UPDATE account SET scope='private' WHERE name='现金'");
+    f.sqlite.exec("UPDATE account SET scope='private' WHERE kind='bank'");
     const before = f.repo.snapshot();
     const backup = f.repo.exportBackup();
     expect(

@@ -603,6 +603,29 @@ export class LedgerRepository {
     }
     this.setPref("defaultCategoryOrderV2", true);
   }
+  // Run once per local member; preserve renamed, archived and deleted accounts.
+  private ensureMemberDefaultAccounts(force = false) {
+    const meId = this.pref<string>("meId", "");
+    const key = `memberDefaultAccountsV1:${meId}`;
+    if (!meId || (!force && this.pref(key, false))) return;
+    const accounts = this.all<Account>("account");
+    const preferences = this.pref("preferences", emptyPrefs());
+    const pinned = [...preferences.pinned];
+    let sort = Math.max(-1, ...accounts.map(a => a.sort)) + 1;
+    for (const [name, kind] of [
+      ["银行卡", "bank"], ["支付宝", "alipay"], ["微信", "wechat"],
+    ] as const) {
+      if (accounts.some(a => a.scope === "family" && a.ownerMemberId === meId && a.kind === kind)) continue;
+      const account: Account = {
+        ...this.stamp(), name, kind, scope: "family", initialBalance: 0,
+        ownerMemberId: meId, last4: "", sort: sort++, archived: false,
+      };
+      this.write("account", account);
+      pinned.push(account.id);
+    }
+    this.setPref("preferences", { ...preferences, pinned });
+    this.setPref(key, true);
+  }
   initialize() {
     this.db.withTransactionSync(() => {
       if (this.pref("initialized", false)) {
@@ -619,32 +642,14 @@ export class LedgerRepository {
         this.setPref("monthBudgets", {});
         this.upgradeDefaultCategoryOrder();
         this.upgradeDefaultCategoryIcons();
+        this.ensureMemberDefaultAccounts();
         return;
       }
       this.setPref("deviceId", this.uuid());
       const me: Member = { ...this.stamp(), name: zh.me, color: "#648BD2" };
       this.write("member", me);
       this.setPref("meId", me.id);
-      const pinned: string[] = [];
-      for (const [name, kind] of [
-        [zh.defaultAccounts.bank, "bank"],
-        [zh.defaultAccounts.wechat, "wechat"],
-        [zh.defaultAccounts.cash, "cash"],
-      ] as const) {
-        const account: Account = {
-          ...this.stamp(),
-          name,
-          kind,
-          scope: "family",
-          initialBalance: 0,
-          ownerMemberId: me.id,
-          last4: "",
-          sort: pinned.length,
-          archived: false,
-        };
-        this.write("account", account);
-        pinned.push(account.id);
-      }
+      this.ensureMemberDefaultAccounts();
       zh.defaultCategories.forEach((group, i) => {
         const kind = group.kind;
         const root: Category = {
@@ -676,7 +681,7 @@ export class LedgerRepository {
           }),
         );
       });
-      this.setPref("preferences", { ...emptyPrefs(), pinned });
+      this.setPref("preferences", this.pref("preferences", emptyPrefs()));
       this.setPref("initialized", true);
       this.setPref("defaultCategoryOrderV2", true);
       this.setPref("defaultCategoryIconsV1", true);
@@ -2361,6 +2366,7 @@ export class LedgerRepository {
         name: nameCheck(name),
         color: "#d77d66",
       });
+      this.ensureMemberDefaultAccounts(true);
     });
   }
   mergeOperations(ops: Operation[]) {
