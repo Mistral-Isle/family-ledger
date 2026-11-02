@@ -38,6 +38,36 @@ export function firstCategory(
   const root = visible.find((c) => !c.parentId);
   return visible.find((c) => c.parentId === root?.id) ?? root;
 }
+/** Derived from the current refunds, so edits and deletions update it everywhere. */
+export function refundState(txns: Txn[], expense: Txn) {
+  if (expense.type !== "expense") return null;
+  const refunds = txns.filter(
+    (t) =>
+      !t.deleted &&
+      !t.discarded &&
+      t.type === "refund" &&
+      t.refundOfId === expense.id,
+  );
+  if (!refunds.length) return null;
+  const income = refunds.reduce(
+    (sum, t) => assertMoney(sum + (t.refundIncome ?? 0)),
+    0,
+  );
+  const offset = refunds.reduce(
+    (sum, t) => assertMoney(sum + t.amount - (t.refundIncome ?? 0)),
+    0,
+  );
+  return {
+    kind:
+      income > 0
+        ? ("over" as const)
+        : offset >= expense.amount
+          ? ("full" as const)
+          : ("partial" as const),
+    net: Math.max(0, expense.amount - offset),
+    income,
+  };
+}
 export function visibleTxns(txns: Txn[], scope: Scope = "family"): Txn[] {
   return txns
     .filter((t) => !t.deleted && !t.discarded && t.scope === scope)

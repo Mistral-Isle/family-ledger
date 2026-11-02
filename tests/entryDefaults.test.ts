@@ -1,5 +1,9 @@
 import { fixture } from "./sqlite";
-import { accountBalance, firstCategory } from "../src/domain/selectors";
+import {
+  accountBalance,
+  firstCategory,
+  refundState,
+} from "../src/domain/selectors";
 import {
   privacyAccountId,
   transferAccountName,
@@ -200,6 +204,58 @@ test("entries may record 0 but never a negative amount", () => {
     } finally {
       other.sqlite.close();
     }
+  } finally {
+    f.sqlite.close();
+  }
+});
+
+test("refund state follows partial, full and over refunds as refunds change", () => {
+  const f = fixture();
+  try {
+    const s = f.repo.snapshot(),
+      account = s.accounts.find((a) => a.scope === "family")!,
+      category = s.categories.find((c) => c.kind === "expense" && c.parentId)!;
+    const base = { occurredAt: "2026-11-01", note: "", forWhom: "both" as const };
+    const id = f.repo.saveTxn({
+      ...base,
+      type: "expense",
+      amount: 6800,
+      accountId: account.id,
+      categoryId: category.id,
+    });
+    const state = () => {
+      const txns = f.repo.snapshot().txns;
+      return refundState(txns, txns.find((t) => t.id === id)!);
+    };
+    expect(state()).toBeNull();
+    const refund = f.repo.saveTxn({
+      ...base,
+      type: "refund",
+      amount: 4800,
+      accountId: account.id,
+      refundOfId: id,
+    });
+    expect(state()).toEqual({ kind: "partial", net: 2000, income: 0 });
+    f.repo.saveTxn({
+      ...base,
+      id: refund,
+      type: "refund",
+      amount: 6800,
+      accountId: account.id,
+      refundOfId: id,
+    });
+    expect(state()).toEqual({ kind: "full", net: 0, income: 0 });
+    f.repo.saveTxn({
+      ...base,
+      id: refund,
+      type: "refund",
+      amount: 7300,
+      accountId: account.id,
+      refundOfId: id,
+    });
+    expect(state()).toEqual({ kind: "over", net: 0, income: 500 });
+    f.repo.deleteTxn(refund);
+    expect(state()).toBeNull();
   } finally {
     f.sqlite.close();
   }

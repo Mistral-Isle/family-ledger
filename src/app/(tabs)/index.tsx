@@ -31,7 +31,7 @@ import {
 import { SwipeActions } from "../../components/SwipeActions";
 import { MonthPicker } from "../../components/MonthPicker";
 import { useUi } from "../../state/ui";
-import { totals } from "../../domain/selectors";
+import { refundState, totals } from "../../domain/selectors";
 import { formatMoney } from "../../domain/money";
 import { today } from "../../domain/date";
 import { zh } from "../../i18n/zh";
@@ -184,6 +184,7 @@ function TransactionRow({ txn }: { txn: Txn }) {
     txn.type === "scope_in" ||
     (txn.type === "adjust" && txn.amount > 0);
   const transfer = txn.type === "transfer";
+  const refunded = refundState(data.txns, txn);
   const open = () =>
     financial
       ? router.push("/finance")
@@ -312,6 +313,22 @@ function TransactionRow({ txn }: { txn: Txn }) {
                   <Txt size={16} bold>
                     {title}
                   </Txt>
+                  {refunded && (
+                    <View
+                      style={{
+                        paddingHorizontal: 6,
+                        borderRadius: 6,
+                        backgroundColor: t.soft,
+                      }}
+                    >
+                      <Txt
+                        size={11}
+                        color={refunded.kind === "partial" ? t.blue : t.green}
+                      >
+                        {zh.refundStates[refunded.kind]}
+                      </Txt>
+                    </View>
+                  )}
                 </Row>
                 {!!(txn.occurredTime || txn.note) && (
                   <Txt size={13} color={t.muted} style={{ flexShrink: 1 }}>
@@ -347,9 +364,15 @@ function TransactionRow({ txn }: { txn: Txn }) {
                   bold
                   color={income ? t.green : transfer ? t.muted : t.text}
                 >
-                  {income ? "+" : transfer ? "" : "−"}
-                  {formatMoney(Math.abs(txn.amount), false)}
+                  {refunded
+                    ? `${refunded.net ? "−" : ""}${formatMoney(refunded.net, false)}`
+                    : `${income ? "+" : transfer ? "" : "−"}${formatMoney(Math.abs(txn.amount), false)}`}
                 </Txt>
+                {refunded && (
+                  <Txt size={12} color={t.muted}>
+                    {zh.refundOriginal} {formatMoney(txn.amount, false)}
+                  </Txt>
+                )}
                 {transfer ? (
                   <Row style={{ gap: 4 }}>
                     <Txt size={12} color={t.muted} numberOfLines={1} style={{ flexShrink: 1 }}>

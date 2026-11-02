@@ -1,24 +1,28 @@
-import { DateField } from "../components/DateField";
+import { EntryDateTime } from "../components/EntryDateTime";
+import { EntryAccountChoices } from "../components/EntryAccountChoices";
+import { AccountIcon } from "../components/AccountIcon";
+import { useReducedMotion } from "../components/useReducedMotion";
 import { useSubmissionGuard } from "../components/useSubmissionGuard";
 import { VaultGate } from "../components/VaultGate";
 import { useState } from "react";
-import { View } from "react-native";
+import { Modal, Pressable, ScrollView, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useLedger } from "../components/LedgerProvider";
 import {
   Button,
   Card,
-  Chip,
   ErrorText,
   Field,
   Heading,
+  Icon,
   IconButton,
   Page,
+  Row,
   Txt,
   useTheme,
   confirmAction,
 } from "../components/ui";
-import { HorizontalStrip } from "../components/HorizontalStrip";
 import { calculate, formatMoney, moneyInput } from "../domain/money";
 import { today } from "../domain/date";
 import { zh } from "../i18n/zh";
@@ -46,7 +50,9 @@ function Refund() {
     id?: string;
   }>();
   const router = useRouter();
-  const t = useTheme();
+  const t = useTheme(),
+    insets = useSafeAreaInsets(),
+    reducedMotion = useReducedMotion();
   const existing = data.txns.find(
     (x) => x.id === id && !x.deleted && x.type === "refund",
   );
@@ -89,6 +95,13 @@ function Refund() {
       "",
   );
   const [date, setDate] = useState(existing?.occurredAt ?? today());
+  const [time, setTime] = useState(
+    existing
+      ? (existing.occurredTime ?? "")
+      : new Date().toTimeString().slice(0, 5),
+  );
+  const [accountPicker, setAccountPicker] = useState(false);
+  const account = accounts.find((a) => a.id === accountId);
   const [note, setNote] = useState(existing?.note ?? "");
   const [error, setError] = useState("");
   const submission = useSubmissionGuard();
@@ -117,6 +130,7 @@ function Refund() {
               amount: calculate(amount),
               accountId,
               occurredAt: date,
+              occurredTime: time || null,
               note,
               forWhom: source.forWhom,
               refundOfId: source.id,
@@ -146,56 +160,123 @@ function Refund() {
         <ErrorText message={zh.errors.refundSource} />
       ) : (
         <>
-          <Card style={{ gap: 10 }}>
-            <Txt color={t.muted}>
+          <Card style={{ gap: 4 }}>
+            <Txt size={13} color={t.muted}>
               {zh.originalEntry} · {source.occurredAt}
+              {source.note ? ` · ${source.note}` : ""}
             </Txt>
             <Txt bold>
               {data.categories.find((c) => c.id === source.categoryId)?.name} ·{" "}
               {formatMoney(source.amount)}
             </Txt>
-            {!!source.note && <Txt>{source.note}</Txt>}
-            <Txt color={t.blue}>
-              {zh.refundRemaining} {formatMoney(remaining)}
-            </Txt>
           </Card>
-          <Txt size={12} color={t.muted}>
-            {zh.refundHint}
-          </Txt>
           <Field
             label={zh.refundReceived}
             value={amount}
             onChangeText={setAmount}
             keyboardType="decimal-pad"
           />
-          {split && (
-            <Card style={{ gap: 8 }}>
-              <Txt>
-                {zh.refundOffset} {formatMoney(split.offset)}
+          {/* Only an over-refund needs explaining: the excess becomes income. */}
+          {!!split?.income && (
+            <Txt size={12} color={t.muted}>
+              {zh.refundOffset} {formatMoney(split.offset)} · {zh.refundExcess}{" "}
+              <Txt size={12} color={t.green}>
+                {formatMoney(split.income)}
               </Txt>
-              <Txt color={t.green}>
-                {zh.refundExcess} {formatMoney(split.income)}
-              </Txt>
-            </Card>
+            </Txt>
           )}
-          <Txt size={12}>{zh.refundAccount}</Txt>
-          <HorizontalStrip>
-            {accounts.map((a) => (
-              <Chip
-                key={a.id}
-                label={a.name}
-                selected={a.id === accountId}
-                onPress={() => setAccountId(a.id)}
+          <Card style={{ paddingVertical: 4, gap: 0 }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={zh.refundAccount}
+              onPress={() => setAccountPicker(true)}
+              style={{ minHeight: 52, justifyContent: "center" }}
+            >
+              <Row style={{ gap: 10 }}>
+                <Txt style={{ flex: 1 }}>{zh.refundTo}</Txt>
+                {account && <AccountIcon kind={account.kind} size={26} />}
+                <Txt bold>
+                  {account
+                    ? `${account.name}${account.last4 ? ` ${account.last4}` : ""}`
+                    : "选择账户"}
+                </Txt>
+                <Icon name="chevron.right" size={14} color={t.muted} />
+              </Row>
+            </Pressable>
+            <View style={{ height: 1, backgroundColor: t.line }} />
+            <Row style={{ minHeight: 52 }}>
+              <Txt style={{ flex: 1 }}>{zh.refundTime}</Txt>
+              <EntryDateTime
+                date={date}
+                time={time}
+                onChange={(nextDate, nextTime) => {
+                  setDate(nextDate);
+                  setTime(nextTime);
+                }}
               />
-            ))}
-          </HorizontalStrip>
-          <DateField label={zh.date} value={date} onChange={setDate} />
+            </Row>
+          </Card>
           <Field
             label={zh.note}
             value={note}
             onChangeText={setNote}
             maxLength={500}
           />
+          <Modal
+            visible={accountPicker}
+            transparent
+            animationType={reducedMotion ? "none" : "fade"}
+            onRequestClose={() => setAccountPicker(false)}
+          >
+            <View
+              style={{
+                flex: 1,
+                justifyContent: "flex-end",
+                backgroundColor: "#00000055",
+              }}
+            >
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="关闭账户选择"
+                style={{ position: "absolute", inset: 0 }}
+                onPress={() => setAccountPicker(false)}
+              />
+              <View
+                accessibilityViewIsModal
+                style={{
+                  backgroundColor: t.bg,
+                  padding: 20,
+                  paddingBottom: Math.max(20, insets.bottom),
+                  borderTopLeftRadius: 24,
+                  borderTopRightRadius: 24,
+                  maxHeight: "70%",
+                  gap: 14,
+                }}
+              >
+                <Row style={{ justifyContent: "space-between" }}>
+                  <Txt bold size={18}>
+                    {zh.refundAccount}
+                  </Txt>
+                  <IconButton
+                    name="xmark"
+                    label="完成账户选择"
+                    onPress={() => setAccountPicker(false)}
+                  />
+                </Row>
+                <ScrollView keyboardShouldPersistTaps="handled">
+                  <EntryAccountChoices
+                    key={String(accountPicker)}
+                    accounts={accounts}
+                    selectedId={accountId}
+                    onSelect={(id) => {
+                      setAccountId(id);
+                      setAccountPicker(false);
+                    }}
+                  />
+                </ScrollView>
+              </View>
+            </View>
+          </Modal>
           <ErrorText message={error} />
           <View>
             <Button label={zh.save} onPress={save} />
