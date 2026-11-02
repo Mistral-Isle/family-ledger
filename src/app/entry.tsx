@@ -275,7 +275,8 @@ function Entry() {
     setError("");
     try {
       if (id && !existing) throw new Error(zh.errors.missing);
-      const cents = calculate(amount);
+      // An empty amount records 0; only negative results are rejected.
+      const cents = amount.trim() ? calculate(amount) : 0;
       const candidates =
         !existing && scope === "family" && type === "expense"
           ? repo.findDuplicateCandidates({
@@ -620,15 +621,29 @@ function Entry() {
                       {selectedAccount ? (
                         <AccountIcon kind={selectedAccount.kind} size={32} />
                       ) : (
-                        <Icon
-                          name={
-                            privacyMemberId(selectedId)
-                              ? "lock.fill"
-                              : "creditcard.fill"
-                          }
-                          color={t.blue}
-                          size={24}
-                        />
+                        // Same disc as AccountIcon so names line up.
+                        <View
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 16,
+                            backgroundColor: t.soft,
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <Icon
+                            name={
+                              privacyMemberId(selectedId)
+                                ? "lock.fill"
+                                : selectedId
+                                  ? "creditcard.fill"
+                                  : "arrow.left.arrow.right"
+                            }
+                            color={t.blue}
+                            size={20}
+                          />
+                        </View>
                       )}
                       <Txt size={18} bold style={{ flex: 1 }}>
                         {selectedId

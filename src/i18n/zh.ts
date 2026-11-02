@@ -399,6 +399,7 @@ export const zh = {
   errors: {
     divideByZero: "除数不能为零",
     amount: "请输入大于零的金额，最多两位小数",
+    negative: "金额不能为负数",
     money: "金额格式不正确，最多两位小数",
     overflow: "金额超出安全范围",
     account: "请选择有效账户",

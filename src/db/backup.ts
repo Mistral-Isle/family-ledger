@@ -269,7 +269,7 @@ function parseBackupData(
       new Date(date).toISOString().slice(0, 10) !== date
     )
       return fail();
-    if (t.type !== "adjust" && Number(t.amount) <= 0) return fail();
+    if (t.type !== "adjust" && Number(t.amount) < 0) return fail();
     if (
       t.to_account_id &&
       !alias(t.to_account_id) &&

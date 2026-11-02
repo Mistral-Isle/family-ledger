@@ -1310,7 +1310,10 @@ export class LedgerRepository {
         (input.type !== "refund" || input.refundOfId !== previous.refundOfId)
       )
         throw new Error(zh.errors.refundSource);
-      if (assertMoney(input.amount) <= 0) throw new Error(zh.errors.amount);
+      // Zero-amount entries are allowed; a refund still has to return money.
+      if (assertMoney(input.amount) < 0) throw new Error(zh.errors.negative);
+      if (input.amount === 0 && input.type === "refund")
+        throw new Error(zh.errors.amount);
       validDate(input.occurredAt);
       if (
         input.occurredTime != null &&
@@ -2587,7 +2590,7 @@ export class LedgerRepository {
               "scope_out",
             ].includes(t.type) ||
             !["me", "partner", "both"].includes(t.forWhom) ||
-            (t.type !== "adjust" && t.amount <= 0) ||
+            (t.type !== "adjust" && t.amount < 0) ||
             (t.refundIncome ?? 0) < 0 ||
             (t.type === "refund" && (t.refundIncome ?? 0) > t.amount)
           )
@@ -2929,7 +2932,7 @@ export class LedgerRepository {
         (!old || old.type !== "transfer" || old.scope !== "family")
       )
         throw new Error(zh.errors.missing);
-      if (assertMoney(input.amount) <= 0) throw new Error(zh.errors.amount);
+      if (assertMoney(input.amount) < 0) throw new Error(zh.errors.negative);
       validDate(input.occurredAt);
       if (
         input.occurredTime &&

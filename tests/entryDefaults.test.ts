@@ -150,3 +150,57 @@ test("private-scope transfers may also leave one side outside the ledger", () =>
     f.sqlite.close();
   }
 });
+
+test("entries may record 0 but never a negative amount", () => {
+  const f = fixture();
+  try {
+    const s = f.repo.snapshot(),
+      [a, b] = s.accounts.filter((x) => x.scope === "family" && !x.archived),
+      category = s.categories.find((c) => c.kind === "expense" && c.parentId)!;
+    const base = { occurredAt: "2026-11-01", note: "", forWhom: "both" as const };
+    const id = f.repo.saveTxn({
+      ...base,
+      type: "expense",
+      amount: 0,
+      accountId: a!.id,
+      categoryId: category.id,
+    });
+    expect(f.repo.snapshot().txns.find((t) => t.id === id)?.amount).toBe(0);
+    expect(
+      f.repo.saveMemberTransfer({
+        ...base,
+        amount: 0,
+        accountId: a!.id,
+        toAccountId: b!.id,
+      }),
+    ).toBeTruthy();
+    expect(() =>
+      f.repo.saveTxn({
+        ...base,
+        type: "expense",
+        amount: -100,
+        accountId: a!.id,
+        categoryId: category.id,
+      }),
+    ).toThrow("负数");
+    expect(() =>
+      f.repo.saveTxn({
+        ...base,
+        type: "refund",
+        amount: 0,
+        accountId: a!.id,
+        refundOfId: id,
+      }),
+    ).toThrow();
+    const other = fixture();
+    try {
+      other.repo.restoreBackup(f.repo.exportBackup());
+      other.repo.mergeOperations(f.repo.pendingOperations());
+      expect(other.repo.snapshot().txns.some((t) => t.id === id)).toBe(true);
+    } finally {
+      other.sqlite.close();
+    }
+  } finally {
+    f.sqlite.close();
+  }
+});

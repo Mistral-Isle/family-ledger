@@ -313,17 +313,11 @@ function TransactionRow({ txn }: { txn: Txn }) {
                     {title}
                   </Txt>
                 </Row>
-                <Txt size={13} color={t.muted} style={{ flexShrink: 1 }}>
-                  {txn.type === "transfer"
-                    ? transferAccountName(data, txn.accountId)
-                    : account?.name}
-                  {account?.last4 ? ` · ${account.last4}` : ""}
-                  {txn.occurredTime ? ` · ${txn.occurredTime}` : ""}
-                  {txn.note ? ` · ${txn.note}` : ""}
-                  {transfer
-                    ? ` → ${transferAccountName(data, txn.toAccountId)}`
-                    : ""}
-                </Txt>
+                {!!(txn.occurredTime || txn.note) && (
+                  <Txt size={13} color={t.muted} style={{ flexShrink: 1 }}>
+                    {[txn.occurredTime, txn.note].filter(Boolean).join(" · ")}
+                  </Txt>
+                )}
                 {financial?.hint ? (
                   <Txt size={11} color={t.muted}>
                     {financial.hint}
@@ -339,14 +333,40 @@ function TransactionRow({ txn }: { txn: Txn }) {
                   </Txt>
                 )}
               </View>
-              <Txt
-                size={17}
-                bold
-                color={income ? t.green : transfer ? t.muted : t.text}
+              {/* Accounts sit under the amount, kept clear of the left column. */}
+              <View
+                style={{
+                  alignItems: "flex-end",
+                  gap: 3,
+                  marginLeft: 8,
+                  maxWidth: "45%",
+                }}
               >
-                {income ? "+" : transfer ? "" : "−"}
-                {formatMoney(Math.abs(txn.amount), false)}
-              </Txt>
+                <Txt
+                  size={17}
+                  bold
+                  color={income ? t.green : transfer ? t.muted : t.text}
+                >
+                  {income ? "+" : transfer ? "" : "−"}
+                  {formatMoney(Math.abs(txn.amount), false)}
+                </Txt>
+                {transfer ? (
+                  <Row style={{ gap: 4 }}>
+                    <Txt size={12} color={t.muted} numberOfLines={1} style={{ flexShrink: 1 }}>
+                      {transferAccountName(data, txn.accountId)}
+                    </Txt>
+                    <Icon name="arrow.right" size={11} color={t.muted} />
+                    <Txt size={12} color={t.muted} numberOfLines={1} style={{ flexShrink: 1 }}>
+                      {transferAccountName(data, txn.toAccountId)}
+                    </Txt>
+                  </Row>
+                ) : account ? (
+                  <Txt size={12} color={t.muted} numberOfLines={1}>
+                    {account.name}
+                    {account.last4 ? ` · ${account.last4}` : ""}
+                  </Txt>
+                ) : null}
+              </View>
             </Row>
           </Pressable>
         </View>

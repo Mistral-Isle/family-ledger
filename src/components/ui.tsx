@@ -113,6 +113,7 @@ const symbols = [
   "gearshape.fill",
   "arrow.up",
   "arrow.down",
+  "arrow.right",
   "fork.knife",
   "cup.and.saucer.fill",
   "birthday.cake.fill",
@@ -186,6 +187,7 @@ const paths: Record<string, string> = {
   trash: "M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7",
   "arrow.up": "M12 20V4M5 11l7-7 7 7",
   "arrow.down": "M12 4v16M5 13l7 7 7-7",
+  "arrow.right": "M4 12h16M14 6l6 6-6 6",
   "fork.knife": "M4 3v6a3 3 0 006 0V3M7 3v18M19 3c-4 3-4 9 0 9V3v18",
   "cup.and.saucer.fill":
     "M3 6h13v8a5 5 0 01-5 5H8a5 5 0 01-5-5zM16 7h2a3 3 0 010 6h-2M2 22h17",
@@ -302,16 +304,19 @@ export function Txt({
   bold = false,
   color,
   style,
+  numberOfLines,
 }: {
   children: React.ReactNode;
   size?: number;
   bold?: boolean;
   color?: string;
   style?: object;
+  numberOfLines?: number;
 }) {
   const t = useTheme();
   return (
     <Text
+      numberOfLines={numberOfLines}
       style={[
         {
           fontSize: size,
