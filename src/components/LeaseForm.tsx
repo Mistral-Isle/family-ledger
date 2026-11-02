@@ -266,7 +266,7 @@ export function LeaseForm({
 }
 
 /** Equal-width option that keeps a whole choice set on one line. */
-function Segment({
+export function Segment({
   label,
   selected,
   onPress,
@@ -484,12 +484,47 @@ export function LeaseCard({
               }}
             />
           )}
+          {d.closed && (
+            <Button
+              secondary
+              label="继续退款"
+              onPress={() => {
+                close();
+                begin("refund");
+              }}
+            />
+          )}
+          {!d.closed && (
+            <Button
+              secondary
+              label="修改"
+              onPress={() => {
+                close();
+                router.push({
+                  pathname: "/lease-new",
+                  params: { edit: plan.id },
+                });
+              }}
+            />
+          )}
           <Button
             secondary
             label={d.archived ? "取消归档" : "归档"}
             onPress={() => {
               close();
               submit(() => repo.archivePlan(plan.id, !d.archived));
+            }}
+          />
+          <Button
+            secondary
+            label="删除"
+            onPress={() => {
+              close();
+              confirmAction(
+                "删除这个租赁？",
+                "会一并删除它的押金、交租和分摊等所有账单，不能恢复。",
+                () => submit(() => repo.deleteLease(plan.id)),
+              );
             }}
           />
         </View>
@@ -530,19 +565,8 @@ export function LeaseCard({
         {!d.closed && !!next && !mode && (
           <Pill primary label="交租" onPress={() => begin("pay")} />
         )}
-        {!d.closed && !mode && menu}
-        {/* An ended lease has only two actions, so show both instead of a menu. */}
-        {d.closed && !mode && (
-          <>
-            <Pill label="继续退款" onPress={() => begin("refund")} />
-            <Pill
-              label={d.archived ? "取消归档" : "归档"}
-              onPress={() =>
-                submit(() => repo.archivePlan(plan.id, !d.archived))
-              }
-            />
-          </>
-        )}
+        {/* Every other action lives in the menu, the same on all plan cards. */}
+        {!mode && menu}
       </Row>
       {expanded && (
         <View style={{ gap: 4 }}>
@@ -579,32 +603,6 @@ export function LeaseCard({
             <Txt size={12} color={t.muted}>
               已续签
             </Txt>
-          )}
-          {!mode && (
-            <Row style={{ justifyContent: "flex-end", marginTop: 6 }}>
-              {!d.closed && (
-                <Pill
-                  label="修改"
-                  onPress={() =>
-                    router.push({
-                      pathname: "/lease-new",
-                      params: { edit: plan.id },
-                    })
-                  }
-                />
-              )}
-              <Pill
-                label="删除"
-                danger
-                onPress={() =>
-                  confirmAction(
-                    "删除这个租赁？",
-                    "会一并删除它的押金、交租和分摊等所有账单，不能恢复。",
-                    () => submit(() => repo.deleteLease(plan.id)),
-                  )
-                }
-              />
-            </Row>
           )}
         </View>
       )}

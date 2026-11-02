@@ -64,10 +64,13 @@ export function AccountField({
   label,
   value,
   onChange,
+  noneLabel,
 }: {
   label: string;
   value: string;
   onChange: (id: string) => void;
+  /** Offer leaving the account empty, shown with this label. */
+  noneLabel?: string;
 }) {
   const { data } = useLedger();
   const t = useTheme();
@@ -104,7 +107,10 @@ export function AccountField({
               }}
             >
               {selected && <AccountIcon kind={selected.kind} size={24} />}
-              <Txt style={{ flex: 1 }}>{selected?.name ?? "选择账户"}</Txt>
+              <Txt style={{ flex: 1 }}>
+                {selected?.name ??
+                  (noneLabel && !value ? noneLabel : "选择账户")}
+              </Txt>
               <Icon name="chevron.down" size={11} color={t.muted} />
             </View>
           </View>
@@ -112,6 +118,16 @@ export function AccountField({
       >
         {(close) => (
           <View style={styles.wrap}>
+            {!!noneLabel && (
+              <Chip
+                label={noneLabel}
+                selected={!value}
+                onPress={() => {
+                  onChange("");
+                  close();
+                }}
+              />
+            )}
             {accounts.map((a) => (
               <Chip
                 key={a.id}

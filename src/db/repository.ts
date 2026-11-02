@@ -7,6 +7,12 @@ import {
 } from "../domain/summaryPreferences";
 import { validatePlanData } from "../domain/finance";
 import {
+  leftoverRecords,
+  owningPlan,
+  planRowRemoval,
+  previousLeasePayment,
+} from "../domain/planRecords";
+import {
   leaseSchedule,
   leaseParts,
   leaseExit,
@@ -20,11 +26,13 @@ import { accountBalance } from "../domain/selectors";
 import { today } from "../domain/date";
 import {
   nextDue,
-  addMonths,
+  loanAdvance,
+  loanInstallment,
   validateLoan,
   splitPrepayment,
   rentSchedule,
   type LoanData,
+  type LoanInput,
 } from "../domain/finance";
 import { exportBackup, parseBackup, restoreBackup } from "./backup";
 import {
@@ -741,13 +749,19 @@ export class LedgerRepository {
     const plans = this.all<FinancialPlan>("plan").map((p) => {
       if (p.kind !== "loan") return p;
       const d: LoanData = JSON.parse(p.data);
-      if (d.initialPaidPeriods === undefined || !d.initialNextDueDate) return p;
+      if (
+        d.initialPaidPeriods === undefined ||
+        (!d.initialNextDueDate && !d.oneTime)
+      )
+        return p;
       const count = txns.filter(
         (t) =>
           !t.deleted && t.type === "repayment" && t.toAccountId === d.accountId,
       ).length;
       d.paidPeriods = Math.min(d.totalPeriods, d.initialPaidPeriods + count);
-      d.nextDueDate = addMonths(d.initialNextDueDate, count, d.dueDay);
+      // A one-time loan keeps its due date until it is cleared.
+      if (d.initialNextDueDate && !d.oneTime)
+        d.nextDueDate = loanAdvance(d, d.initialNextDueDate, count);
       d.settlePeriod = Math.max(d.settlePeriod, d.paidPeriods);
       const account = accounts.find((a) => a.id === d.accountId);
       if (account) d.closed = accountBalance(account, txns) >= 0;
@@ -1334,6 +1348,22 @@ export class LedgerRepository {
               (!a.archived || previous?.accountId === a.id)),
       );
       if (!account) throw new Error(zh.errors.account);
+      // Loan balances move only through the loan card, so they stay in step with its periods.
+      const loanAccounts = new Set(
+        s.plans
+          .filter((p) => !p.deleted && p.kind === "loan")
+          .map((p) => JSON.parse(p.data).accountId),
+      );
+      if (
+        [account.id, input.toAccountId].some(
+          (id) =>
+            !!id &&
+            loanAccounts.has(id) &&
+            id !== previous?.accountId &&
+            id !== previous?.toAccountId,
+        )
+      )
+        throw new Error("贷款账户请在财务计划的贷款卡片里还款");
       let toAccountId: string | null = null;
       let categoryId: string | null = null;
       let refundIncome = 0;
@@ -1744,7 +1774,8 @@ export class LedgerRepository {
         );
       data.closed = principal === remaining;
       data.paidPeriods = Math.min(data.totalPeriods, data.paidPeriods + 1);
-      data.nextDueDate = addMonths(data.nextDueDate, 1, data.dueDay);
+      if (data.nextDueDate && !data.oneTime)
+        data.nextDueDate = loanAdvance(data, data.nextDueDate, 1);
       data.settlePeriod = Math.max(data.settlePeriod, data.paidPeriods);
       if (data.closed)
         this.write("account", {
@@ -1792,6 +1823,155 @@ export class LedgerRepository {
       d.closed = principal === 0;
       this.write("account", { ...a, ...this.stamp(a), archived: d.closed });
       this.putPlan("loan", plan.name, d, plan);
+    });
+  }
+  /** Create a loan, or correct one still being repaid; recorded repayments stay. */
+  saveLoan(input: LoanInput, id?: string) {
+    this.db.withTransactionSync(() => {
+      const s = this.snapshot();
+      const plan = id
+        ? s.plans.find((p) => p.id === id && !p.deleted && p.kind === "loan")
+        : undefined;
+      if (id && !plan) throw new Error(zh.errors.missing);
+      const old: LoanData | null = plan ? JSON.parse(plan.data) : null;
+      if (old?.closed)
+        throw new Error("已还清的贷款不能修改，可删除后重新记录");
+      this.paymentAccount(input.paymentAccountId);
+      if (input.receiveAccountId) this.paymentAccount(input.receiveAccountId);
+      const principal = assertMoney(input.principal);
+      if (principal <= 0) throw new Error(zh.errors.amount);
+      validDate(input.date);
+      const periods = input.oneTime ? 1 : input.periods;
+      const { each } = loanInstallment(
+        principal,
+        periods,
+        input.oneTime ? null : input.installment,
+      );
+      const paidBefore = input.oneTime ? 0 : input.paidPeriods;
+      const free = input.oneTime ? 0 : input.freePeriods;
+      if (
+        !Number.isSafeInteger(paidBefore) ||
+        paidBefore < 0 ||
+        paidBefore >= periods
+      )
+        throw new Error("已还期数须小于总期数");
+      if (!Number.isSafeInteger(free) || free < 0 || free > periods)
+        throw new Error("免息期数不能超过总期数");
+      if (input.firstDue) {
+        validDate(input.firstDue);
+        if (input.firstDue < input.date)
+          throw new Error("还款日不能早于借款日");
+      } else if (!input.oneTime) throw new Error("请选择首期还款日");
+      const data: LoanData = {
+        accountId: old?.accountId ?? "",
+        paymentAccountId: input.paymentAccountId,
+        monthlyPayment: each,
+        dueDay: input.firstDue ? Number(input.firstDue.slice(-2)) : 1,
+        totalPeriods: periods,
+        paidPeriods: paidBefore,
+        initialPaidPeriods: paidBefore,
+        interestFreePeriods: free,
+        settlePeriod: Math.max(paidBefore, free || periods),
+        nextDueDate: "",
+        initialNextDueDate: "",
+        closed: false,
+        // The previous borrowing row is replaced below.
+        txnIds: (old?.txnIds ?? []).filter((t) => t !== old?.borrowTxnId),
+        ...(input.oneTime
+          ? { oneTime: true }
+          : { unit: input.unit, every: input.every }),
+        principal,
+        date: input.date,
+        receiveAccountId: input.receiveAccountId || null,
+      };
+      if (old?.archived) data.archived = true;
+      if (input.firstDue)
+        data.nextDueDate = data.initialNextDueDate = input.oneTime
+          ? input.firstDue
+          : loanAdvance(data, input.firstDue, paidBefore);
+      validateLoan(data);
+      // Installments paid before the loan was recorded only lower the balance.
+      const initial = assertMoney(
+        each * paidBefore - (input.receiveAccountId ? 0 : principal),
+      );
+      let account: Account;
+      if (old) {
+        const previous = s.accounts.find((a) => a.id === old.accountId);
+        if (!previous) throw new Error(zh.errors.missing);
+        if (
+          s.txns.some(
+            (t) =>
+              !t.deleted &&
+              t.id !== old.borrowTxnId &&
+              (t.accountId === previous.id || t.toAccountId === previous.id) &&
+              t.occurredAt < input.date,
+          )
+        )
+          throw new Error("借款日期不能晚于已记录的还款");
+        const borrow = s.txns.find(
+          (t) => t.id === old.borrowTxnId && !t.deleted,
+        );
+        if (borrow)
+          this.write("txn", {
+            ...borrow,
+            ...this.stamp(borrow),
+            deleted: true,
+          });
+        account = {
+          ...previous,
+          ...this.stamp(previous),
+          name: nameCheck(input.name),
+          initialBalance: initial,
+        };
+        this.write("account", account);
+      } else account = this.financialAccount(input.name, "loan", initial);
+      data.accountId = account.id;
+      if (input.receiveAccountId) {
+        const borrow = this.financialTxn({
+          type: "transfer",
+          amount: principal,
+          accountId: account.id,
+          toAccountId: input.receiveAccountId,
+          occurredAt: input.date,
+          note: input.name,
+        });
+        data.borrowTxnId = borrow.id;
+        data.txnIds!.push(borrow.id);
+      }
+      const after = this.snapshot();
+      if (accountBalance(account, after.txns) >= 0)
+        throw new Error("已还金额不少于借款金额，请检查借款金额或已还期数");
+      this.putPlan("loan", input.name, data, plan);
+    });
+  }
+  /** Remove a loan with its borrowing, repayments and interest rows. */
+  deleteLoan(id: string) {
+    this.db.withTransactionSync(() => {
+      const s = this.snapshot(),
+        plan = s.plans.find(
+          (p) => p.id === id && !p.deleted && p.kind === "loan",
+        );
+      if (!plan) throw new Error(zh.errors.missing);
+      const d: LoanData = JSON.parse(plan.data);
+      const ids = new Set(d.txnIds ?? []);
+      const rows = s.txns.filter(
+        (t) =>
+          !t.deleted &&
+          (ids.has(t.id) ||
+            t.accountId === d.accountId ||
+            t.toAccountId === d.accountId),
+      );
+      if (
+        s.txns.some(
+          (t) => !t.deleted && rows.some((r) => r.id === t.refundOfId),
+        )
+      )
+        throw new Error(zh.errors.deleteRefundSource);
+      for (const row of rows)
+        this.write("txn", { ...row, ...this.stamp(row), deleted: true });
+      const a = s.accounts.find((a) => a.id === d.accountId);
+      if (a) this.write("account", { ...a, ...this.stamp(a), deleted: true });
+      this.write("plan", { ...plan, ...this.stamp(plan), deleted: true });
     });
   }
   private depositRecords(
@@ -1863,8 +2043,9 @@ export class LedgerRepository {
     const a = this.snapshot().accounts.find(
       (a) => a.id === JSON.parse(plan.data).accountId,
     );
-    if (a && !a.archived)
-      this.write("account", { ...a, ...this.stamp(a), archived: true });
+    // An emptied holding account has no use left; archiving it only left clutter.
+    if (a && !a.deleted)
+      this.write("account", { ...a, ...this.stamp(a), deleted: true });
   }
   deleteDeposit(id: string) {
     this.db.withTransactionSync(() => {
@@ -2065,7 +2246,7 @@ export class LedgerRepository {
       if (!p) throw new Error(zh.errors.missing);
       this.removePlanTxns(p);
       const a = s.accounts.find((a) => a.id === JSON.parse(p.data).accountId)!;
-      this.write("account", { ...a, ...this.stamp(a), archived: true });
+      this.write("account", { ...a, ...this.stamp(a), deleted: true });
       this.write("plan", { ...p, ...this.stamp(p), deleted: true });
     });
   }
@@ -2182,8 +2363,8 @@ export class LedgerRepository {
       ...deposits.map((p) => JSON.parse(p.data).accountId),
     ]) {
       const a = s.accounts.find((a) => a.id === accountId);
-      if (a && !a.archived)
-        this.write("account", { ...a, ...this.stamp(a), archived: true });
+      if (a && !a.deleted)
+        this.write("account", { ...a, ...this.stamp(a), deleted: true });
     }
     for (const p of deposits)
       this.write("plan", { ...p, ...this.stamp(p), deleted: true });
@@ -3581,24 +3762,84 @@ export class LedgerRepository {
   deleteTxn(id: string) {
     this.deleteTxns([id]);
   }
+  /** Undo one plan row from the details, see planRowRemoval for what goes with it. */
+  undoPlanRow(txnId: string) {
+    this.db.withTransactionSync(() => {
+      const s = this.snapshot();
+      const removal = planRowRemoval(s, txnId);
+      if (!removal) throw new Error(zh.errors.missing);
+      if ("error" in removal) throw new Error(removal.error);
+      const plan = s.plans.find((p) => p.id === removal.planId)!;
+      if (removal.wholePlan) {
+        this.removeLeaseRecords(plan);
+        this.write("plan", { ...plan, ...this.stamp(plan), deleted: true });
+        return;
+      }
+      const d = JSON.parse(plan.data);
+      const ids = new Set(removal.ids);
+      if (
+        s.txns.some((t) => !t.deleted && t.refundOfId && ids.has(t.refundOfId))
+      )
+        throw new Error(zh.errors.deleteRefundSource);
+      if (plan.kind === "prepaid") {
+        d.lastPaymentDate = previousLeasePayment(s, d);
+        d.paidPeriods--;
+      }
+      const repayment = s.txns.some(
+        (t) => ids.has(t.id) && t.type === "repayment",
+      );
+      for (const t of s.txns)
+        if (ids.has(t.id) && !t.deleted)
+          this.write("txn", { ...t, ...this.stamp(t), deleted: true });
+      d.txnIds = (d.txnIds ?? []).filter((id: string) => !ids.has(id));
+      if (plan.kind === "loan") {
+        // Newer loans derive progress from their repayments; older ones count here.
+        if (repayment && d.initialPaidPeriods === undefined) {
+          d.paidPeriods = Math.max(0, d.paidPeriods - 1);
+          d.nextDueDate = loanAdvance(d, d.nextDueDate, -1);
+        }
+        const after = this.snapshot();
+        const account = after.accounts.find((a) => a.id === d.accountId);
+        if (account && accountBalance(account, after.txns) < 0) {
+          d.closed = false;
+          if (account.archived)
+            this.write("account", {
+              ...account,
+              ...this.stamp(account),
+              archived: false,
+            });
+        }
+      }
+      this.putPlan(plan.kind, plan.name, d, plan);
+    });
+  }
+  /** Remove accounts and rows that removed plans left behind. */
+  removeLeftovers() {
+    this.db.withTransactionSync(() => {
+      const { accounts, txns } = leftoverRecords(this.snapshot());
+      for (const t of txns)
+        this.write("txn", { ...t, ...this.stamp(t), deleted: true });
+      for (const a of accounts)
+        this.write("account", { ...a, ...this.stamp(a), deleted: true });
+    });
+  }
   deleteTxns(ids: string[]) {
     this.db.withTransactionSync(() => this.deleteTxnRecords(ids));
   }
   private deleteTxnRecords(ids: string[]) {
     const unique = new Set(ids);
-    const plans = this.snapshot().plans.filter((p) => !p.deleted);
+    const s = this.snapshot();
+    const plans = s.plans.filter((p) => !p.deleted);
+    // Rows of removed plans are ordinary leftovers; only live plans guard theirs.
     if (
-      this.snapshot().txns.some(
+      s.txns.some(
         (t) =>
           unique.has(t.id) &&
-          (t.type === "repayment" ||
+          (!!owningPlan(s, t) ||
             (t.type === "adjust" &&
               plans.some(
                 (p) => JSON.parse(p.data).accountId === t.accountId,
-              )) ||
-            plans.some((p) =>
-              (JSON.parse(p.data).txnIds ?? []).includes(t.id),
-            )),
+              ))),
       )
     )
       throw new Error(zh.finance.managed);

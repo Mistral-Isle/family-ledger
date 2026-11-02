@@ -45,7 +45,7 @@ export const zh = {
   finance: {
     expectedReturn: "预计退还日（可选）",
     title: "财务计划",
-    loan: "简易贷款",
+    loan: "贷款",
     deposit: "押金",
     prepaid: "费用分摊",
     rent: "租赁",

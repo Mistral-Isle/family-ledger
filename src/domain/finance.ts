@@ -1,21 +1,97 @@
 import { assertMoney } from "./money";
 import { validDate, today } from "./date";
-import { leaseSchedule } from "./lease";
+import { leaseSchedule, leaseUnits, type LeaseUnit } from "./lease";
 export type LoanData = {
   accountId: string;
   paymentAccountId: string;
+  /** Amount of each installment; the last one takes whatever is left. */
   monthlyPayment: number;
   dueDay: number;
   totalPeriods: number;
   paidPeriods: number;
   interestFreePeriods: number;
   settlePeriod: number;
+  /** Empty only for a one-time loan without a due date. */
   nextDueDate: string;
   closed: boolean;
   txnIds?: string[];
   initialPaidPeriods?: number;
   initialNextDueDate?: string;
+  /** Repayment cycle; older loans omit it and repay monthly. */
+  unit?: LeaseUnit;
+  every?: number;
+  /** Repaid in one go (or in parts as money allows) instead of installments. */
+  oneTime?: boolean;
+  /** Amount borrowed and when; older loans only tracked the remaining principal. */
+  principal?: number;
+  date?: string;
+  /** Where the borrowed money arrived; null when it went straight to the seller. */
+  receiveAccountId?: string | null;
+  borrowTxnId?: string;
+  archived?: boolean;
 };
+/** What the loan form collects; installment fields are ignored for one-time loans. */
+export type LoanInput = {
+  name: string;
+  principal: number;
+  date: string;
+  receiveAccountId: string | null;
+  paymentAccountId: string;
+  oneTime: boolean;
+  unit: LeaseUnit;
+  every: number;
+  periods: number;
+  /** Fixed installment; null spreads the principal evenly. */
+  installment: number | null;
+  freePeriods: number;
+  paidPeriods: number;
+  /** First installment, or the due date of a one-time loan (may be empty). */
+  firstDue: string;
+};
+function shiftDays(date: string, n: number) {
+  const d = new Date(validDate(date) + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+/** Due date `count` periods after `date`; monthly cycles keep their due day. */
+export function loanAdvance(
+  d: Pick<LoanData, "unit" | "every" | "dueDay">,
+  date: string,
+  count: number,
+) {
+  const unit = d.unit ?? "month",
+    every = d.every ?? 1;
+  if (unit === "day" || unit === "week")
+    return shiftDays(date, count * every * (unit === "week" ? 7 : 1));
+  return addMonths(date, count * every * (unit === "year" ? 12 : 1), d.dueDay);
+}
+export function loanCycleLabel(
+  d: Pick<LoanData, "unit" | "every" | "oneTime">,
+) {
+  if (d.oneTime) return "一次还清";
+  const every = d.every ?? 1;
+  return `每${every === 1 ? "" : every}${leaseUnits[d.unit ?? "month"].label}`;
+}
+/** Even installments with the rounding on the last one, unless a fixed amount is given. */
+export function loanInstallment(
+  principal: number,
+  periods: number,
+  fixed?: number | null,
+) {
+  assertMoney(principal);
+  if (!Number.isSafeInteger(periods) || periods < 1 || periods > 1200)
+    throw new Error("还款期数须在 1–1200 之间");
+  const each = fixed ?? Number(BigInt(principal) / BigInt(periods));
+  assertMoney(each);
+  const last = principal - each * (periods - 1);
+  if (each <= 0 || last <= 0) throw new Error("每期还款与借款金额对不上");
+  return { each, last };
+}
+/** Suggested amount for the next repayment; the final one clears the rest. */
+export function loanNextAmount(d: LoanData, remaining: number) {
+  if (d.oneTime || d.paidPeriods >= d.totalPeriods - 1) return remaining;
+  return Math.min(d.monthlyPayment, remaining);
+}
 export function monthDate(month: string, day: number) {
   validDate(month + "-01");
   if (!Number.isInteger(day) || day < 1 || day > 31)
@@ -63,16 +139,37 @@ export function validateLoan(d: LoanData) {
     d.settlePeriod > d.totalPeriods
   )
     throw new Error("贷款期数或金额无效");
+  if (
+    (d.unit !== undefined &&
+      !Object.prototype.hasOwnProperty.call(leaseUnits, d.unit)) ||
+    (d.every !== undefined &&
+      (!Number.isSafeInteger(d.every) ||
+        d.every < 1 ||
+        d.every > leaseUnits[d.unit ?? "month"].max)) ||
+    (d.oneTime !== undefined && typeof d.oneTime !== "boolean") ||
+    (d.oneTime && d.totalPeriods !== 1) ||
+    (d.principal !== undefined &&
+      (!Number.isSafeInteger(d.principal) || d.principal <= 0)) ||
+    (d.receiveAccountId !== undefined &&
+      d.receiveAccountId !== null &&
+      typeof d.receiveAccountId !== "string") ||
+    (d.borrowTxnId !== undefined && typeof d.borrowTxnId !== "string")
+  )
+    throw new Error("贷款还款方式无效");
+  if (d.date !== undefined) validDate(d.date);
+  // Only a one-time loan may leave its due date open.
+  const dueless = !!d.oneTime && !d.nextDueDate;
   if (d.initialPaidPeriods !== undefined) {
     if (
       !Number.isSafeInteger(d.initialPaidPeriods) ||
       d.initialPaidPeriods < 0 ||
       d.initialPaidPeriods > d.totalPeriods ||
-      !d.initialNextDueDate
+      (!d.initialNextDueDate && !dueless)
     )
       throw new Error("贷款初始期数无效");
-    validDate(d.initialNextDueDate);
+    if (d.initialNextDueDate) validDate(d.initialNextDueDate);
   }
+  if (dueless) return d;
   validDate(d.nextDueDate);
   monthDate(d.nextDueDate.slice(0, 7), d.dueDay);
   return d;
@@ -82,9 +179,10 @@ export function loanProjection(d: LoanData, principal: number, at = today()) {
   assertMoney(principal);
   if (principal < 0) throw new Error("剩余本金不能为负");
   const remaining = Math.max(0, d.settlePeriod - d.paidPeriods);
-  const deadline = remaining
-    ? addMonths(d.nextDueDate, remaining - 1, d.dueDay)
-    : at;
+  const deadline =
+    remaining && d.nextDueDate
+      ? loanAdvance(d, d.nextDueDate, remaining - 1)
+      : at;
   const amount = Math.max(
     0,
     assertMoney(principal - assertMoney(remaining * d.monthlyPayment)),

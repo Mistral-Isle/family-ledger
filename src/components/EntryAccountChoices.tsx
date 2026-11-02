@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View } from "react-native";
 import type { Account } from "../domain/types";
-import { entryAccountGroups } from "../domain/entryAccounts";
+import { entryAccountGroups, planAccountIds } from "../domain/entryAccounts";
 import { useLedger } from "./LedgerProvider";
 import { AccountChip } from "./AccountChip";
 import { Button, Txt, useTheme } from "./ui";
@@ -11,7 +11,7 @@ export function EntryAccountChoices({ accounts, selectedId, onSelect }: {
 }) {
   const { data } = useLedger(), t = useTheme();
   const [more, setMore] = useState(false);
-  const groups = entryAccountGroups(accounts, data.meId);
+  const groups = entryAccountGroups(accounts, data.meId, planAccountIds(data.plans));
   const render = (a: Account, showOwner = false) => (
     <AccountChip key={a.id} kind={a.kind}
       label={`${a.name}${a.last4 ? ` ${a.last4}` : ""}${showOwner ? ` · ${data.members.find(m => m.id === a.ownerMemberId)?.name ?? "共同"}` : ""}`}

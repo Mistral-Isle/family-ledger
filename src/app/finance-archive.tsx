@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LeaseCard } from "../components/LeaseForm";
 import { DepositCard } from "../components/DepositCard";
+import { LoanCard } from "../components/LoanCard";
 import { useLedger } from "../components/LedgerProvider";
 import {
   Button,
@@ -44,6 +45,8 @@ export default function FinanceArchive() {
           <LeaseCard key={p.id} plan={p} />
         ) : p.kind === "deposit" ? (
           <DepositCard key={p.id} plan={p} />
+        ) : p.kind === "loan" ? (
+          <LoanCard key={p.id} plan={p} />
         ) : (
           <Card key={p.id} style={{ padding: 14 }}>
             <Row>

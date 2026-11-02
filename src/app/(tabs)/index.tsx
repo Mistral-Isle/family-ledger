@@ -11,9 +11,9 @@ import { TxnMetadata } from "../../components/TxnMetadata";
 import { MonthlySummaryCard } from "../../components/MonthlySummaryCard";
 import { Popover } from "../../components/HelpBubble";
 import { detailViewSnapshot, filterMonthTransactions } from "../../domain/transactionFilters";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Pressable, TextInput, View, Switch } from "react-native";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useLedger } from "../../components/LedgerProvider";
 import {
   Button,
@@ -37,6 +37,7 @@ import { today } from "../../domain/date";
 import { zh } from "../../i18n/zh";
 import type { Txn, TxnType } from "../../domain/types";
 import { financialRow, financialRowGroups } from "../../domain/financialRows";
+import { owningPlan, planRowRemoval } from "../../domain/planRecords";
 import { holdingName, isHoldingAccount } from "../../domain/rentAccounts";
 
 const SelectionContext = createContext({
@@ -46,9 +47,43 @@ const SelectionContext = createContext({
   toggle: (_id: string) => {},
 });
 
+/** Delete a row, or undo the plan payment it belongs to; failures show briefly on the row. */
+function useRowDelete() {
+  const { data, repo, run } = useLedger();
+  const [notice, setNotice] = useState("");
+  // A failed delete explains itself briefly; it should not follow the user around.
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(""), 5000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+  useFocusEffect(useCallback(() => () => setNotice(""), []));
+  const remove = (id: string) => {
+    const removal = planRowRemoval(data, id);
+    if (removal && "error" in removal) {
+      setNotice(removal.error);
+      return;
+    }
+    confirmAction(
+      removal ? removal.title : zh.deleteEntry,
+      removal ? removal.detail : zh.deleteEntryHint,
+      () => {
+        try {
+          run(() => (removal ? repo.undoPlanRow(id) : repo.deleteTxn(id)));
+        } catch (e) {
+          setNotice((e as Error).message);
+        }
+      },
+    );
+  };
+  return { notice, remove };
+}
+
 function FinancialGroup({ name, txns }: { name: string; txns: Txn[] }) {
   const { data } = useLedger();
   const t = useTheme();
+  const selection = useContext(SelectionContext);
+  const { notice, remove } = useRowDelete();
   const [expanded, setExpanded] = useState(false);
   const info = txns.map((txn) => financialRow(data, txn));
   const paid = info.reduce((sum, row) => sum + (row?.paid ?? 0), 0);
@@ -89,62 +124,89 @@ function FinancialGroup({ name, txns }: { name: string; txns: Txn[] }) {
       : returned
         ? `退回 ${formatMoney(returned, false)}${paid ? ` · 付出 ${formatMoney(paid, false)}` : ""}`
         : "本期费用分摊";
+  // Deleting the group undoes its payment; the rent transfer leads the way.
+  const lead =
+    txns.find((txn, i) => info[i]?.paid && info[i]?.plan.kind === "prepaid") ??
+    txns.find((_, i) => info[i]?.paid) ??
+    txns[0]!;
   return (
     <View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ expanded }}
-        accessibilityLabel={`${title}，${name}，${detail}，${expanded ? "收起" : "展开"}明细`}
-        onPress={() => setExpanded(!expanded)}
-        style={({ pressed }) => ({
-          paddingVertical: 10,
-          backgroundColor: pressed ? t.soft : "transparent",
-        })}
-      >
-        <Row>
-          <View
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 14,
-              backgroundColor: t.dark ? t.soft : "#A18ABE18",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Icon
-              name={rental ? "house.fill" : "creditcard.fill"}
-              color="#A18ABE"
-              size={21}
+      <SwipeActions
+        disabled={selection.active}
+        actionWidth={64}
+        actions={
+          <Row style={{ justifyContent: "flex-end" }}>
+            <IconButton
+              name="trash"
+              color={t.red}
+              label={zh.remove}
+              onPress={() => remove(lead.id)}
             />
-          </View>
-          <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
-            <Row style={{ justifyContent: "space-between", gap: 8 }}>
-              <Txt size={16} bold>
-                {title}
-              </Txt>
-              <Txt size={17} bold color={amount < 0 ? t.green : t.text}>
-                {amount < 0 ? "+" : amount > 0 ? "−" : ""}
-                {formatMoney(Math.abs(amount), false)}
-              </Txt>
-            </Row>
-            <Txt size={12} color={t.muted}>
-              {detail}
+          </Row>
+        }
+      >
+        <View style={{ backgroundColor: t.card }}>
+          {!!notice && (
+            <Txt size={11} color={t.blue}>
+              {notice}
             </Txt>
-            <Row style={{ justifyContent: "space-between" }}>
-              <Txt size={11} color={t.muted}>
-                {name}
-                {cash ? " · 实际收付" : ""}
-              </Txt>
-              <Icon
-                name={expanded ? "chevron.up" : "chevron.down"}
-                size={12}
-                color={t.muted}
-              />
+          )}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded }}
+            accessibilityLabel={`${title}，${name}，${detail}，${expanded ? "收起" : "展开"}明细`}
+            onPress={() => setExpanded(!expanded)}
+            style={({ pressed }) => ({
+              paddingVertical: 10,
+              backgroundColor: pressed ? t.soft : "transparent",
+            })}
+          >
+            <Row>
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 14,
+                  backgroundColor: t.dark ? t.soft : "#A18ABE18",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Icon
+                  name={rental ? "house.fill" : "creditcard.fill"}
+                  color="#A18ABE"
+                  size={21}
+                />
+              </View>
+              <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+                <Row style={{ justifyContent: "space-between", gap: 8 }}>
+                  <Txt size={16} bold>
+                    {title}
+                  </Txt>
+                  <Txt size={17} bold color={amount < 0 ? t.green : t.text}>
+                    {amount < 0 ? "+" : amount > 0 ? "−" : ""}
+                    {formatMoney(Math.abs(amount), false)}
+                  </Txt>
+                </Row>
+                <Txt size={12} color={t.muted}>
+                  {detail}
+                </Txt>
+                <Row style={{ justifyContent: "space-between" }}>
+                  <Txt size={11} color={t.muted}>
+                    {name}
+                    {cash ? " · 实际收付" : ""}
+                  </Txt>
+                  <Icon
+                    name={expanded ? "chevron.up" : "chevron.down"}
+                    size={12}
+                    color={t.muted}
+                  />
+                </Row>
+              </View>
             </Row>
-          </View>
-        </Row>
-      </Pressable>
+          </Pressable>
+        </View>
+      </SwipeActions>
       {expanded && (
         <View style={{ borderTopWidth: 1, borderColor: t.line, paddingTop: 8 }}>
           <Txt size={12} color={t.muted}>
@@ -160,10 +222,10 @@ function FinancialGroup({ name, txns }: { name: string; txns: Txn[] }) {
 }
 
 function TransactionRow({ txn }: { txn: Txn }) {
-  const { data, repo, run } = useLedger();
+  const { data } = useLedger();
   const t = useTheme();
   const router = useRouter();
-  const [notice, setNotice] = useState("");
+  const { notice, remove } = useRowDelete();
   const [savingFavorite, setSavingFavorite] = useState(false);
   const canFavorite = !!favoriteFromTransaction(data, txn.id);
   const selection = useContext(SelectionContext);
@@ -201,7 +263,7 @@ function TransactionRow({ txn }: { txn: Txn }) {
               params: { id: txn.id },
             });
   const canRefund = txn.type === "expense" && !financial;
-  const canSelect = !financial && txn.type !== "repayment";
+  const canSelect = !owningPlan(data, txn);
   return (
     <>
       <SwipeActions
@@ -237,15 +299,7 @@ function TransactionRow({ txn }: { txn: Txn }) {
               name="trash"
               color={t.red}
               label={zh.remove}
-              onPress={() =>
-                confirmAction(zh.deleteEntry, zh.deleteEntryHint, () => {
-                  try {
-                    run(() => repo.deleteTxn(txn.id));
-                  } catch (e) {
-                    setNotice((e as Error).message);
-                  }
-                })
-              }
+              onPress={() => remove(txn.id)}
             />
           </Row>
         }
@@ -453,7 +507,7 @@ export default function Details() {
   const [selection, setSelection] = useState<Set<string> | null>(null);
   const [selectionError, setSelectionError] = useState("");
   const selectable = filtered.filter(
-    (txn) => !financialRow(data, txn) && txn.type !== "repayment",
+    (txn) => !owningPlan(data, txn),
   );
   const chosen = selectable.filter((txn) => selection?.has(txn.id));
   const selectedTotals = totals(chosen);

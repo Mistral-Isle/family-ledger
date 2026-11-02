@@ -198,20 +198,36 @@ export function DepositCard({
           </Txt>
         </Pressable>
         {!returning && !d.closed && (
-          <>
-            <Pill
-              primary
-              label="退还"
-              onPress={() => {
-                setReturning(true);
-                setDate(today());
-                setReturned(moneyInput(balance));
-                setTo(d.paymentAccountId);
-                setError("");
-              }}
-            />
-            <Popover label="更多操作">
-              {(close) => (
+          <Pill
+            primary
+            label="退还"
+            onPress={() => {
+              setReturning(true);
+              setDate(today());
+              setReturned(moneyInput(balance));
+              setTo(d.paymentAccountId);
+              setError("");
+            }}
+          />
+        )}
+        {/* Every other action lives in the menu, the same on all plan cards. */}
+        {!returning && (
+          <Popover label="更多操作">
+            {(close) => (
+              <View style={{ gap: 8 }}>
+                {!d.closed && (
+                  <Button
+                    secondary
+                    label="修改"
+                    onPress={() => {
+                      close();
+                      router.push({
+                        pathname: "/deposit-new",
+                        params: { edit: plan.id },
+                      });
+                    }}
+                  />
+                )}
                 <Button
                   secondary
                   label={d.archived ? "取消归档" : "归档"}
@@ -220,12 +236,21 @@ export function DepositCard({
                     archive();
                   }}
                 />
-              )}
-            </Popover>
-          </>
-        )}
-        {!returning && d.closed && (
-          <Pill label={d.archived ? "取消归档" : "归档"} onPress={archive} />
+                <Button
+                  secondary
+                  label="删除"
+                  onPress={() => {
+                    close();
+                    confirmAction(
+                      "删除这笔押金？",
+                      "会一并删除它的付款和退还记录，不能恢复。",
+                      () => submit(() => repo.deleteDeposit(plan.id)),
+                    );
+                  }}
+                />
+              </View>
+            )}
+          </Popover>
         )}
       </Row>
       {expanded && (
@@ -240,32 +265,6 @@ export function DepositCard({
             <Txt size={12} color={t.muted}>
               待退 {money(balance)}
             </Txt>
-          )}
-          {!returning && (
-            <Row style={{ justifyContent: "flex-end", marginTop: 6 }}>
-              {!d.closed && (
-                <Pill
-                  label="修改"
-                  onPress={() =>
-                    router.push({
-                      pathname: "/deposit-new",
-                      params: { edit: plan.id },
-                    })
-                  }
-                />
-              )}
-              <Pill
-                label="删除"
-                danger
-                onPress={() =>
-                  confirmAction(
-                    "删除这笔押金？",
-                    "会一并删除它的付款和退还记录，不能恢复。",
-                    () => submit(() => repo.deleteDeposit(plan.id)),
-                  )
-                }
-              />
-            </Row>
           )}
         </View>
       )}
