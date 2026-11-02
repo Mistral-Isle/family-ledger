@@ -37,10 +37,13 @@ export default function Trips() {
   const params = useLocalSearchParams<{ id?: string }>();
   const [selected, setSelected] = useState(params.id ?? ""),
     [draft, setDraft] = useState<Draft | null>(null),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [showArchived, setShowArchived] = useState(false);
   const trip = data.trips?.find((x) => x.id === selected && !x.deleted),
     current = repo.currentTripId();
   const summary = trip ? tripSummary(data, trip.id) : null;
+  const active = data.trips?.filter((x) => !x.deleted && !x.ended) ?? [],
+    archived = data.trips?.filter((x) => !x.deleted && x.ended) ?? [];
   const perform = (fn: () => void) => {
     try {
       run(fn);
@@ -57,6 +60,29 @@ export default function Trips() {
       endDate: t?.endDate ?? "",
       ended: t?.ended ?? false,
     });
+  }
+  function tripCard(x: Trip) {
+    return (
+      <Card key={x.id}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            setSelected(x.id);
+            setError("");
+          }}
+        >
+          <Row>
+            <Txt bold style={{ flex: 1 }}>
+              {x.name}
+            </Txt>
+            <Txt size={12}>
+              {x.ended ? c.ended : current === x.id ? c.current : ""}
+            </Txt>
+          </Row>
+          <Txt>{formatMoney(tripSummary(data, x.id).total)}</Txt>
+        </Pressable>
+      </Card>
+    );
   }
   async function download(format: "xlsx" | "csv") {
     if (!trip) return;
@@ -218,29 +244,15 @@ export default function Trips() {
         <>
           <Txt size={14}>{c.tripEmpty}</Txt>
           <Button label={c.createTrip} onPress={() => edit()} />
-          {data.trips
-            ?.filter((x) => !x.deleted)
-            .map((x) => (
-              <Card key={x.id}>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => {
-                    setSelected(x.id);
-                    setError("");
-                  }}
-                >
-                  <Row>
-                    <Txt bold style={{ flex: 1 }}>
-                      {x.name}
-                    </Txt>
-                    <Txt size={12}>
-                      {x.ended ? c.ended : current === x.id ? c.current : ""}
-                    </Txt>
-                  </Row>
-                  <Txt>{formatMoney(tripSummary(data, x.id).total)}</Txt>
-                </Pressable>
-              </Card>
-            ))}
+          {active.map(tripCard)}
+          {archived.length > 0 && (
+            <Button
+              secondary
+              label={c.archivedTrips(archived.length)}
+              onPress={() => setShowArchived(!showArchived)}
+            />
+          )}
+          {showArchived && archived.map(tripCard)}
         </>
       )}
     </Page>

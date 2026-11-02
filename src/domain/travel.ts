@@ -21,6 +21,12 @@ export function effectiveTripId(s: Snapshot, txn: Txn): string | null {
   const id = sourceExpense(s, txn)?.tripId;
   return s.trips?.some((t) => t.id === id && !t.deleted) ? id! : null;
 }
+/** Ended trips are archived: pickers hide them unless one is already linked. */
+export function selectableTrips(s: Snapshot, selectedId: string | null) {
+  return (s.trips ?? []).filter(
+    (t) => !t.deleted && (!t.ended || t.id === selectedId),
+  );
+}
 export function tripTransactions(s: Snapshot, tripId: string) {
   return visibleTxns(s.txns).filter(
     (t) =>

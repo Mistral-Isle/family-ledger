@@ -2,6 +2,7 @@ import { fixture } from "./sqlite";
 import { accountBalance } from "../src/domain/selectors";
 import {
   tripSummary,
+  selectableTrips,
   duplicatePairs,
   duplicateCandidates,
 } from "../src/domain/travel";
@@ -358,6 +359,28 @@ test("default category order upgrades once and preserves custom ordering and tra
     expect(readRoots().map((c) => c.id)).toEqual(custom);
     f.repo.initialize();
     expect(readRoots().map((c) => c.id)).toEqual(custom);
+  } finally {
+    f.sqlite.close();
+  }
+});
+test("ended trips are archived out of pickers but stay visible where already linked", () => {
+  const f = setup();
+  try {
+    const other = f.repo.saveTrip({
+      name: "上海出差",
+      startDate: null,
+      endDate: null,
+      ended: false,
+    });
+    const trip = f.repo.snapshot().trips!.find((t) => t.id === f.trip)!;
+    f.repo.saveTrip({ ...trip, ended: true });
+    const s = f.repo.snapshot();
+    expect(selectableTrips(s, null).map((t) => t.id)).toEqual([other]);
+    expect(selectableTrips(s, f.trip).map((t) => t.id).sort()).toEqual(
+      [f.trip, other].sort(),
+    );
+    f.repo.deleteTrip(other);
+    expect(selectableTrips(f.repo.snapshot(), other)).toEqual([]);
   } finally {
     f.sqlite.close();
   }

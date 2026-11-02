@@ -12,6 +12,7 @@ import {
 } from "./ui";
 import { DateField } from "./DateField";
 import { useLedger } from "./LedgerProvider";
+import { selectableTrips } from "../domain/travel";
 import { zh } from "../i18n/zh";
 
 export function SharedEntryFields({
@@ -131,16 +132,14 @@ export function SharedEntryFields({
                 selected={!tripId}
                 onPress={() => choose(null)}
               />
-              {data.trips
-                ?.filter((x) => !x.deleted)
-                .map((x) => (
-                  <Chip
-                    key={x.id}
-                    label={x.name + (x.ended ? ` · ${c.ended}` : "")}
-                    selected={tripId === x.id}
-                    onPress={() => choose(x.id)}
-                  />
-                ))}
+              {selectableTrips(data, tripId).map((x) => (
+                <Chip
+                  key={x.id}
+                  label={x.name + (x.ended ? ` · ${c.ended}` : "")}
+                  selected={tripId === x.id}
+                  onPress={() => choose(x.id)}
+                />
+              ))}
             </View>
             <Txt size={12}>{c.tripHint}</Txt>
             <Button
