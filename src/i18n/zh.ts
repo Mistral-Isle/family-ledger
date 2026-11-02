@@ -237,7 +237,7 @@ export const zh = {
   refundRemaining: "剩余可退",
   refundStates: { partial: "部分退款", full: "全额退款", over: "超额退款" },
   refundOriginal: "原",
-  refundTo: "退到",
+  refundTo: "退款账户",
   refundTime: "退款时间",
   refundHint:
     "到账金额先抵减剩余支出，超出部分自动记为收入；两部分均按退款日期统计。",

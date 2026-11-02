@@ -3,6 +3,7 @@ import {
   accountBalance,
   firstCategory,
   refundState,
+  totals,
 } from "../src/domain/selectors";
 import {
   privacyAccountId,
@@ -236,6 +237,11 @@ test("refund state follows partial, full and over refunds as refunds change", ()
       refundOfId: id,
     });
     expect(state()).toEqual({ kind: "partial", net: 2000, income: 0 });
+    // A partial refund lowers the expense; it is not counted as income.
+    expect(totals(f.repo.snapshot().txns)).toMatchObject({
+      expense: 2000,
+      income: 0,
+    });
     f.repo.saveTxn({
       ...base,
       id: refund,
@@ -254,6 +260,10 @@ test("refund state follows partial, full and over refunds as refunds change", ()
       refundOfId: id,
     });
     expect(state()).toEqual({ kind: "over", net: 0, income: 500 });
+    expect(totals(f.repo.snapshot().txns)).toMatchObject({
+      expense: 0,
+      income: 500,
+    });
     f.repo.deleteTxn(refund);
     expect(state()).toBeNull();
   } finally {
