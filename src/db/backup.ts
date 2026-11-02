@@ -228,9 +228,11 @@ function parseBackupData(
       t.scope === "family" &&
       typeof id === "string" &&
       member.some((m) => m.id === privacyMemberId(id));
+    // A transfer from outside the ledger has no source account.
+    const outside = t.type === "transfer" && t.account_id === "" && !!t.to_account_id;
     const a =
       account.find((a) => a.id === t.account_id) ??
-      (alias(t.account_id) ? { scope: "family" } : undefined);
+      (alias(t.account_id) || outside ? { scope: t.scope } : undefined);
     if (
       (alias(t.account_id) || alias(t.to_account_id)) &&
       (t.note !== "" ||
@@ -279,7 +281,8 @@ function parseBackupData(
       )
     )
       return fail();
-    if (["transfer", "repayment"].includes(String(t.type)) && !t.to_account_id)
+    if (t.type === "repayment" && !t.to_account_id) return fail();
+    if ((outside || !t.to_account_id) && (alias(t.account_id) || alias(t.to_account_id)))
       return fail();
     if (
       ["income", "expense", "refund"].includes(String(t.type)) &&

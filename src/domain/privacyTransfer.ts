@@ -3,6 +3,7 @@ export const privacyAccountId = (memberId: string) => "privacy:" + memberId;
 export const privacyMemberId = (id: string | null | undefined) =>
   id?.startsWith("privacy:") ? id.slice(8) : null;
 export function transferAccountName(s: Snapshot, id: string | null) {
+  if (!id) return "账外";
   const member = privacyMemberId(id);
   if (member) return member === s.meId ? "我的隐私账户" : "对方的隐私账户";
   return (
@@ -10,6 +11,8 @@ export function transferAccountName(s: Snapshot, id: string | null) {
   );
 }
 export function transferDirection(s: Snapshot, t: Txn) {
+  if (!t.accountId) return "转入";
+  if (!t.toAccountId) return "转出";
   const owner = (id: string | null) =>
     privacyMemberId(id) ?? s.accounts.find((a) => a.id === id)?.ownerMemberId;
   return owner(t.accountId) === owner(t.toAccountId)

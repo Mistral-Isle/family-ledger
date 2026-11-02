@@ -403,6 +403,8 @@ export const zh = {
     overflow: "金额超出安全范围",
     account: "请选择有效账户",
     destination: "转入和转出账户不能相同",
+    transferSide: "转出和转入账户至少选择一个",
+    transferPrivacy: "隐私账户转账需要同时选择转出和转入账户",
     category: "请选择有效分类",
     date: "请输入有效日期，例如 2026-10-29",
     name: "请输入名称（最多 30 字）",
@@ -501,6 +503,8 @@ export const zh = {
     "大额支出",
     "其他",
   ],
+  // Display order only; child indices below stay stable for IDs.
+  defaultChildFirst: { 餐饮: "买菜食材" },
   // Keep this array's indices stable: default installation uses them for IDs.
   defaultCategories: [
     {

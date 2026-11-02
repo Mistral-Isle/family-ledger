@@ -1,4 +1,4 @@
-import type { Account, Snapshot, Txn, Scope } from "./types";
+import type { Account, Category, Snapshot, Txn, Scope } from "./types";
 import { assertMoney } from "./money";
 export function accountBalance(
   account: Account,
@@ -26,6 +26,17 @@ export function accountBalance(
         delta += t.amount;
       return assertMoney(sum + delta);
     }, account.initialBalance);
+}
+/** New entries start on the first visible category: its first child, or the root itself. */
+export function firstCategory(
+  categories: Category[],
+  kind: Category["kind"],
+): Category | undefined {
+  const visible = categories
+    .filter((c) => !c.deleted && !c.hidden && c.kind === kind)
+    .sort((a, b) => a.sort - b.sort);
+  const root = visible.find((c) => !c.parentId);
+  return visible.find((c) => c.parentId === root?.id) ?? root;
 }
 export function visibleTxns(txns: Txn[], scope: Scope = "family"): Txn[] {
   return txns

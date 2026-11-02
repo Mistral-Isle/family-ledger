@@ -52,6 +52,7 @@ import {
 } from "../components/ui";
 import { calculate, formatMoney, moneyInput } from "../domain/money";
 import { today } from "../domain/date";
+import { firstCategory } from "../domain/selectors";
 import type { Favorite, Txn } from "../domain/types";
 import { zh } from "../i18n/zh";
 
@@ -167,9 +168,20 @@ function Entry() {
       )?.id ??
       "",
   );
-  const [categoryId, setCategoryId] = useState(existing?.categoryId ?? "");
+  // Daily mode starts from favorites, so only the full category grid preselects.
+  const [startCategory] = useState(() =>
+    existing ||
+    (scope !== "private" && repo.getEntryModes().expense !== "standard")
+      ? undefined
+      : firstCategory(data.categories, "expense"),
+  );
+  const [categoryId, setCategoryId] = useState(
+    existing?.categoryId ?? startCategory?.id ?? "",
+  );
   const [expanded, setExpanded] = useState(
-    data.categories.find((c) => c.id === existing?.categoryId)?.parentId ?? "",
+    data.categories.find(
+      (c) => c.id === (existing?.categoryId ?? startCategory?.id),
+    )?.parentId ?? "",
   );
   const [excludeBudget, setExcludeBudget] = useState(
     existing?.excludeBudget ?? false,
@@ -535,8 +547,13 @@ function Entry() {
                 ) {
                   setAccountId(accounts.find((a) => !a.archived)?.id ?? "");
                 }
-                setCategoryId("");
-                setExpanded("");
+                const first =
+                  kind !== "transfer" &&
+                  (scope === "private" || modes[kind] === "standard")
+                    ? firstCategory(data.categories, kind)
+                    : undefined;
+                setCategoryId(first?.id ?? "");
+                setExpanded(first?.parentId ?? "");
                 setError("");
               }}
             />
@@ -617,7 +634,7 @@ function Entry() {
                         {selectedId
                           ? (selectedAccount?.name ??
                             transferAccountName(data, selectedId))
-                          : "请选择账户"}
+                          : "账外（不选择账户）"}
                       </Txt>
                       <Icon name="chevron.down" size={14} color={t.muted} />
                     </Row>
@@ -687,6 +704,18 @@ function Entry() {
                           gap: 8,
                         }}
                       >
+                        <Chip
+                          label="账外（不选择账户）"
+                          selected={
+                            !(transferSide === "from" ? accountId : toId)
+                          }
+                          onPress={() => {
+                            transferSide === "from"
+                              ? setAccountId("")
+                              : setToId("");
+                            setTransferPicker(false);
+                          }}
+                        />
                         <EntryAccountChoices key={String(transferPicker) + transferSide}
                           accounts={data.accounts.filter(a => !a.deleted && !a.archived && !["loan", "deposit", "prepaid"].includes(a.kind) && (a.scope === scope || a.scope === "family"))}
                           selectedId={transferSide === "from" ? accountId : toId}
@@ -721,7 +750,7 @@ function Entry() {
                       </View>
                     </ScrollView>
                     <Txt size={12}>
-                      隐私账户不显示余额、卡号或真实账户名称。
+                      两侧至少选择一个账户；账外一侧不影响任何余额。隐私账户不显示余额、卡号或真实账户名称。
                     </Txt>
                   </View>
                 </View>

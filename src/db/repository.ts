@@ -135,6 +135,16 @@ const nameCheck = (name: string) => {
   return name.trim();
 };
 
+
+type DefaultCategoryGroup = (typeof zh.defaultCategories)[number];
+// Child indices double as install IDs, so the preferred first child is applied as sort only.
+function defaultChildSort(group: DefaultCategoryGroup, index: number) {
+  const first = (zh.defaultChildFirst as Record<string, string | undefined>)[
+    group.name
+  ];
+  const at = group.children.findIndex(([name]) => name === first);
+  return at < 0 ? index : index === at ? 0 : index < at ? index + 1 : index;
+}
 export class LedgerRepository {
   constructor(
     private db: SqlDriver,
@@ -322,7 +332,7 @@ export class LedgerRepository {
             name,
             icon,
             color: group.color,
-            sort,
+            sort: defaultChildSort(group, sort),
             hidden: false,
             mergedInto: null,
             deleteAction: null,
@@ -603,6 +613,40 @@ export class LedgerRepository {
     }
     this.setPref("defaultCategoryOrderV2", true);
   }
+  private upgradeDefaultChildOrder() {
+    if (this.pref("defaultChildOrderV1", false)) return;
+    const categories = this.all<Category>("category");
+    for (const group of zh.defaultCategories) {
+      const first = (zh.defaultChildFirst as Record<string, string | undefined>)[
+        group.name
+      ];
+      const root = categories.find(
+        (c) =>
+          !c.deleted &&
+          !c.parentId &&
+          c.kind === group.kind &&
+          c.name === group.name,
+      );
+      if (!first || !root) continue;
+      const children = categories
+        .filter((c) => !c.deleted && c.parentId === root.id)
+        .sort((a, b) => a.sort - b.sort);
+      const defaults: string[] = group.children.map(([name]) => name);
+      const present = children
+        .map((c) => c.name)
+        .filter((name) => defaults.includes(name));
+      const expected = defaults.filter((name) => present.includes(name));
+      // Added children are fine; a list the user already reordered is kept.
+      if (present.some((name, i) => name !== expected[i])) continue;
+      const head = children.find((c) => c.name === first);
+      if (!head) continue;
+      [head, ...children.filter((c) => c !== head)].forEach((c, sort) => {
+        if (c.sort !== sort)
+          this.write("category", { ...c, ...this.stamp(c), sort });
+      });
+    }
+    this.setPref("defaultChildOrderV1", true);
+  }
   // Run once per local member; preserve renamed, archived and deleted accounts.
   private ensureMemberDefaultAccounts(force = false) {
     const meId = this.pref<string>("meId", "");
@@ -641,6 +685,7 @@ export class LedgerRepository {
             });
         this.setPref("monthBudgets", {});
         this.upgradeDefaultCategoryOrder();
+        this.upgradeDefaultChildOrder();
         this.upgradeDefaultCategoryIcons();
         this.ensureMemberDefaultAccounts();
         return;
@@ -674,7 +719,7 @@ export class LedgerRepository {
             name,
             icon,
             color: group.color,
-            sort,
+            sort: defaultChildSort(group, sort),
             hidden: false,
             mergedInto: null,
             deleteAction: null,
@@ -684,6 +729,7 @@ export class LedgerRepository {
       this.setPref("preferences", this.pref("preferences", emptyPrefs()));
       this.setPref("initialized", true);
       this.setPref("defaultCategoryOrderV2", true);
+      this.setPref("defaultChildOrderV1", true);
       this.setPref("defaultCategoryIconsV1", true);
     });
   }
@@ -1271,11 +1317,18 @@ export class LedgerRepository {
         !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.occurredTime)
       )
         throw new Error("请选择有效时间");
+      // A transfer may leave one side outside the ledger, never both.
+      const outside = input.type === "transfer" && !input.accountId;
+      if (outside && !input.toAccountId)
+        throw new Error(zh.errors.transferSide);
       const account = s.accounts.find(
         (a) =>
-          a.id === input.accountId &&
           !a.deleted &&
-          (!a.archived || previous?.accountId === a.id),
+          (outside
+            ? a.id === input.toAccountId &&
+              (!a.archived || previous?.toAccountId === a.id)
+            : a.id === input.accountId &&
+              (!a.archived || previous?.accountId === a.id)),
       );
       if (!account) throw new Error(zh.errors.account);
       let toAccountId: string | null = null;
@@ -1283,16 +1336,20 @@ export class LedgerRepository {
       let refundIncome = 0;
       let refundIncomeCategoryId: string | null = null;
       if (input.type === "transfer") {
-        const to = s.accounts.find(
-          (a) =>
-            a.id === input.toAccountId &&
-            !a.deleted &&
-            (!a.archived || previous?.toAccountId === a.id),
-        );
-        if (!to) throw new Error(zh.errors.account);
-        if (to.id === account.id) throw new Error(zh.errors.destination);
-        if (to.scope !== account.scope) throw new Error(zh.errors.scope);
-        toAccountId = to.id;
+        if (outside) toAccountId = account.id;
+        // Without a destination, money leaving the ledger only changes the source.
+        else if (input.toAccountId) {
+          const to = s.accounts.find(
+            (a) =>
+              a.id === input.toAccountId &&
+              !a.deleted &&
+              (!a.archived || previous?.toAccountId === a.id),
+          );
+          if (!to) throw new Error(zh.errors.account);
+          if (to.id === account.id) throw new Error(zh.errors.destination);
+          if (to.scope !== account.scope) throw new Error(zh.errors.scope);
+          toAccountId = to.id;
+        }
       } else if (input.type === "refund") {
         const source = s.txns.find(
           (t) =>
@@ -1417,7 +1474,7 @@ export class LedgerRepository {
         scope: account.scope,
         type: input.type,
         amount: input.amount,
-        accountId: account.id,
+        accountId: outside ? "" : account.id,
         toAccountId,
         categoryId,
         occurredAt: input.occurredAt,
@@ -2856,6 +2913,8 @@ export class LedgerRepository {
     occurredTime?: string | null;
     note: string;
   }) {
+    if (!input.accountId && !input.toAccountId)
+      throw new Error(zh.errors.transferSide);
     let saved = "";
     this.db.withTransactionSync(() => {
       const s = this.snapshot(),
@@ -2898,8 +2957,14 @@ export class LedgerRepository {
         }
         return id;
       };
-      const from = endpoint(input.accountId, true),
-        to = endpoint(input.toAccountId, false);
+      // An empty side is outside the ledger; privacy transfers need both members' sides.
+      const from = input.accountId ? endpoint(input.accountId, true) : "",
+        to = input.toAccountId ? endpoint(input.toAccountId, false) : null;
+      if (
+        (!from || !to) &&
+        (privacyMemberId(from) || privacyMemberId(to))
+      )
+        throw new Error(zh.errors.transferPrivacy);
       if (from === to) throw new Error(zh.errors.destination);
       if (old && (old.accountId !== from || old.toAccountId !== to))
         throw new Error("请撤销原转账后重新选择账户");
