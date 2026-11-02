@@ -26,6 +26,7 @@ import {
 import { calculate, formatMoney, moneyInput } from "../domain/money";
 import { today } from "../domain/date";
 import { zh } from "../i18n/zh";
+import { isHoldingAccount } from "../domain/rentAccounts";
 
 export default function RefundRoute() {
   const { id, sourceId } = useLocalSearchParams<{
@@ -78,6 +79,7 @@ function Refund() {
   const accounts = data.accounts.filter(
     (a) =>
       !a.deleted &&
+      !isHoldingAccount(a) &&
       a.scope === source?.scope &&
       (!a.archived || a.id === existing?.accountId),
   );

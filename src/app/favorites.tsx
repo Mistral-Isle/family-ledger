@@ -22,6 +22,7 @@ import {
 } from "../components/ui";
 import { moneyInput, parseMoney } from "../domain/money";
 import type { Favorite } from "../domain/types";
+import { isHoldingAccount } from "../domain/rentAccounts";
 export default function Favorites() {
   const { data, repo, run } = useLedger(),
     router = useRouter(),
@@ -45,7 +46,7 @@ export default function Favorites() {
       />
       <Button label="添加常用项" icon="plus" onPress={() => {
         setCreating(true); setAmount(""); setError("");
-        setDraft({ id: "", label: "", categoryId: data.categories.find(c => !c.deleted && !c.hidden && c.kind === "expense")?.id ?? "", accountId: data.accounts.find(a => a.scope === "family" && !a.deleted && !a.archived)?.id ?? "", note: "" });
+        setDraft({ id: "", label: "", categoryId: data.categories.find(c => !c.deleted && !c.hidden && c.kind === "expense")?.id ?? "", accountId: data.accounts.find(a => a.scope === "family" && !a.deleted && !a.archived && !isHoldingAccount(a))?.id ?? "", note: "" });
       }} />
       <Txt color={t.muted} size={13}>
         长按拖动排序，点按编辑，左滑移除。
@@ -102,7 +103,7 @@ export default function Favorites() {
                 <Txt bold>分类</Txt>
                 <FavoriteCategoryPicker value={draft.categoryId} onChange={(categoryId) => setDraft({ ...draft, categoryId })} />
                 <Txt bold>账户</Txt>
-                <Row style={{ flexWrap: "wrap" }}>{data.accounts.filter(a => a.scope === "family" && !a.deleted && !a.archived).map(a => <AccountChip key={a.id} kind={a.kind} label={a.name} selected={draft.accountId === a.id} onPress={() => setDraft({ ...draft, accountId: a.id })} />)}</Row>
+                <Row style={{ flexWrap: "wrap" }}>{data.accounts.filter(a => a.scope === "family" && !a.deleted && !a.archived && !isHoldingAccount(a)).map(a => <AccountChip key={a.id} kind={a.kind} label={a.name} selected={draft.accountId === a.id} onPress={() => setDraft({ ...draft, accountId: a.id })} />)}</Row>
               </>}
               <Field
                 label="预设金额"

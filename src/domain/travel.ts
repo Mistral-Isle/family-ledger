@@ -8,13 +8,33 @@ export function sourceExpense(s: Snapshot, txn: Txn) {
     ? s.txns.find((t) => t.id === txn.refundOfId)
     : txn;
 }
+const planAccountKinds = ["loan", "deposit", "prepaid"];
 export function payerId(s: Snapshot, txn: Txn): string | null {
-  return sourceExpense(s, txn)?.payerMemberId ?? null;
+  const source = sourceExpense(s, txn);
+  if (!source) return null;
+  if (source.payerMemberId) return source.payerMemberId;
+  // Older loan and rent expenses were saved without a payer; they belong to the plan account owner.
+  const account =
+    source.type === "expense" &&
+    s.accounts.find((a) => a.id === source.accountId);
+  return account && planAccountKinds.includes(account.kind)
+    ? account.ownerMemberId || source.recorderMemberId || null
+    : null;
 }
 /** Income belongs to the receiving account owner; shared accounts use the recorder. */
 export function reportMemberId(s: Snapshot, txn: Txn): string | null {
+  const owner = (id: string | null) =>
+    s.accounts.find((a) => a.id === id)?.ownerMemberId;
   if (txn.type === "income")
-    return s.accounts.find((a) => a.id === txn.accountId)?.ownerMemberId || txn.recorderMemberId || null;
+    return owner(txn.accountId) || txn.recorderMemberId || null;
+  // Money moving into or out of a loan, deposit or rent plan belongs to the everyday account's owner.
+  if (txn.type === "transfer" || txn.type === "repayment") {
+    const from = s.accounts.find((a) => a.id === txn.accountId),
+      to = s.accounts.find((a) => a.id === txn.toAccountId);
+    const plan = (a?: { kind: string }) => !!a && planAccountKinds.includes(a.kind);
+    if (from && to && plan(from) !== plan(to))
+      return (plan(from) ? to : from)!.ownerMemberId || txn.recorderMemberId || null;
+  }
   return payerId(s, txn);
 }
 export function effectiveTripId(s: Snapshot, txn: Txn): string | null {

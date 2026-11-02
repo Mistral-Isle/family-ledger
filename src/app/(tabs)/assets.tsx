@@ -22,7 +22,7 @@ import {
   blue,
 } from "../../components/ui";
 import { accountBalance } from "../../domain/selectors";
-import { rentAccountIds } from "../../domain/rentAccounts";
+import { isHoldingAccount } from "../../domain/rentAccounts";
 import { formatMoney } from "../../domain/money";
 import { today } from "../../domain/date";
 import { zh } from "../../i18n/zh";
@@ -51,9 +51,8 @@ export default function Assets() {
       setError("未能保存金额显示设置，请重试。");
     }
   };
-  const rentalAccounts = rentAccountIds(data);
   const accounts = assetViewAccounts(data, view, today());
-  const groups = assetAccountGroups(data, accounts.filter(a => !rentalAccounts.has(a.account.id) && (archived || !a.account.archived)));
+  const groups = assetAccountGroups(data, accounts.filter(a => !isHoldingAccount(a.account) && (archived || !a.account.archived)));
   const total = accounts.reduce((sum, a) => sum + a.balance, 0);
   const assets = accounts
     .filter((a) => a.balance > 0)
@@ -154,7 +153,7 @@ export default function Assets() {
         items={group.rows
           .filter(
             (a) =>
-              !rentalAccounts.has(a.account.id) &&
+              !isHoldingAccount(a.account) &&
               (archived || !a.account.archived),
           )
           .sort((a, b) => a.account.sort - b.account.sort)

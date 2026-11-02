@@ -1,7 +1,8 @@
 import type { Account } from "./types";
+import { isHoldingAccount } from "./rentAccounts";
 
 export function entryAccountGroups(accounts: Account[], meId: string) {
-  const available = accounts.filter(a => !a.deleted && !a.archived);
+  const available = accounts.filter(a => !a.deleted && !a.archived && !isHoldingAccount(a));
   return {
     mine: available.filter(a => !!meId && a.ownerMemberId === meId).sort((a, b) => a.sort - b.sort),
     more: available.filter(a => a.scope === "family" && (!meId || a.ownerMemberId !== meId)).sort((a, b) => a.sort - b.sort),

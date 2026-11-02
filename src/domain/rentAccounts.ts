@@ -1,4 +1,12 @@
-import type { Snapshot } from "./types";
+import type { Account, Snapshot } from "./types";
+
+/** Deposit and prepaid balances are internal holdings of rent and deposit plans, not user accounts. */
+export function isHoldingAccount(a: Pick<Account, "kind">) {
+  return a.kind === "deposit" || a.kind === "prepaid";
+}
+export function holdingName(a: Pick<Account, "kind">) {
+  return a.kind === "deposit" ? "押金" : "预付余额";
+}
 
 // Hide rental bookkeeping accounts from everyday lists, while retaining their
 // balances, transactions and management through the rental plan.

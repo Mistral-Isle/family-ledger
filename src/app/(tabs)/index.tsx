@@ -37,6 +37,7 @@ import { today } from "../../domain/date";
 import { zh } from "../../i18n/zh";
 import type { Txn, TxnType } from "../../domain/types";
 import { financialRow, financialRowGroups } from "../../domain/financialRows";
+import { holdingName, isHoldingAccount } from "../../domain/rentAccounts";
 
 const SelectionContext = createContext({
   active: false,
@@ -385,7 +386,7 @@ function TransactionRow({ txn }: { txn: Txn }) {
                   </Row>
                 ) : account ? (
                   <Txt size={12} color={t.muted} numberOfLines={1}>
-                    {account.name}
+                    {isHoldingAccount(account) ? holdingName(account) : account.name}
                     {account.last4 ? ` · ${account.last4}` : ""}
                   </Txt>
                 ) : null}

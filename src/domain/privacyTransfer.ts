@@ -1,4 +1,5 @@
 import type { Snapshot, Txn } from "./types";
+import { holdingName, isHoldingAccount } from "./rentAccounts";
 export const privacyAccountId = (memberId: string) => "privacy:" + memberId;
 export const privacyMemberId = (id: string | null | undefined) =>
   id?.startsWith("privacy:") ? id.slice(8) : null;
@@ -6,9 +7,9 @@ export function transferAccountName(s: Snapshot, id: string | null) {
   if (!id) return "账外";
   const member = privacyMemberId(id);
   if (member) return member === s.meId ? "我的隐私账户" : "对方的隐私账户";
-  return (
-    s.accounts.find((a) => a.id === id && a.scope === "family")?.name ?? "账户"
-  );
+  const account = s.accounts.find((a) => a.id === id && a.scope === "family");
+  if (account && isHoldingAccount(account)) return holdingName(account);
+  return account?.name ?? "账户";
 }
 export function transferDirection(s: Snapshot, t: Txn) {
   if (!t.accountId) return "转入";

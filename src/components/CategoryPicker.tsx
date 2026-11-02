@@ -2,18 +2,22 @@ import { useState } from "react";
 import { Modal, Pressable, ScrollView, View } from "react-native";
 import { useLedger } from "./LedgerProvider";
 import { Button, Icon, IconButton, Row, Txt, useTheme } from "./ui";
+import { PickerBox } from "./PickerField";
 export function CategoryPicker({
   value,
   onChange,
   kind = "expense",
   label = "选择分类",
   allowAll = false,
+  field = false,
 }: {
   value: string;
   onChange: (id: string) => void;
   kind?: "expense" | "income";
   label?: string;
   allowAll?: boolean;
+  /** Render as a labelled input-sized box showing the category icon. */
+  field?: boolean;
 }) {
   const { data } = useLedger(),
     t = useTheme();
@@ -30,11 +34,24 @@ export function CategoryPicker({
   }
   return (
     <>
-      <Button
-        secondary
-        label={selected ? `${label} · ${selected.name}` : label}
-        onPress={() => setOpen(true)}
-      />
+      {field ? (
+        <PickerBox
+          label={label}
+          text={selected?.name ?? "选择分类"}
+          leading={
+            selected && (
+              <Icon name={selected.icon} color={selected.color} size={20} />
+            )
+          }
+          onPress={() => setOpen(true)}
+        />
+      ) : (
+        <Button
+          secondary
+          label={selected ? `${label} · ${selected.name}` : label}
+          onPress={() => setOpen(true)}
+        />
+      )}
       <Modal
         visible={open}
         transparent

@@ -202,7 +202,7 @@ export function validatePlanData(kind: "loan" | "deposit" | "prepaid", d: any) {
         settlement.returned < 0 ||
         settlement.deducted < 0 ||
         settlement.total !== settlement.returned + settlement.deducted ||
-        settlement.date !== d.endedAt
+        settlement.date < d.endedAt
       )
         throw new Error("租赁押金结算记录无效");
       validDate(settlement.date);
@@ -226,20 +226,46 @@ export function validatePlanData(kind: "loan" | "deposit" | "prepaid", d: any) {
     validDate(d.lastPaymentDate);
     if (d.endedAt !== undefined) {
       validDate(d.endedAt);
-      if (
-        !d.closed ||
-        d.endedAt < d.lease.start ||
-        d.endedAt < d.lastPaymentDate
-      )
+      if (!d.closed || d.endedAt < d.lease.start)
         throw new Error("租赁结束日期无效");
     }
+    // Rent may be paid late; older leases still required payment before each period.
     if (
-      d.date > d.lease.start ||
       d.lastPaymentDate < d.date ||
-      d.lastPaymentDate > schedule[d.paidPeriods - 1]!.start
+      (!d.lease.split &&
+        (d.date > d.lease.start ||
+          d.lastPaymentDate > schedule[d.paidPeriods - 1]!.start))
     )
       throw new Error("租赁付款日期无效");
+    if (d.shortfall !== undefined) {
+      const f = d.shortfall;
+      if (
+        !f ||
+        !d.closed ||
+        !Number.isSafeInteger(f.amount) ||
+        f.amount <= 0 ||
+        typeof f.accountId !== "string" ||
+        typeof f.categoryId !== "string" ||
+        f.date !== d.endedAt
+      )
+        throw new Error("押金不足补缴记录无效");
+    }
   }
+  if (
+    d.laterRefunds !== undefined &&
+    (!Array.isArray(d.laterRefunds) ||
+      !d.laterRefunds.every(
+        (r: any) =>
+          r &&
+          typeof r.date === "string" &&
+          r.date >= d.endedAt &&
+          typeof r.accountId === "string" &&
+          [r.rent, r.deposit].every((n) => Number.isSafeInteger(n) && n >= 0),
+      ))
+  )
+    throw new Error("后续退款记录无效");
+  if (d.archived !== undefined && typeof d.archived !== "boolean")
+    throw new Error("归档状态无效");
   if (
     d.expectedReturn !== undefined &&
     d.expectedReturn !== null &&

@@ -1556,10 +1556,24 @@ export class LedgerRepository {
   }
   private financialTxn(
     input: Pick<Txn, "type" | "amount" | "accountId" | "occurredAt"> &
-      Partial<Pick<Txn, "toAccountId" | "categoryId" | "note" | "refundOfId">>,
+      Partial<
+        Pick<
+          Txn,
+          "toAccountId" | "categoryId" | "note" | "refundOfId" | "payerMemberId"
+        >
+      >,
   ): Txn {
     validDate(input.occurredAt);
     assertMoney(input.amount);
+    const s = this.snapshot();
+    // Plan expenses belong to whoever paid, so they appear in that member's details.
+    const payerMemberId =
+      input.type === "expense"
+        ? input.payerMemberId !== undefined
+          ? input.payerMemberId
+          : s.accounts.find((a) => a.id === input.accountId)?.ownerMemberId ||
+            null
+        : null;
     const record: Txn = {
       ...this.stamp(),
       scope: "family",
@@ -1570,15 +1584,22 @@ export class LedgerRepository {
       categoryId: input.categoryId ?? null,
       occurredAt: input.occurredAt,
       note: input.note ?? "",
-      recorderMemberId: this.snapshot().meId,
+      recorderMemberId: s.meId,
       forWhom: "both",
       discarded: false,
       refundOfId: input.refundOfId ?? null,
       refundIncome: 0,
       refundIncomeCategoryId: null,
+      payerMemberId,
     };
     this.write("txn", record);
     return record;
+  }
+  private ownerOf(accountId: string) {
+    return (
+      this.snapshot().accounts.find((a) => a.id === accountId)
+        ?.ownerMemberId || null
+    );
   }
   private paymentAccount(id: string) {
     const a = this.snapshot().accounts.find(
@@ -1773,13 +1794,16 @@ export class LedgerRepository {
       this.putPlan("loan", plan.name, d, plan);
     });
   }
-  private depositRecords(input: {
-    expectedReturn?: string;
-    name: string;
-    amount: number;
-    paymentAccountId: string;
-    date: string;
-  }) {
+  private depositRecords(
+    input: {
+      expectedReturn?: string;
+      name: string;
+      amount: number;
+      paymentAccountId: string;
+      date: string;
+    },
+    previous?: FinancialPlan,
+  ) {
     this.paymentAccount(input.paymentAccountId);
     if (assertMoney(input.amount) <= 0) throw new Error(zh.errors.amount);
     validDate(input.date);
@@ -1804,7 +1828,7 @@ export class LedgerRepository {
       date: input.date,
       closed: false,
       txnIds: [txn.id],
-    });
+    }, previous);
   }
   createDeposit(input: {
     expectedReturn?: string;
@@ -1815,6 +1839,62 @@ export class LedgerRepository {
   }) {
     this.db.withTransactionSync(() => {
       this.depositRecords(input);
+    });
+  }
+  private standaloneDeposit(id: string) {
+    const plan = this.snapshot().plans.find(
+      (p) => p.id === id && !p.deleted && p.kind === "deposit",
+    );
+    if (!plan) throw new Error(zh.errors.missing);
+    if (
+      this.snapshot().plans.some(
+        (p) =>
+          !p.deleted &&
+          p.kind === "prepaid" &&
+          JSON.parse(p.data).depositPlanIds?.includes(id),
+      )
+    )
+      throw new Error("这是租赁的押金，请在租赁里修改或删除");
+    return plan;
+  }
+  /** Remove a deposit's bills and holding balance; the plan record is kept or replaced by the caller. */
+  private removeDepositRecords(plan: FinancialPlan) {
+    this.removePlanTxns(plan);
+    const a = this.snapshot().accounts.find(
+      (a) => a.id === JSON.parse(plan.data).accountId,
+    );
+    if (a && !a.archived)
+      this.write("account", { ...a, ...this.stamp(a), archived: true });
+  }
+  deleteDeposit(id: string) {
+    this.db.withTransactionSync(() => {
+      const plan = this.standaloneDeposit(id);
+      this.removeDepositRecords(plan);
+      this.write("plan", { ...plan, ...this.stamp(plan), deleted: true });
+    });
+  }
+  /** Correct a deposit that is still held, rebuilding its payment under the same plan. */
+  editDeposit(
+    id: string,
+    input: {
+      expectedReturn?: string;
+      name: string;
+      amount: number;
+      paymentAccountId: string;
+      date: string;
+    },
+  ) {
+    this.db.withTransactionSync(() => {
+      const plan = this.standaloneDeposit(id);
+      if (JSON.parse(plan.data).closed)
+        throw new Error("已退还的押金不能修改，可删除后重新记录");
+      this.removeDepositRecords(plan);
+      const updated = this.depositRecords(input, plan);
+      const d = JSON.parse(updated.data);
+      if (JSON.parse(plan.data).archived) {
+        d.archived = true;
+        this.putPlan("deposit", input.name, d, updated);
+      }
     });
   }
   closeDeposit(
@@ -1870,6 +1950,7 @@ export class LedgerRepository {
           categoryId,
           occurredAt: date,
           note: zh.finance.depositLoss,
+          payerMemberId: this.ownerOf(d.paymentAccountId),
         }).id,
       );
     d.closed = true;
@@ -2002,7 +2083,7 @@ export class LedgerRepository {
       this.paymentAccount(input.paymentAccountId);
       this.expenseCategory(input.categoryId);
       validDate(input.date);
-      if (input.date > input.lease.start)
+      if (!input.lease.split && input.date > input.lease.start)
         throw new Error("首次付款日期不能晚于起租日");
       assertMoney(input.deposit);
       if (input.deposit < 0) throw new Error("押金不能为负");
@@ -2021,40 +2102,207 @@ export class LedgerRepository {
         )
           throw new Error("该租约已续租，请在新租约上继续操作");
       }
-      const a = this.financialAccount(input.name, "prepaid");
-      const depositPlanIds: string[] = [];
-      if (input.deposit)
-        depositPlanIds.push(
-          this.depositRecords({
-            name: input.name + " · 押金",
-            amount: input.deposit,
-            paymentAccountId: input.paymentAccountId,
-            date: input.date,
-          }).id,
-        );
-      const d = {
-        ...input,
-        depositPlanIds,
-        accountId: a.id,
-        amount: schedule[0]!.amount,
-        months: 1,
-        startMonth: input.lease.start.slice(0, 7),
-        day: Number(input.lease.start.slice(-2)),
-        paidPeriods: 0,
-        txnIds: [] as string[],
-        closed: false,
-      };
-      this.appendLeasePayment(d, input.date);
+      const d = this.leaseRecords(input, schedule);
       this.putPlan("prepaid", input.name, d);
+    });
+  }
+  /** Holding account, deposit and the first rent payment of a new lease. */
+  private leaseRecords(
+    input: {
+      name: string;
+      paymentAccountId: string;
+      categoryId: string;
+      lease: LeaseTerms;
+      deposit: number;
+      date: string;
+      renewedFrom?: string;
+    },
+    schedule: ReturnType<typeof leaseSchedule>,
+  ) {
+    const a = this.financialAccount(input.name, "prepaid");
+    const depositPlanIds: string[] = [];
+    if (input.deposit)
+      depositPlanIds.push(
+        this.depositRecords({
+          name: input.name + " · 押金",
+          amount: input.deposit,
+          paymentAccountId: input.paymentAccountId,
+          date: input.date,
+        }).id,
+      );
+    const d = {
+      ...input,
+      depositPlanIds,
+      accountId: a.id,
+      amount: schedule[0]!.amount,
+      months: 1,
+      startMonth: input.lease.start.slice(0, 7),
+      day: Number(input.lease.start.slice(-2)),
+      paidPeriods: 0,
+      txnIds: [] as string[],
+      closed: false,
+    } as any;
+    this.appendLeasePayment(d, input.date);
+    return d;
+  }
+  private leasePlan(id: string) {
+    const plan = this.snapshot().plans.find(
+      (p) => p.id === id && !p.deleted && p.kind === "prepaid",
+    );
+    if (!plan || !JSON.parse(plan.data).lease)
+      throw new Error(zh.errors.missing);
+    return plan;
+  }
+  /** Delete every record a lease wrote, including its own deposits; the plan itself stays. */
+  private removeLeaseRecords(plan: FinancialPlan) {
+    const s = this.snapshot(),
+      d = JSON.parse(plan.data);
+    const deposits = s.plans.filter(
+      (p) =>
+        !p.deleted &&
+        p.kind === "deposit" &&
+        (d.depositPlanIds ?? []).includes(p.id),
+    );
+    const ids = new Set<string>([
+      ...d.txnIds,
+      ...deposits.flatMap((p) => JSON.parse(p.data).txnIds as string[]),
+    ]);
+    if (
+      s.txns.some(
+        (t) =>
+          !t.deleted && t.refundOfId && ids.has(t.refundOfId) && !ids.has(t.id),
+      )
+    )
+      throw new Error(zh.errors.deleteRefundSource);
+    for (const row of s.txns)
+      if (ids.has(row.id) && !row.deleted)
+        this.write("txn", { ...row, ...this.stamp(row), deleted: true });
+    for (const accountId of [
+      d.accountId,
+      ...deposits.map((p) => JSON.parse(p.data).accountId),
+    ]) {
+      const a = s.accounts.find((a) => a.id === accountId);
+      if (a && !a.archived)
+        this.write("account", { ...a, ...this.stamp(a), archived: true });
+    }
+    for (const p of deposits)
+      this.write("plan", { ...p, ...this.stamp(p), deleted: true });
+  }
+  deleteLease(id: string) {
+    this.db.withTransactionSync(() => {
+      const plan = this.leasePlan(id);
+      if (
+        this.snapshot().plans.some(
+          (p) => !p.deleted && JSON.parse(p.data).renewedFrom === id,
+        )
+      )
+        throw new Error("已有后续租约，请先删除后续租约");
+      this.removeLeaseRecords(plan);
+      this.write("plan", { ...plan, ...this.stamp(plan), deleted: true });
+    });
+  }
+  /**
+   * Correct a lease entered wrongly: rebuild every record from the new terms,
+   * replaying rent already paid on its original payment dates.
+   */
+  editLease(
+    id: string,
+    input: {
+      name: string;
+      paymentAccountId: string;
+      categoryId: string;
+      lease: LeaseTerms;
+      deposit: number;
+      date: string;
+    },
+  ) {
+    this.db.withTransactionSync(() => {
+      const plan = this.leasePlan(id),
+        old = JSON.parse(plan.data),
+        s = this.snapshot();
+      if (old.closed)
+        throw new Error("已结束的租赁不能修改，可删除后重新记录");
+      const paidDates = (old.txnIds as string[])
+        .map((txnId) => s.txns.find((t) => t.id === txnId))
+        .filter(
+          (t): t is Txn =>
+            !!t &&
+            !t.deleted &&
+            t.type === "transfer" &&
+            t.toAccountId === old.accountId,
+        )
+        .map((t) => t.occurredAt)
+        .sort();
+      const lease: LeaseTerms = { ...input.lease };
+      const schedule = leaseSchedule(lease);
+      const changes = (old.lease.rentChanges ?? []).filter(
+        (c: { fromPeriod: number }) => c.fromPeriod < schedule.length,
+      );
+      if (changes.length) lease.rentChanges = changes;
+      this.paymentAccount(input.paymentAccountId);
+      this.expenseCategory(input.categoryId);
+      validDate(input.date);
+      assertMoney(input.deposit);
+      if (input.deposit < 0) throw new Error("押金不能为负");
+      this.removeLeaseRecords(plan);
+      const d = this.leaseRecords(
+        { ...input, lease, renewedFrom: old.renewedFrom },
+        leaseSchedule(lease),
+      );
+      for (const date of paidDates.slice(1)) {
+        if (!leaseSchedule(lease)[d.paidPeriods]) break;
+        this.appendLeasePayment(d, date < d.lastPaymentDate ? d.lastPaymentDate : date);
+      }
+      if (old.archived) d.archived = true;
+      this.putPlan("prepaid", input.name, d, plan);
+    });
+  }
+  /** Renew in place: move the end date later, optionally with a new rent for the added periods. */
+  extendLease(id: string, end: string, rent?: number) {
+    this.db.withTransactionSync(() => {
+      const plan = this.leasePlan(id),
+        d = JSON.parse(plan.data);
+      if (d.closed) throw new Error("租赁已结束");
+      validDate(end);
+      if (end <= d.lease.end) throw new Error("新到期日须晚于原到期日");
+      const before = leaseSchedule(d.lease);
+      const lease: LeaseTerms = { ...d.lease, end };
+      const current = d.lease.rentChanges?.at(-1)?.rent ?? d.lease.rent;
+      if (rent !== undefined && rent !== current) {
+        if (assertMoney(rent) <= 0) throw new Error("租金须大于零");
+        lease.rentChanges = [
+          ...(d.lease.rentChanges ?? []).filter(
+            (c: { fromPeriod: number }) => c.fromPeriod < before.length,
+          ),
+          { fromPeriod: before.length, rent },
+        ];
+      }
+      const after = leaseSchedule(lease);
+      // Periods already paid must keep their dates and amounts.
+      if (
+        before
+          .slice(0, d.paidPeriods)
+          .some(
+            (p, i) =>
+              after[i]?.start !== p.start ||
+              after[i]?.end !== p.end ||
+              after[i]?.amount !== p.amount,
+          )
+      )
+        throw new Error("最后一期已按原到期日交过租，请先结束本租约再新建");
+      d.lease = lease;
+      this.putPlan("prepaid", plan.name, d, plan);
     });
   }
   private appendLeasePayment(d: any, date: string) {
     const period = leaseSchedule(d.lease)[d.paidPeriods];
     if (!period) throw new Error("当前租期的租金已全部记录，可办理续租");
     validDate(date);
-    if (date > period.start || (d.lastPaymentDate && date < d.lastPaymentDate))
-      throw new Error("付款日期不能晚于本期开始日期，也不能早于上次付款日期");
-    this.paymentAccount(d.paymentAccountId);
+    if (d.lastPaymentDate && date < d.lastPaymentDate)
+      throw new Error("付款日期不能早于上次付款日期");
+    if (!d.lease.split && date > period.start)
+      throw new Error("付款日期不能晚于本期开始日期");
+    const payer = this.paymentAccount(d.paymentAccountId).ownerMemberId || null;
     this.expenseCategory(d.categoryId);
     d.txnIds.push(
       this.financialTxn({
@@ -2066,7 +2314,7 @@ export class LedgerRepository {
         note: d.name + " · 第 " + (d.paidPeriods + 1) + " 期租金",
       }).id,
     );
-    for (const part of leaseParts(period))
+    for (const part of leaseParts(period, d.lease))
       d.txnIds.push(
         this.financialTxn({
           type: "expense",
@@ -2074,7 +2322,8 @@ export class LedgerRepository {
           accountId: d.accountId,
           categoryId: d.categoryId,
           occurredAt: part.date,
-          note: d.name + " · 租金分摊",
+          note: d.name + (d.lease.split === "none" ? " · 租金" : " · 租金分摊"),
+          payerMemberId: payer,
         }).id,
       );
     d.paidPeriods++;
@@ -2132,6 +2381,8 @@ export class LedgerRepository {
       categoryId: string;
     },
     rentSettlement?: { returned: number; accountId: string },
+    /** Extra payment when the deposit does not cover the landlord's deductions. */
+    shortfall?: { amount: number; accountId: string; categoryId: string },
   ) {
     this.db.withTransactionSync(() => {
       const plan = this.snapshot().plans.find(
@@ -2140,9 +2391,25 @@ export class LedgerRepository {
       if (!plan) throw new Error(zh.errors.missing);
       const d = JSON.parse(plan.data);
       if (!d.lease || d.closed) throw new Error("租赁已结束或不存在");
+      if (shortfall?.amount) {
+        if (assertMoney(shortfall.amount) < 0)
+          throw new Error("补缴金额不能为负");
+        const payer = this.paymentAccount(shortfall.accountId);
+        this.expenseCategory(shortfall.categoryId);
+        d.txnIds.push(
+          this.financialTxn({
+            type: "expense",
+            amount: shortfall.amount,
+            accountId: payer.id,
+            categoryId: shortfall.categoryId,
+            occurredAt: date,
+            note: plan.name + " · 押金不足补缴",
+          }).id,
+        );
+        d.shortfall = { ...shortfall, date };
+      }
       validDate(date);
-      if (date < d.lease.start || date < d.lastPaymentDate || date > today())
-        throw new Error("结束日期须在起租及最近付款之后，且不能晚于今天");
+      if (date < d.lease.start) throw new Error("结束日期不能早于起租日");
       const exit = leaseExit(d.lease, d.paidPeriods, date);
       if (exit.unused > 0 && !rentSettlement)
         throw new Error("请填写提前退租实际退回的租金，未退回填 0");
@@ -2216,6 +2483,7 @@ export class LedgerRepository {
               categoryId: d.categoryId,
               occurredAt: date,
               note: plan.name + " · 提前退租未退租金",
+              payerMemberId: this.ownerOf(d.paymentAccountId),
             }).id,
           );
         }
@@ -2243,54 +2511,163 @@ export class LedgerRepository {
           date,
         };
       }
-      if (settlement) {
-        const ids = settlement.depositIds;
-        if (!ids.length || new Set(ids).size !== ids.length)
-          throw new Error("请选择待结算的押金");
-        const s = this.snapshot();
-        const deposits = ids.map((depositId) => {
-          const deposit = s.plans.find(
-            (p) => p.id === depositId && !p.deleted && p.kind === "deposit",
-          );
-          if (!deposit || JSON.parse(deposit.data).closed)
-            throw new Error("押金已结算或不存在，请刷新后重试");
-          const account = s.accounts.find(
-            (a) => a.id === JSON.parse(deposit.data).accountId,
-          );
-          if (!account) throw new Error(zh.errors.missing);
-          return { id: depositId, balance: accountBalance(account, s.txns) };
-        });
-        const balance = deposits.reduce(
-          (sum, p) => assertMoney(sum + p.balance),
-          0,
-        );
-        if (
-          assertMoney(settlement.returned) < 0 ||
-          settlement.returned > balance
-        )
-          throw new Error("实际退回金额须在 0 与押金余额之间");
-        let remaining = settlement.returned;
-        for (const deposit of deposits) {
-          const returned = Math.min(remaining, deposit.balance);
-          this.closeDepositRecords(
-            deposit.id,
-            returned,
-            settlement.accountId,
-            settlement.categoryId,
-            date,
-          );
-          remaining -= returned;
-        }
-        d.depositSettlement = {
-          ...settlement,
-          total: balance,
-          deducted: balance - settlement.returned,
-          date,
-        };
-      }
+      if (settlement) this.settleLeaseDeposits(d, settlement, date);
       d.closed = true;
       d.endedAt = date;
       this.putPlan("prepaid", plan.name, d, plan);
+    });
+  }
+  /** Close the chosen lease deposits; later settlements add to an earlier one. */
+  private settleLeaseDeposits(
+    d: any,
+    settlement: {
+      depositIds: string[];
+      returned: number;
+      accountId: string;
+      categoryId: string;
+    },
+    date: string,
+  ) {
+    const ids = settlement.depositIds;
+    if (!ids.length || new Set(ids).size !== ids.length)
+      throw new Error("请选择待结算的押金");
+    const s = this.snapshot();
+    const deposits = ids.map((depositId) => {
+      const deposit = s.plans.find(
+        (p) => p.id === depositId && !p.deleted && p.kind === "deposit",
+      );
+      if (!deposit || JSON.parse(deposit.data).closed)
+        throw new Error("押金已结算或不存在，请刷新后重试");
+      const account = s.accounts.find(
+        (a) => a.id === JSON.parse(deposit.data).accountId,
+      );
+      if (!account) throw new Error(zh.errors.missing);
+      return { id: depositId, balance: accountBalance(account, s.txns) };
+    });
+    const balance = deposits.reduce(
+      (sum, p) => assertMoney(sum + p.balance),
+      0,
+    );
+    if (assertMoney(settlement.returned) < 0 || settlement.returned > balance)
+      throw new Error("实际退回金额须在 0 与押金余额之间");
+    let remaining = settlement.returned;
+    for (const deposit of deposits) {
+      const returned = Math.min(remaining, deposit.balance);
+      this.closeDepositRecords(
+        deposit.id,
+        returned,
+        settlement.accountId,
+        settlement.categoryId,
+        date,
+      );
+      remaining -= returned;
+    }
+    const earlier = d.depositSettlement;
+    d.depositSettlement = {
+      ...settlement,
+      depositIds: [...(earlier?.depositIds ?? []), ...ids],
+      returned: (earlier?.returned ?? 0) + settlement.returned,
+      total: (earlier?.total ?? 0) + balance,
+      deducted: (earlier?.deducted ?? 0) + balance - settlement.returned,
+      date,
+    };
+  }
+  /**
+   * Money that arrives after a lease ended: the remaining deposit, and rent the
+   * landlord refunds late. Late rent first offsets the recorded loss, then the
+   * latest rent expenses, so monthly spending stays accurate.
+   */
+  leaseLaterRefund(
+    id: string,
+    date: string,
+    input: {
+      accountId: string;
+      rent: number;
+      deposit?: { depositIds: string[]; returned: number; categoryId: string };
+    },
+  ) {
+    this.db.withTransactionSync(() => {
+      const plan = this.snapshot().plans.find(
+        (p) => p.id === id && !p.deleted && p.kind === "prepaid",
+      );
+      if (!plan) throw new Error(zh.errors.missing);
+      const d = JSON.parse(plan.data);
+      if (!d.lease || !d.closed) throw new Error("租赁尚未结束");
+      validDate(date);
+      if (date < d.endedAt) throw new Error("退款日期不能早于结束日期");
+      this.paymentAccount(input.accountId);
+      const rent = assertMoney(input.rent);
+      if (rent < 0) throw new Error(zh.errors.amount);
+      if (!rent && !input.deposit) throw new Error("请填写退款金额");
+      if (input.deposit)
+        this.settleLeaseDeposits(
+          d,
+          { ...input.deposit, accountId: input.accountId },
+          date,
+        );
+      if (rent) {
+        const s = this.snapshot();
+        const refunded = (txnId: string) =>
+          s.txns
+            .filter((t) => !t.deleted && t.refundOfId === txnId)
+            .reduce((sum, t) => sum + t.amount, 0);
+        const expenses = (d.txnIds as string[])
+          .map((txnId) => s.txns.find((t) => t.id === txnId))
+          .filter(
+            (t): t is Txn =>
+              !!t &&
+              !t.deleted &&
+              !t.discarded &&
+              t.type === "expense" &&
+              t.accountId === d.accountId,
+          )
+          .sort(
+            (a, b) =>
+              Number(b.note.includes("未退租金")) -
+                Number(a.note.includes("未退租金")) ||
+              b.occurredAt.localeCompare(a.occurredAt),
+          );
+        let remaining = rent;
+        for (const txn of expenses) {
+          const amount = Math.min(remaining, txn.amount - refunded(txn.id));
+          if (amount <= 0) continue;
+          d.txnIds.push(
+            this.financialTxn({
+              type: "refund",
+              amount,
+              accountId: input.accountId,
+              categoryId: txn.categoryId,
+              refundOfId: txn.id,
+              occurredAt: date,
+              note: plan.name + " · 租金后续退款",
+            }).id,
+          );
+          remaining -= amount;
+          if (!remaining) break;
+        }
+        if (remaining) throw new Error("退回租金超过已付租金");
+      }
+      d.laterRefunds = [
+        ...(d.laterRefunds ?? []),
+        {
+          date,
+          rent,
+          deposit: input.deposit?.returned ?? 0,
+          accountId: input.accountId,
+        },
+      ];
+      this.putPlan("prepaid", plan.name, d, plan);
+    });
+  }
+  /** Archived plans leave the active list; their records stay in details and statistics. */
+  archivePlan(id: string, archived: boolean) {
+    this.db.withTransactionSync(() => {
+      const plan = this.snapshot().plans.find((p) => p.id === id && !p.deleted);
+      if (!plan) throw new Error(zh.errors.missing);
+      const d = JSON.parse(plan.data);
+      if (archived) d.archived = true;
+      else delete d.archived;
+      this.putPlan(plan.kind, plan.name, d, plan);
     });
   }
   createRent(input: {

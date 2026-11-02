@@ -1,10 +1,12 @@
 import { Popover } from "../components/HelpBubble";
-import { LeaseForm, LeaseDetails } from "../components/LeaseForm";
+import { LeaseCard } from "../components/LeaseForm";
+import { DepositCard } from "../components/DepositCard";
+import { leaseLinkedDepositIds } from "../domain/leaseDeposits";
 import { CategoryPicker } from "../components/CategoryPicker";
 import { useSubmissionGuard } from "../components/useSubmissionGuard";
 import { DateField } from "../components/DateField";
 import { useState } from "react";
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useLedger } from "../components/LedgerProvider";
 import {
@@ -14,6 +16,7 @@ import {
   ErrorText,
   Field,
   Heading,
+  Icon,
   IconButton,
   Page,
   Txt,
@@ -33,16 +36,11 @@ export default function Finance() {
   const { kind: requested } = useLocalSearchParams<{ kind?: string }>();
   const { data, repo, run } = useLedger(),
     router = useRouter();
+  // Standalone cost splitting is retired; rent spreading is a switch inside the lease.
   const [kind, setKind] = useState<"loan" | "deposit" | "prepaid" | "rent">(
-      requested === "rent"
-        ? "rent"
-        : requested === "prepaid"
-          ? "prepaid"
-          : "loan",
+      requested === "loan" || requested === "deposit" ? requested : "rent",
     ),
-    [creating, setCreating] = useState(
-      requested === "prepaid" || requested === "rent",
-    ),
+    [creating, setCreating] = useState(false),
     [expectedReturn, setExpectedReturn] = useState(""),
     [name, setName] = useState(""),
     [amount, setAmount] = useState(""),
@@ -244,51 +242,54 @@ export default function Finance() {
           <IconButton
             name="xmark"
             label={zh.close}
-            onPress={() => router.back()}
+            // After a browser refresh there is no previous page to return to.
+            onPress={() =>
+              router.canGoBack() ? router.back() : router.replace("/assets")
+            }
           />
         }
       />
       <ErrorText message={error} />
       {!!message && <Txt>{message}</Txt>}
       <View style={styles.wrap}>
-        {(["loan", "deposit", "prepaid", "rent"] as const).map((k) => (
+        {(["rent", "loan", "deposit"] as const).map((k) => (
           <Chip
             key={k}
             label={zh.finance[k]}
             selected={kind === k}
             onPress={() => {
               setKind(k);
-              setCreating(true);
+              setCreating(false);
               setEditing("");
               setAction(null);
               setMessage("");
+              setError("");
             }}
           />
         ))}
       </View>
-      {!creating && (
+      {kind === "rent" || kind === "deposit" ? (
         <Button
-          secondary
-          label={zh.addPlan + " · " + zh.finance[kind]}
-          onPress={() => {
-            setCreating(!creating);
-            setEditing("");
-            setAction(null);
-          }}
+          icon="plus"
+          label={kind === "rent" ? "新增租赁" : "新增押金"}
+          onPress={() =>
+            router.push(kind === "rent" ? "/lease-new" : "/deposit-new")
+          }
         />
-      )}
-      {creating && kind === "rent" && (
-        <Card style={{ padding: 14, gap: 8 }}>
-          <LeaseForm
-            onSaved={() => {
-              setCreating(false);
-              setMessage(zh.finance.created);
+      ) : (
+        !creating && (
+          <Button
+            secondary
+            label={zh.addPlan + " · " + zh.finance[kind]}
+            onPress={() => {
+              setCreating(true);
+              setEditing("");
+              setAction(null);
             }}
-            onCancel={() => setCreating(false)}
           />
-        </Card>
+        )
       )}
-      {creating && kind !== "rent" && (
+      {creating && ((kind !== "rent" && kind !== "deposit") || !!editing) && (
         <Card style={{ gap: 12 }}>
           <Field label={zh.finance.name} value={name} onChangeText={setName} />
           <View style={{ flexDirection: "row", gap: 12, flexWrap: "wrap" }}>
@@ -475,163 +476,235 @@ export default function Finance() {
           <Button secondary label={zh.cancel} onPress={() => setAction(null)} />
         </Card>
       )}
-      {data.plans
-        .filter((p) => !p.deleted)
-        .map((p) => {
-          const d = JSON.parse(p.data),
-            a = data.accounts.find((a) => a.id === d.accountId);
-          if (!a)
-            return (
-              <Card key={p.id} style={{ gap: 12 }}>
-                <Txt>{p.name} · 等待同步账户</Txt>
-              </Card>
-            );
-          const balance = accountBalance(a, data.txns, today());
-          const projection =
-            p.kind === "loan"
-              ? loanProjection(d as LoanData, Math.max(0, -balance))
-              : null;
-          const begin = (mode: "pay" | "settle" | "calibrate" | "return") => {
-            setAction({ id: p.id, mode });
-            setCreating(false);
-            setActionDate(today());
-            setInterest("0");
-            setActionAmount(
-              moneyInput(
-                p.kind === "loan"
-                  ? mode === "pay"
-                    ? Math.min(d.monthlyPayment, -balance)
-                    : -balance
-                  : balance,
+      {(() => {
+        const linked = leaseLinkedDepositIds(data);
+        // Each tab lists its own plans; the rent tab also keeps older cost-split groups.
+        const visible = data.plans.filter(
+          (p) =>
+            !p.deleted &&
+            !linked.has(p.id) &&
+            (kind === "rent" ? p.kind === "prepaid" : p.kind === kind),
+        );
+        const archivedPlans = visible.filter(
+          (p) => JSON.parse(p.data).archived,
+        );
+        const shown = visible.filter((p) => !JSON.parse(p.data).archived);
+        return (
+          <>
+            {shown.map((p) =>
+              JSON.parse(p.data).lease ? (
+                <LeaseCard key={p.id} plan={p} />
+              ) : p.kind === "deposit" ? (
+                <DepositCard key={p.id} plan={p} />
+              ) : (
+                planCard(p)
               ),
-            );
-            setPaymentAccount(d.paymentAccountId);
-            setError("");
-            setMessage("");
-          };
-          return (
-            <Card key={p.id} style={{ gap: 12 }}>
-              <Txt bold>
-                {p.name} · {d.lease ? zh.finance.rent : zh.finance[p.kind]}
+            )}
+            {!shown.length && (
+              <Txt size={13}>
+                {kind === "rent"
+                  ? "还没有租赁，点上方“新增租赁”开始记录。"
+                  : kind === "deposit"
+                    ? "还没有押金，点上方“新增押金”开始记录。"
+                    : "暂无记录"}
               </Txt>
-              <Txt>{formatMoney(p.kind === "loan" ? -balance : balance)}</Txt>
-              {d.closed && <Txt>{zh.finance.closed}</Txt>}
-              {p.kind === "deposit" && d.expectedReturn && (
-                <Txt>
-                  {zh.finance.expectedReturn} · {d.expectedReturn}
-                </Txt>
-              )}
-              {projection && (
-                <>
-                  <Txt>
-                    {zh.finance.paid} {d.paidPeriods}/{d.totalPeriods} ·{" "}
-                    {zh.finance.freeRemaining} {projection.freeRemaining}
-                  </Txt>
-                  <View
-                    style={{
-                      height: 6,
-                      backgroundColor: "#dce2ea",
-                      borderRadius: 3,
-                    }}
-                  >
-                    <View
-                      style={{
-                        position: "absolute",
-                        left: `${(d.interestFreePeriods * 100) / d.totalPeriods}%`,
-                        top: -3,
-                        height: 12,
-                        width: 2,
-                        backgroundColor: "#d77d66",
-                        zIndex: 1,
-                      }}
-                    />
-                    <View
-                      style={{
-                        height: 6,
-                        width: `${(d.paidPeriods * 100) / d.totalPeriods}%`,
-                        backgroundColor: "#648BD2",
-                        borderRadius: 3,
-                      }}
-                    />
-                  </View>
-                  <Txt size={11}>
-                    {zh.finance.free} · {d.interestFreePeriods}/{d.totalPeriods}
-                  </Txt>
-                  <Txt>
-                    {zh.finance.nextDue} · {d.nextDueDate}
-                  </Txt>
-                  <Txt>
-                    {zh.finance.settle} · {projection.deadline} ·{" "}
-                    {formatMoney(projection.amount)} · {projection.days}{" "}
-                    {zh.reports.days}
-                  </Txt>
-                  {projection.estimated && <Txt>{zh.finance.estimated}</Txt>}
-                  {!d.closed && (
-                    <>
-                      <Button
-                        secondary
-                        label={zh.finance.payment}
-                        onPress={() => begin("pay")}
-                      />
-                      <Button
-                        secondary
-                        label={zh.finance.payoff}
-                        onPress={() => begin("settle")}
-                      />
-                    </>
-                  )}
-                  <Button
-                    secondary
-                    label={zh.finance.calibrate}
-                    onPress={() => begin("calibrate")}
-                  />
-                </>
-              )}
-              {p.kind === "deposit" && !d.closed && (
-                <Button
-                  secondary
-                  label={zh.finance.refundDeposit}
-                  onPress={() => begin("return")}
-                />
-              )}
-              {p.kind === "prepaid" && d.lease && <LeaseDetails plan={p} />}
-              {p.kind === "prepaid" && !d.lease && (
-                <>
-                  <Txt>
-                    {d.startMonth} · {d.months} {zh.reports.month}
-                  </Txt>
-                  <Button
-                    secondary
-                    label={zh.finance.editGroup}
-                    onPress={() => {
-                      setEditing(p.id);
-                      setKind("prepaid");
-                      setCreating(true);
-                      setName(p.name);
-                      setAmount(moneyInput(d.amount));
-                      setPaymentAccount(d.paymentAccountId);
-                      setCategory(d.categoryId);
-                      setDate(d.date);
-                      setStartMonth(d.startMonth);
-                      setMonths(String(d.months));
-                      setDay(String(d.day));
-                      setAction(null);
-                    }}
-                  />
-                  <Button
-                    secondary
-                    label={zh.finance.deleteGroup}
-                    onPress={() =>
-                      confirmAction(zh.finance.deleteGroup, p.name, () =>
-                        perform(() => repo.deletePrepayment(p.id), false),
-                      )
-                    }
-                  />
-                </>
-              )}
-            </Card>
-          );
-        })}
+            )}
+            {!!archivedPlans.length && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`查看已归档 ${archivedPlans.length} 条`}
+                onPress={() =>
+                  router.push({
+                    pathname: "/finance-archive",
+                    params: { kind },
+                  })
+                }
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  paddingVertical: 12,
+                }}
+              >
+                <Txt>已归档 {archivedPlans.length} 条</Txt>
+                <Icon name="chevron.right" size={13} />
+              </Pressable>
+            )}
+          </>
+        );
+      })()}
     </Page>
   );
+  function planCard(p: (typeof data.plans)[number]) {
+    const d = JSON.parse(p.data),
+      a = data.accounts.find((a) => a.id === d.accountId);
+    if (!a)
+      return (
+        <Card key={p.id} style={{ gap: 12 }}>
+          <Txt>{p.name} · 等待同步账户</Txt>
+        </Card>
+      );
+    const balance = accountBalance(a, data.txns, today());
+    const projection =
+      p.kind === "loan"
+        ? loanProjection(d as LoanData, Math.max(0, -balance))
+        : null;
+    const begin = (mode: "pay" | "settle" | "calibrate" | "return") => {
+      setAction({ id: p.id, mode });
+      setCreating(false);
+      setActionDate(today());
+      setInterest("0");
+      setActionAmount(
+        moneyInput(
+          p.kind === "loan"
+            ? mode === "pay"
+              ? Math.min(d.monthlyPayment, -balance)
+              : -balance
+            : balance,
+        ),
+      );
+      setPaymentAccount(d.paymentAccountId);
+      setError("");
+      setMessage("");
+    };
+    return (
+      <Card key={p.id} style={{ gap: 12 }}>
+        <Txt bold>
+          {p.name} · {d.lease ? zh.finance.rent : zh.finance[p.kind]}
+        </Txt>
+        {!d.lease && (
+          <Txt>{formatMoney(p.kind === "loan" ? -balance : balance)}</Txt>
+        )}
+        {d.closed && <Txt>{zh.finance.closed}</Txt>}
+        {p.kind === "deposit" && d.expectedReturn && (
+          <Txt>
+            {zh.finance.expectedReturn} · {d.expectedReturn}
+          </Txt>
+        )}
+        {projection && (
+          <>
+            <Txt>
+              {zh.finance.paid} {d.paidPeriods}/{d.totalPeriods} ·{" "}
+              {zh.finance.freeRemaining} {projection.freeRemaining}
+            </Txt>
+            <View
+              style={{
+                height: 6,
+                backgroundColor: "#dce2ea",
+                borderRadius: 3,
+              }}
+            >
+              <View
+                style={{
+                  position: "absolute",
+                  left: `${(d.interestFreePeriods * 100) / d.totalPeriods}%`,
+                  top: -3,
+                  height: 12,
+                  width: 2,
+                  backgroundColor: "#d77d66",
+                  zIndex: 1,
+                }}
+              />
+              <View
+                style={{
+                  height: 6,
+                  width: `${(d.paidPeriods * 100) / d.totalPeriods}%`,
+                  backgroundColor: "#648BD2",
+                  borderRadius: 3,
+                }}
+              />
+            </View>
+            <Txt size={11}>
+              {zh.finance.free} · {d.interestFreePeriods}/{d.totalPeriods}
+            </Txt>
+            <Txt>
+              {zh.finance.nextDue} · {d.nextDueDate}
+            </Txt>
+            <Txt>
+              {zh.finance.settle} · {projection.deadline} ·{" "}
+              {formatMoney(projection.amount)} · {projection.days}{" "}
+              {zh.reports.days}
+            </Txt>
+            {projection.estimated && <Txt>{zh.finance.estimated}</Txt>}
+            {!d.closed && (
+              <>
+                <Button
+                  secondary
+                  label={zh.finance.payment}
+                  onPress={() => begin("pay")}
+                />
+                <Button
+                  secondary
+                  label={zh.finance.payoff}
+                  onPress={() => begin("settle")}
+                />
+              </>
+            )}
+            <Button
+              secondary
+              label={zh.finance.calibrate}
+              onPress={() => begin("calibrate")}
+            />
+          </>
+        )}
+        {p.kind === "deposit" && !d.closed && (
+          <Button
+            secondary
+            label={zh.finance.refundDeposit}
+            onPress={() => begin("return")}
+          />
+        )}
+        {p.kind === "prepaid" && !d.lease && (
+          <>
+            <Txt>
+              {d.startMonth} · {d.months} {zh.reports.month}
+            </Txt>
+            <Button
+              secondary
+              label={zh.finance.editGroup}
+              onPress={() => {
+                setEditing(p.id);
+                setKind("prepaid");
+                setCreating(true);
+                setName(p.name);
+                setAmount(moneyInput(d.amount));
+                setPaymentAccount(d.paymentAccountId);
+                setCategory(d.categoryId);
+                setDate(d.date);
+                setStartMonth(d.startMonth);
+                setMonths(String(d.months));
+                setDay(String(d.day));
+                setAction(null);
+              }}
+            />
+            <Button
+              secondary
+              label={zh.finance.deleteGroup}
+              onPress={() =>
+                confirmAction(zh.finance.deleteGroup, p.name, () =>
+                  perform(() => repo.deletePrepayment(p.id), false),
+                )
+              }
+            />
+          </>
+        )}
+        <Button
+          secondary
+          label={d.archived ? "取消归档" : "归档"}
+          onPress={() => {
+            const archived = !d.archived;
+            const apply = () =>
+              perform(() => repo.archivePlan(p.id, archived), false);
+            if (archived && !d.closed)
+              confirmAction(
+                "归档进行中的记录？",
+                "归档后从进行中列表移到“已归档”，已入账的明细和统计不受影响，可随时取消归档。",
+                apply,
+              );
+            else apply();
+          }}
+        />
+      </Card>
+    );
+  }
 }

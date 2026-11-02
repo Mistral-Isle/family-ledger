@@ -20,6 +20,10 @@ export function formatMoney(cents: number, symbol = true): string {
   const [whole = "0", decimal = "00"] = moneyInput(cents).split(".");
   return `${symbol ? zh.currency : ""}${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${decimal}`;
 }
+/** Optional amount fields show "0.00" when empty, so treat blank as zero. */
+export function optionalAmount(input: string): number {
+  return input.trim() ? calculate(input) : 0;
+}
 // Exact rational arithmetic; round only the final result to cents, half away
 // from zero. Never execute user input or use floating-point money arithmetic.
 export function calculate(input: string): number {

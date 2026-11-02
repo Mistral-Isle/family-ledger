@@ -45,3 +45,26 @@ export function leaseDepositIds(s: Snapshot, leaseId: string): string[] {
     ),
   );
 }
+
+/** Deposits that belong to a lease are shown inside the lease, not as separate plans. */
+export function leaseLinkedDepositIds(s: Snapshot): Set<string> {
+  const ids = new Set<string>();
+  const plans = s.plans.filter((p) => !p.deleted);
+  for (const plan of plans) {
+    if (plan.kind !== "prepaid") continue;
+    const d = JSON.parse(plan.data);
+    if (!d.lease) continue;
+    for (const id of d.depositPlanIds ?? []) ids.add(id);
+    if (Array.isArray(d.depositPlanIds)) continue;
+    for (const p of plans)
+      if (p.kind === "deposit" && p.name === plan.name + " · 押金") {
+        const deposit = JSON.parse(p.data);
+        if (
+          deposit.date === d.date &&
+          deposit.paymentAccountId === d.paymentAccountId
+        )
+          ids.add(p.id);
+      }
+  }
+  return ids;
+}

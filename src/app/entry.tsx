@@ -1282,10 +1282,7 @@ function Entry() {
                               label={zh.finance.rent}
                               onPress={() => {
                                 setOptions(false);
-                                router.push({
-                                  pathname: "/finance",
-                                  params: { kind: "rent" },
-                                });
+                                router.push("/lease-new");
                               }}
                             />
                           )}
