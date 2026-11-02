@@ -2,17 +2,17 @@ import { useRef, useState, useEffect, type ReactNode } from "react";
 import {
   Animated,
   Easing,
+  Keyboard,
   Modal,
   Platform,
   Pressable,
-  ScrollView,
   View,
   useWindowDimensions,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Icon, Txt, useTheme } from "./ui";
+import { FormScrollView, Icon, Txt, useTheme } from "./ui";
 import { useReducedMotion } from "./useReducedMotion";
 
 /** Anchored, dismissible explanations and contextual menus share one surface. */
@@ -72,6 +72,15 @@ export function Popover({
     }).start();
   };
   useEffect(() => () => progress.stopAnimation(), [progress]);
+  const [keyboard, setKeyboard] = useState(0);
+  const open = !!anchor;
+  useEffect(() => {
+    if (!open) return;
+    const ios = Platform.OS === "ios";
+    const shown = Keyboard.addListener(ios ? "keyboardWillShow" : "keyboardDidShow", (e) => setKeyboard(e.endCoordinates.height));
+    const hidden = Keyboard.addListener(ios ? "keyboardWillHide" : "keyboardDidHide", () => setKeyboard(0));
+    return () => { shown.remove(); hidden.remove(); setKeyboard(0); };
+  }, [open]);
   useEffect(() => {
     if (!anchor || Platform.OS !== "web") return;
     const escape = (event: KeyboardEvent) => {
@@ -163,7 +172,10 @@ export function Popover({
                     width - bubbleWidth - 16,
                   ),
                 ),
-                ...(below
+                // An input inside the bubble would otherwise sit behind the keyboard.
+                ...(keyboard
+                  ? { bottom: keyboard + 8 }
+                  : below
                   ? {
                       top: Math.max(
                         insets.top + 8,
@@ -177,7 +189,7 @@ export function Popover({
                       ),
                     }),
                 width: bubbleWidth,
-                maxHeight: Math.max(
+                maxHeight: keyboard ? Math.max(120, height - keyboard - insets.top - 16) : Math.max(
                   120,
                   (below
                     ? height - anchor.y - anchor.height - insets.bottom
@@ -192,12 +204,11 @@ export function Popover({
                 overflow: "hidden",
               }}
             >
-              <ScrollView
-                keyboardShouldPersistTaps="handled"
+              <FormScrollView
                 contentContainerStyle={[{ padding: 18, gap: 12 }, contentStyle]}
               >
                 {typeof children === "function" ? children(close) : children}
-              </ScrollView>
+              </FormScrollView>
             </Animated.View>
           )}
         </View>

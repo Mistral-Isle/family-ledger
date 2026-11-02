@@ -1,11 +1,19 @@
 import { useState } from "react";
-import { Modal, View, ScrollView, Pressable, StyleSheet } from "react-native";
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  View,
+  Pressable,
+  StyleSheet,
+} from "react-native";
 import {
   Button,
   Chip,
   Txt,
   useTheme,
   Field,
+  FormScrollView,
   ErrorText,
   IconButton,
   Row,
@@ -75,10 +83,7 @@ export function SharedEntryFields({
           <IconButton name="xmark" label={zh.close} onPress={close} />
         </Row>
       )}
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ gap: 14 }}
-      >
+      <FormScrollView contentContainerStyle={{ gap: 14 }}>
         <ErrorText message={error} />
         {creating ? (
           <>
@@ -170,7 +175,7 @@ export function SharedEntryFields({
             )}
           </>
         )}
-      </ScrollView>
+      </FormScrollView>
     </View>
   );
   if (embedded) return visible ? content : null;
@@ -181,7 +186,8 @@ export function SharedEntryFields({
       animationType="fade"
       onRequestClose={close}
     >
-      <View
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{
           flex: 1,
           backgroundColor: "rgba(0,0,0,.35)",
@@ -195,7 +201,7 @@ export function SharedEntryFields({
           style={StyleSheet.absoluteFill}
         />
         {content}
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

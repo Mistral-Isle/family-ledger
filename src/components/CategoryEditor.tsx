@@ -20,6 +20,7 @@ import {
   Chip,
   ErrorText,
   Button,
+  FormScrollView,
   useTheme,
 } from "./ui";
 import { categoryIcons, categoryIconGroups } from "../domain/categoryIcons";
@@ -113,8 +114,7 @@ export function CategoryEditor({
             </Txt>
             <IconButton name="checkmark" label="保存分类" onPress={save} />
           </Row>
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
+          <FormScrollView
             contentContainerStyle={{
               gap: 16,
               paddingBottom: Math.max(insets.bottom, 20),
@@ -300,7 +300,7 @@ export function CategoryEditor({
                 onPress={() => onDelete(form.id!)}
               />
             )}
-          </ScrollView>
+          </FormScrollView>
         </View>
       </KeyboardAvoidingView>
     </Modal>

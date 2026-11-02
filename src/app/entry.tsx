@@ -1090,7 +1090,8 @@ function Entry() {
           animationType={reducedMotion ? "none" : "fade"}
           onRequestClose={closeOptions}
         >
-          <View
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
             style={{
               flex: 1,
               justifyContent: "flex-end",
@@ -1106,6 +1107,7 @@ function Entry() {
             <View
               style={{
                 maxHeight: "85%",
+                flexShrink: 1,
                 width: "100%",
                 maxWidth: 600,
                 alignSelf: "center",
@@ -1291,7 +1293,7 @@ function Entry() {
                 </FormScrollView>
               )}
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
       </View>
     </KeyboardAvoidingView>
