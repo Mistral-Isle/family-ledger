@@ -28,6 +28,11 @@ import { DetailBudgetSettings } from "./DetailBudgetSettings";
 import { Segmented } from "./Segmented";
 import { loanExpenseTxns } from "../domain/selectors";
 import {
+  monthBudgetView,
+  planMonthAmounts,
+  unbudgetedClosedCategories,
+} from "../domain/planBudgets";
+import {
   calculate,
   formatMoney,
   moneyInput,
@@ -70,8 +75,18 @@ export function BudgetEditor({ month }: { month: string }) {
   const [scope, setScope] = useState<BudgetScope>(
     () => repo.getSummaryPreferences().budgetScope,
   );
-  const total = repo.monthBudget(month),
-    allocations = repo.monthAllocations(month);
+  // Shown and edited as they apply this month: linked categories follow their plans.
+  const linkedIds = repo.getLinkedBudgetCategories();
+  const effective = monthBudgetView(
+    data,
+    month,
+    repo.monthBudget(month),
+    repo.monthAllocations(month),
+    linkedIds,
+  );
+  const total = effective.total,
+    allocations = effective.allocations,
+    linked = effective.linked;
   const preferences = repo.getDetailBudgetPreferences(),
     excluded = new Set(preferences.excludedCategoryIds);
   const cats = data.categories
@@ -93,6 +108,29 @@ export function BudgetEditor({ month }: { month: string }) {
     preferences,
   );
   const selectedTitle = preferences.title.trim() || "日常预算";
+  const unbudgeted = unbudgetedClosedCategories(
+    data,
+    month,
+    allocations,
+    preferences.excludedCategoryIds,
+    (m) => categoryBudgetUsage(spending, data.categories, m),
+    planMonthAmounts(data, month),
+  );
+  function addBudget(row: (typeof unbudgeted)[number]) {
+    try {
+      run(() =>
+        repo.addCategoryBudget(
+          month,
+          row.category.id,
+          row.suggested,
+          row.planned,
+        ),
+      );
+      setError("");
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
   const overBudget = view.remaining !== null && view.remaining < 0;
   function chooseScope(next: BudgetScope) {
     setScope(next);
@@ -121,14 +159,17 @@ export function BudgetEditor({ month }: { month: string }) {
   }
   function persist(value: string, id: string | null) {
     const amount = value.trim() ? calculate(value) : null;
-    const next = { ...repo.monthAllocations(month) };
+    const next = { ...allocations };
     if (id) {
       if (amount === null) delete next[id];
       else next[id] = amount;
     }
-    run(() =>
-      repo.setMonthBudget(month, id ? repo.monthBudget(month) : amount, next),
-    );
+    run(() => {
+      repo.setMonthBudget(month, id ? total : amount, next);
+      // A typed amount takes over from the plan.
+      if (id && linked.has(id))
+        repo.setLinkedBudgetCategories(linkedIds.filter((l) => l !== id));
+    });
   }
   function change(value: string) {
     if (!editor) return;
@@ -273,7 +314,8 @@ export function BudgetEditor({ month }: { month: string }) {
               </View>
               <Txt size={12} color={spent > (amount ?? Infinity) ? t.red : t.muted}>
                 预算 {amount === undefined ? "未设置" : formatMoney(amount)}
-                {own === undefined && amount !== undefined ? "（二级合计）" : ""} ·
+                {own === undefined && amount !== undefined ? "（二级合计）" : ""}
+                {linked.has(category.id) ? "（跟随计划）" : ""} ·
                 支出 {formatMoney(spent)}
                 {!!over && (
                   <Txt size={12} color={t.orange}>
@@ -385,6 +427,21 @@ export function BudgetEditor({ month }: { month: string }) {
           {categoryRow(parent, true, true)}
         </Card>
       )}
+      {!parent &&
+        unbudgeted.map((row) => (
+          <Card key={row.category.id} style={{ gap: 8, padding: 14 }}>
+            <Txt size={13} color={t.muted}>
+              {row.category.name}没有计入{selectedTitle}，但还没有自己的预算，
+              {selectedTitle}扣不掉它这部分。
+              {row.planned ? "设置后会跟随计划，计划结束自动扣除。" : ""}
+            </Txt>
+            <Button
+              secondary
+              label={`设为每月 ${formatMoney(row.suggested)}，并加到总预算`}
+              onPress={() => addBudget(row)}
+            />
+          </Card>
+        ))}
       <Row style={{ justifyContent: "space-between" }}>
         <Txt bold>{parent ? "二级分类" : "分类预算"}</Txt>
         <Row style={{ gap: 4 }}>
@@ -453,7 +510,9 @@ export function BudgetEditor({ month }: { month: string }) {
               </Txt>
             </ScrollView>
             <Txt size={12} color={t.muted}>
-              有效金额即时生效
+              {editor?.id && linked.has(editor.id)
+                ? "当前跟随计划自动调整；手动修改后不再跟随。"
+                : "有效金额即时生效"}
             </Txt>
             <ErrorText message={error} />
             <EntryKeyboard

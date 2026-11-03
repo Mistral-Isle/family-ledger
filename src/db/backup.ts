@@ -490,6 +490,14 @@ function parseBackupData(
   for (const key of ["includeRepayments", "showIncomeCalendar"])
     if (prefs[key] !== undefined && typeof prefs[key] !== "boolean")
       return fail();
+  if (
+    prefs.budgetLinkedCategories !== undefined &&
+    (!Array.isArray(prefs.budgetLinkedCategories) ||
+      !prefs.budgetLinkedCategories.every(
+        (id: unknown) => typeof id === "string",
+      ))
+  )
+    return fail();
   const detail = prefs.detailBudgetPreferences;
   if (
     detail !== undefined &&

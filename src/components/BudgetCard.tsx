@@ -6,6 +6,7 @@ import { useLedger } from "./LedgerProvider";
 import { Button, Card, ErrorText, Field, Icon, Row, Txt, useTheme } from "./ui";
 import { calculate, formatMoney, moneyInput } from "../domain/money";
 import { loanExpenseTxns } from "../domain/selectors";
+import { monthBudgetView } from "../domain/planBudgets";
 import {
   categoryBudgetUsage,
   detailBudget,
@@ -86,8 +87,13 @@ export function BudgetCard({
   const { data, repo, run } = useLedger();
   const t = useTheme();
   const router = useRouter();
-  const budget = repo.monthBudget(month);
-  const allocations = repo.monthAllocations(month);
+  const { total: budget, allocations } = monthBudgetView(
+    data,
+    month,
+    repo.monthBudget(month),
+    repo.monthAllocations(month),
+    repo.getLinkedBudgetCategories(),
+  );
   const preferences = repo.getDetailBudgetPreferences();
   const display = detailBudget(
     loanExpenseTxns(data.txns, data.plans),

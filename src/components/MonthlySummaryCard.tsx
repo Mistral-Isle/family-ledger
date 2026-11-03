@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { monthDailyMetrics, scopedBudget } from "../domain/budgets";
+import { monthBudgetView } from "../domain/planBudgets";
 import { formatMoney } from "../domain/money";
 import {
   loanExpenseTxns,
@@ -194,13 +195,20 @@ export function MonthlySummaryCard({
   const summary = totals(
     visibleTxns(reportingSnapshot(spendingSnapshot({ ...data, txns }), memberId, false, "payer").txns).filter((txn) => txn.occurredAt.startsWith(month)),
   );
+  const saved = monthBudgetView(
+    data,
+    month,
+    repo.monthBudget(month),
+    repo.monthAllocations(month),
+    repo.getLinkedBudgetCategories(),
+  );
   const budget = scopedBudget(
     choices.budgetScope,
     loanExpenseTxns(txns, data.plans),
     data.categories,
     month,
-    repo.monthBudget(month),
-    repo.monthAllocations(month),
+    saved.total,
+    saved.allocations,
     repo.getDetailBudgetPreferences(),
   );
   const cashDays = monthDailyMetrics(month, summary.expense, null);

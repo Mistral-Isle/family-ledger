@@ -458,6 +458,45 @@ export class LedgerRepository {
       title: "",
     });
   }
+  /** Categories whose budget follows their lease or loan (local, like the detail budget). */
+  getLinkedBudgetCategories(): string[] {
+    const ids = this.pref<unknown>("budgetLinkedCategories", []);
+    return Array.isArray(ids)
+      ? ids.filter((id): id is string => typeof id === "string")
+      : [];
+  }
+  setLinkedBudgetCategories(ids: string[]) {
+    this.db.withTransactionSync(() =>
+      this.setPref("budgetLinkedCategories", [...new Set(ids)]),
+    );
+  }
+  /** Give a category its own budget, added to its parent and the total. */
+  addCategoryBudget(
+    month: string,
+    categoryId: string,
+    amount: number,
+    followPlan: boolean,
+  ) {
+    if (assertMoney(amount) <= 0) throw new Error(zh.errors.amount);
+    const allocations = { ...this.monthAllocations(month) };
+    if (categoryId in allocations) throw new Error("该分类已设置预算");
+    const parent = this.all<Category>("category").find(
+      (c) => c.id === categoryId,
+    )?.parentId;
+    allocations[categoryId] = amount;
+    if (parent && parent in allocations)
+      allocations[parent] = assertMoney(allocations[parent]! + amount);
+    this.setMonthBudget(
+      month,
+      assertMoney((this.monthBudget(month) ?? 0) + amount),
+      allocations,
+    );
+    if (followPlan)
+      this.setLinkedBudgetCategories([
+        ...this.getLinkedBudgetCategories(),
+        categoryId,
+      ]);
+  }
   getSummaryPreferences(): SummaryPreferences {
     return summaryPreferences(this.pref("summaryPreferences", null));
   }
