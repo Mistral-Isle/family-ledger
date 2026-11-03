@@ -5,6 +5,7 @@ import { AccountIcon } from "./AccountIcon";
 import { Chip, Icon, Txt, styles, useTheme } from "./ui";
 import { useLedger } from "./LedgerProvider";
 import { isHoldingAccount } from "../domain/rentAccounts";
+import { assetAccountGroups } from "../domain/assetView";
 
 /** Field-sized selector box, matching amount and date inputs. */
 export function PickerBox({
@@ -83,6 +84,17 @@ export function AccountField({
       !isHoldingAccount(a),
   );
   const selected = accounts.find((a) => a.id === value);
+  // Same owner grouping as the asset page: mine first, then others, then shared.
+  const groups = assetAccountGroups(
+    data,
+    accounts
+      .sort((a, b) => a.sort - b.sort)
+      .map((account) => ({ account, balance: 0 })),
+  );
+  const owner =
+    selected && selected.ownerMemberId !== data.meId
+      ? groups.find((g) => g.id === selected.ownerMemberId)?.name
+      : undefined;
   return (
     <View style={{ gap: 6, flex: 1, minWidth: 0 }}>
       <Txt size={12} color={t.muted}>
@@ -107,9 +119,14 @@ export function AccountField({
               }}
             >
               {selected && <AccountIcon kind={selected.kind} size={24} />}
-              <Txt style={{ flex: 1 }}>
+              <Txt style={{ flex: 1 }} numberOfLines={1}>
                 {selected?.name ??
                   (noneLabel && !value ? noneLabel : "选择账户")}
+                {!!owner && (
+                  <Txt size={12} color={t.muted}>
+                    {" "}· {owner.replace(/的账户$/, "")}
+                  </Txt>
+                )}
               </Txt>
               <Icon name="chevron.down" size={11} color={t.muted} />
             </View>
@@ -117,27 +134,40 @@ export function AccountField({
         }
       >
         {(close) => (
-          <View style={styles.wrap}>
+          <View style={{ gap: 10 }}>
             {!!noneLabel && (
-              <Chip
-                label={noneLabel}
-                selected={!value}
-                onPress={() => {
-                  onChange("");
-                  close();
-                }}
-              />
+              <View style={styles.wrap}>
+                <Chip
+                  label={noneLabel}
+                  selected={!value}
+                  onPress={() => {
+                    onChange("");
+                    close();
+                  }}
+                />
+              </View>
             )}
-            {accounts.map((a) => (
-              <Chip
-                key={a.id}
-                label={a.name}
-                selected={a.id === value}
-                onPress={() => {
-                  onChange(a.id);
-                  close();
-                }}
-              />
+            {groups.map((group) => (
+              <View key={group.id || "shared"} style={{ gap: 6 }}>
+                {groups.length > 1 && (
+                  <Txt size={12} color={t.muted}>
+                    {group.name}
+                  </Txt>
+                )}
+                <View style={styles.wrap}>
+                  {group.rows.map(({ account: a }) => (
+                    <Chip
+                      key={a.id}
+                      label={a.name}
+                      selected={a.id === value}
+                      onPress={() => {
+                        onChange(a.id);
+                        close();
+                      }}
+                    />
+                  ))}
+                </View>
+              </View>
             ))}
           </View>
         )}
