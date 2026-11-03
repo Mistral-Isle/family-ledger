@@ -26,6 +26,7 @@ import { EntryKeyboard } from "./EntryKeyboard";
 import { Popover } from "./HelpBubble";
 import { DetailBudgetSettings } from "./DetailBudgetSettings";
 import { Segmented } from "./Segmented";
+import { loanExpenseTxns } from "../domain/selectors";
 import {
   calculate,
   formatMoney,
@@ -79,11 +80,12 @@ export function BudgetEditor({ month }: { month: string }) {
   const roots = cats.filter((c) => !c.parentId),
     parent = cats.find((c) => c.id === parentId);
   const children = cats.filter((c) => c.parentId === parentId);
-  const usage = categoryBudgetUsage(data.txns, data.categories, month);
+  const spending = loanExpenseTxns(data.txns, data.plans);
+  const usage = categoryBudgetUsage(spending, data.categories, month);
   const warnings = budgetAllocationWarnings(total, allocations, data.categories);
   const view = scopedBudget(
     scope,
-    data.txns,
+    spending,
     data.categories,
     month,
     total,

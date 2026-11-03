@@ -1651,6 +1651,31 @@ export class LedgerRepository {
     )
       throw new Error(zh.errors.category);
   }
+  /** The 车贷 category under 大额支出, created on first use. */
+  private loanCategory() {
+    const categories = this.snapshot().categories.filter(
+      (c) => !c.deleted && c.kind === "expense",
+    );
+    const parent = categories.find((c) => !c.parentId && c.name === "大额支出");
+    const existing =
+      categories.find((c) => c.name === "车贷" && c.parentId === parent?.id) ??
+      categories.find((c) => c.name === "车贷");
+    if (existing) return existing.id;
+    const record: Category = {
+      ...this.stamp(),
+      name: "车贷",
+      kind: "expense",
+      parentId: parent?.id ?? null,
+      icon: "category:purchase-1",
+      color: parent?.color ?? "#689FA0",
+      hidden: false,
+      sort: categories.length,
+      mergedInto: null,
+      deleteAction: null,
+    };
+    this.write("category", record);
+    return record.id;
+  }
   private putPlan(
     kind: FinancialPlan["kind"],
     name: string,
@@ -1883,6 +1908,12 @@ export class LedgerRepository {
         principal,
         date: input.date,
         receiveAccountId: input.receiveAccountId || null,
+        expenseCategoryId: input.countAsExpense
+          ? input.expenseCategoryId
+            ? (this.expenseCategory(input.expenseCategoryId),
+              input.expenseCategoryId)
+            : this.loanCategory()
+          : null,
       };
       if (old?.archived) data.archived = true;
       if (input.firstDue)

@@ -1,4 +1,11 @@
-import type { Account, Category, Snapshot, Txn, Scope } from "./types";
+import type {
+  Account,
+  Category,
+  FinancialPlan,
+  Snapshot,
+  Txn,
+  Scope,
+} from "./types";
 import { assertMoney } from "./money";
 export function accountBalance(
   account: Account,
@@ -76,6 +83,37 @@ export function visibleTxns(txns: Txn[], scope: Scope = "family"): Txn[] {
         b.occurredAt.localeCompare(a.occurredAt) ||
         b.createdAt.localeCompare(a.createdAt),
     );
+}
+/**
+ * Loans marked as spending count each repayment's principal as an expense in
+ * their category. Only for totals, reports and budgets: balances keep the
+ * original repayment.
+ */
+export function loanExpenseTxns(txns: Txn[], plans: FinancialPlan[]): Txn[] {
+  const categories = new Map<string, string>();
+  for (const plan of plans) {
+    if (plan.deleted || plan.kind !== "loan") continue;
+    const d = JSON.parse(plan.data) as {
+      accountId?: string;
+      expenseCategoryId?: string | null;
+    };
+    if (d.accountId && d.expenseCategoryId)
+      categories.set(d.accountId, d.expenseCategoryId);
+  }
+  if (!categories.size) return txns;
+  return txns.map((t) =>
+    t.type === "repayment" && t.toAccountId && categories.has(t.toAccountId)
+      ? {
+          ...t,
+          type: "expense" as const,
+          categoryId: categories.get(t.toAccountId)!,
+          toAccountId: null,
+        }
+      : t,
+  );
+}
+export function spendingSnapshot(s: Snapshot): Snapshot {
+  return { ...s, txns: loanExpenseTxns(s.txns, s.plans) };
 }
 export function budgetTxns(txns: Txn[]): Txn[] {
   return txns

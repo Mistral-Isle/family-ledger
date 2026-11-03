@@ -9,7 +9,11 @@ import {
   type LoanData,
   type LoanInput,
 } from "../src/domain/finance";
-import { accountBalance, totals } from "../src/domain/selectors";
+import {
+  accountBalance,
+  loanExpenseTxns,
+  totals,
+} from "../src/domain/selectors";
 import {
   entryAccountGroups,
   planAccountIds,
@@ -327,6 +331,74 @@ test("loan accounts never appear as entry accounts and cannot be booked against"
         forWhom: "both",
       }),
     ).toThrow("贷款卡片");
+  } finally {
+    f.sqlite.close();
+  }
+});
+
+test("a loan counted as spending turns each repayment into 车贷 spending without moving balances", () => {
+  const { f, bank } = setup();
+  try {
+    f.repo.saveLoan({
+      ...base,
+      name: "车贷",
+      principal: 300000,
+      paymentAccountId: bank,
+      periods: 3,
+      firstDue: "2024-11-15",
+      countAsExpense: true,
+    });
+    let { d, plan, s } = loan(f);
+    const category = s.categories.find((c) => c.id === d.expenseCategoryId)!;
+    const parent = s.categories.find((c) => c.id === category.parentId);
+    expect([parent?.name, category.name]).toEqual(["大额支出", "车贷"]);
+    f.repo.payLoan(plan.id, {
+      amount: 110000,
+      interest: 10000,
+      date: "2024-11-15",
+      categoryId: category.id,
+    });
+    ({ s } = loan(f));
+    const bankAccount = s.accounts.find((a) => a.id === bank)!;
+    const balance = accountBalance(bankAccount, s.txns);
+    const spending = loanExpenseTxns(s.txns, s.plans);
+    expect(totals(s.txns).expense).toBe(10000);
+    expect(totals(spending).expense).toBe(110000);
+    expect(
+      spending
+        .filter((t) => t.type === "expense")
+        .every((t) => t.categoryId === category.id),
+    ).toBe(true);
+    expect(accountBalance(bankAccount, spending)).toBe(balance);
+    // Saving again reuses the category instead of creating another.
+    f.repo.saveLoan(
+      {
+        ...base,
+        name: "车贷",
+        principal: 300000,
+        paymentAccountId: bank,
+        periods: 3,
+        firstDue: "2024-11-15",
+        countAsExpense: true,
+      },
+      plan.id,
+    );
+    expect(
+      f.repo.snapshot().categories.filter((c) => c.name === "车贷" && !c.deleted),
+    ).toHaveLength(1);
+    f.repo.saveLoan(
+      {
+        ...base,
+        name: "车贷",
+        principal: 300000,
+        paymentAccountId: bank,
+        periods: 3,
+        firstDue: "2024-11-15",
+      },
+      plan.id,
+    );
+    ({ s } = loan(f));
+    expect(totals(loanExpenseTxns(s.txns, s.plans)).expense).toBe(10000);
   } finally {
     f.sqlite.close();
   }

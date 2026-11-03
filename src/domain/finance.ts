@@ -29,6 +29,8 @@ export type LoanData = {
   receiveAccountId?: string | null;
   borrowTxnId?: string;
   archived?: boolean;
+  /** Repayments count as spending in this category (principal and interest). */
+  expenseCategoryId?: string | null;
 };
 /** What the loan form collects; installment fields are ignored for one-time loans. */
 export type LoanInput = {
@@ -47,6 +49,9 @@ export type LoanInput = {
   paidPeriods: number;
   /** First installment, or the due date of a one-time loan (may be empty). */
   firstDue: string;
+  /** Count repayments as spending; without a category one named 车贷 is used. */
+  countAsExpense?: boolean;
+  expenseCategoryId?: string | null;
 };
 function shiftDays(date: string, n: number) {
   const d = new Date(validDate(date) + "T00:00:00Z");

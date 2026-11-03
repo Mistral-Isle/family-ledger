@@ -35,7 +35,7 @@ import {
 } from "../../components/ui";
 import { MonthPicker } from "../../components/MonthPicker";
 import { useUi } from "../../state/ui";
-import { totals } from "../../domain/selectors";
+import { spendingSnapshot, totals } from "../../domain/selectors";
 import { formatMoney } from "../../domain/money";
 import { zh } from "../../i18n/zh";
 export default function Stats() {
@@ -51,7 +51,7 @@ export default function Stats() {
     repo.getShowIncomeCalendar(),
   );
   const reportData = reportingSnapshot(
-    data,
+    spendingSnapshot(data),
     memberId,
     includeRepayments,
     "payer",
@@ -84,7 +84,10 @@ export default function Stats() {
   const summary = totals(rows);
   const prior = previous ? totals(rangeTxns(reportData.txns, previous)) : null;
   const actual = totals(
-    rangeTxns(reportingSnapshot(data, memberId, false, "payer").txns, range),
+    rangeTxns(
+      reportingSnapshot(spendingSnapshot(data), memberId, false, "payer").txns,
+      range,
+    ),
   );
   const value = summary[view];
   const period = mode === "month" ? "本月" : "本期";

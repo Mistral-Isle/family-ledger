@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { Platform, Pressable, Switch, View } from "react-native";
 import { useRouter } from "expo-router";
 import {
   Button,
@@ -91,6 +91,7 @@ export function LoanForm({
   onCancel: () => void;
 }) {
   const { data, repo, run } = useLedger();
+  const t = useTheme();
   const old: LoanData | null = editing ? JSON.parse(editing.data) : null;
   const start = old ? loanStart(data, old) : null;
   const [name, setName] = useState(editing?.name ?? "");
@@ -101,6 +102,17 @@ export function LoanForm({
   const [receive, setReceive] = useState(old?.receiveAccountId ?? "");
   const [account, setAccount] = useState(
     old?.paymentAccountId ?? defaultAccount(data),
+  );
+  const [countAsExpense, setCountAsExpense] = useState(
+    !!old?.expenseCategoryId,
+  );
+  const [expenseCategory, setExpenseCategory] = useState(
+    () =>
+      old?.expenseCategoryId ??
+      data.categories.find(
+        (c) => !c.deleted && c.kind === "expense" && c.name === "车贷",
+      )?.id ??
+      "",
   );
   const [oneTime, setOneTime] = useState(!!old?.oneTime);
   const [every, setEvery] = useState(String(old?.every ?? 1));
@@ -173,6 +185,8 @@ export function LoanForm({
               freePeriods: whole(free),
               paidPeriods: whole(paid),
               firstDue,
+              countAsExpense,
+              expenseCategoryId: expenseCategory || null,
             };
             repo.saveLoan(input, editing?.id);
           }),
@@ -314,6 +328,37 @@ export function LoanForm({
           ? "借到的钱会记一笔转入所选账户。"
           : "不入账：钱直接付给了商家（如车贷），只记下欠款。"}
       </Txt>
+      <Row style={{ alignItems: "center" }}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Txt>还款计入支出</Txt>
+          <Txt size={12} color={t.muted}>
+            每期还款（本金加利息）记为支出，计入统计和预算。买东西时已记过全款支出的不要打开，以免重复。
+          </Txt>
+        </View>
+        <Switch
+          accessibilityLabel="还款计入支出"
+          value={countAsExpense}
+          trackColor={{ true: t.blue }}
+          thumbColor={Platform.OS === "web" ? "#fff" : undefined}
+          ios_backgroundColor={t.line}
+          onValueChange={setCountAsExpense}
+        />
+      </Row>
+      {countAsExpense && (
+        <>
+          <CategoryPicker
+            field
+            label="支出分类"
+            value={expenseCategory}
+            onChange={setExpenseCategory}
+          />
+          {!expenseCategory && (
+            <Txt size={12} color={t.muted}>
+              保存时自动创建“大额支出 · 车贷”分类。
+            </Txt>
+          )}
+        </>
+      )}
       {!!summary && <Txt size={12}>{summary}</Txt>}
       <ErrorText message={error || previewError} />
       <Row>
@@ -348,7 +393,9 @@ export function LoanCard({
   const [payFrom, setPayFrom] = useState(d.paymentAccountId);
   const [amount, setAmount] = useState("");
   const [interest, setInterest] = useState("");
-  const [category, setCategory] = useState(() => interestCategory(data));
+  const [category, setCategory] = useState(
+    () => d.expenseCategoryId || interestCategory(data),
+  );
   const [error, setError] = useState("");
   const guard = useSubmissionGuard(`${plan.id}:${d.paidPeriods}:${mode}`);
   if (!account)

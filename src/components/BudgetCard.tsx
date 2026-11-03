@@ -5,7 +5,7 @@ import { Platform, Pressable, Switch, View } from "react-native";
 import { useLedger } from "./LedgerProvider";
 import { Button, Card, ErrorText, Field, Icon, Row, Txt, useTheme } from "./ui";
 import { calculate, formatMoney, moneyInput } from "../domain/money";
-import { budgetTxns, totals } from "../domain/selectors";
+import { loanExpenseTxns } from "../domain/selectors";
 import {
   categoryBudgetUsage,
   detailBudget,
@@ -90,7 +90,7 @@ export function BudgetCard({
   const allocations = repo.monthAllocations(month);
   const preferences = repo.getDetailBudgetPreferences();
   const display = detailBudget(
-    data.txns,
+    loanExpenseTxns(data.txns, data.plans),
     data.categories,
     month,
     budget,

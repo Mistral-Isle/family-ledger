@@ -5,7 +5,12 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { monthDailyMetrics, scopedBudget } from "../domain/budgets";
 import { formatMoney } from "../domain/money";
-import { totals, visibleTxns } from "../domain/selectors";
+import {
+  loanExpenseTxns,
+  spendingSnapshot,
+  totals,
+  visibleTxns,
+} from "../domain/selectors";
 import type { SummaryPreferences } from "../domain/summaryPreferences";
 import { useUi } from "../state/ui";
 import { Popover } from "./HelpBubble";
@@ -187,11 +192,11 @@ export function MonthlySummaryCard({
     ? data.txns.filter((t) => !isFutureTransaction(t, asOf))
     : data.txns;
   const summary = totals(
-    visibleTxns(reportingSnapshot({ ...data, txns }, memberId, false, "payer").txns).filter((txn) => txn.occurredAt.startsWith(month)),
+    visibleTxns(reportingSnapshot(spendingSnapshot({ ...data, txns }), memberId, false, "payer").txns).filter((txn) => txn.occurredAt.startsWith(month)),
   );
   const budget = scopedBudget(
     choices.budgetScope,
-    txns,
+    loanExpenseTxns(txns, data.plans),
     data.categories,
     month,
     repo.monthBudget(month),
@@ -312,7 +317,7 @@ export function MonthlySummaryCard({
                   }
                 >
                   <Txt size={14}>
-                    当月支出除以已过天数（含今天）；历史月份按全月天数计算，未来月份暂不计算。退款抵减支出，还款本金与本人账户间转账不计入。
+                    当月支出除以已过天数（含今天）；历史月份按全月天数计算，未来月份暂不计算。退款抵减支出，还款本金（计入支出的贷款除外）与本人账户间转账不计入。
                   </Txt>
                 </Explanation>
               </View>
