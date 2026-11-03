@@ -40,7 +40,6 @@ import {
   assertMoney,
 } from "../domain/money";
 import {
-  budgetAddition,
   budgetAllocationWarnings,
   categoryBudgetUsage,
   effectiveAllocation,
@@ -252,6 +251,11 @@ export function BudgetEditor({ month }: { month: string }) {
       amount = effectiveAllocation(category.id, allocations, data.categories),
       spent = usage.get(category.id) ?? 0,
       over = warnings.children[category.id]?.over;
+    // Closed but budgeted at nothing: the daily budget cannot leave it out.
+    const gap = unbudgeted.find((r) => r.category.id === category.id);
+    const childGaps = detail
+      ? []
+      : unbudgeted.filter((r) => r.category.parentId === category.id);
     const hasChildren = cats.some((c) => c.parentId === category.id);
     const disabled = !!category.parentId && excluded.has(category.parentId);
     return (
@@ -341,6 +345,29 @@ export function BudgetEditor({ month }: { month: string }) {
                 <Txt size={12} color={t.orange}>
                   二级预算超出 {formatMoney(over)}
                 </Txt>
+              )}
+              {gap ? (
+                <Row style={{ gap: 6 }}>
+                  <Txt size={12} color={t.orange}>
+                    未扣除
+                  </Txt>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${category.name}预算设为每月${formatMoney(gap.suggested)}`}
+                    hitSlop={10}
+                    onPress={() => addBudget(gap)}
+                  >
+                    <Txt size={12} color={t.blue}>
+                      设为 {formatMoney(gap.suggested)}
+                    </Txt>
+                  </Pressable>
+                </Row>
+              ) : (
+                !!childGaps.length && (
+                  <Txt size={12} color={t.orange}>
+                    {childGaps.map((r) => r.category.name).join("、")}未扣除
+                  </Txt>
+                )
               )}
             </View>
             <Icon name="chevron.right" size={14} color={t.muted} />
@@ -444,43 +471,6 @@ export function BudgetEditor({ month }: { month: string }) {
           {categoryRow(parent, true, true)}
         </Card>
       )}
-      {unbudgeted
-        .filter(
-          (row) =>
-            !parent ||
-            row.category.id === parent.id ||
-            row.category.parentId === parent.id,
-        )
-        .map((row) => {
-          const next = budgetAddition(
-            total,
-            allocations,
-            data.categories.filter((c) => !c.deleted),
-            row.category.id,
-            row.suggested,
-          );
-          const daily = row.suggested - next.raised;
-          return (
-            <Card key={row.category.id} style={{ gap: 8, padding: 14 }}>
-              <Txt size={13} color={t.muted}>
-                {row.category.name}已关闭，但预算
-                {row.category.id in allocations ? "是 0" : "没设置"}，
-                {selectedTitle}没法把它扣掉。
-                {row.planned ? "设置后跟随计划，计划结束自动扣除。" : ""}
-              </Txt>
-              <Button
-                secondary
-                label={`设为每月 ${formatMoney(row.suggested)}`}
-                onPress={() => addBudget(row)}
-              />
-              <Txt size={12} color={t.muted}>
-                设置后：{selectedTitle}
-                {daily ? ` −${formatMoney(daily)}` : "不变"}，总预算
-                {next.raised ? ` +${formatMoney(next.raised)}` : "不变"}
-              </Txt>
-            </Card>
-          );
-        })}
       <Row style={{ justifyContent: "space-between" }}>
         <Txt bold>{parent ? "二级分类" : "分类预算"}</Txt>
         <Row style={{ gap: 4 }}>
