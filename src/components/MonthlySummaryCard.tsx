@@ -81,6 +81,7 @@ function MetricPicker<T extends string>({
       label={label}
       align="start"
       menuWidth={192}
+      scroll={false}
       contentStyle={{ padding: 5, gap: 0 }}
       triggerContent={
         <Row style={{ gap: 6 }}>

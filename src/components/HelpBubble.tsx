@@ -28,6 +28,7 @@ export function Popover({
   align = "end",
   contentStyle,
   animated = true,
+  scroll = true,
   children,
 }: {
   label: string;
@@ -41,6 +42,8 @@ export function Popover({
   align?: "start" | "end";
   contentStyle?: StyleProp<ViewStyle>;
   animated?: boolean;
+  /** Short menus lay out at their own height instead of inside a scroller. */
+  scroll?: boolean;
   children: ReactNode | ((close: () => void) => ReactNode);
 }) {
   const t = useTheme();
@@ -189,7 +192,7 @@ export function Popover({
                       ),
                     }),
                 width: bubbleWidth,
-                maxHeight: keyboard ? Math.max(120, height - keyboard - insets.top - 16) : Math.max(
+                maxHeight: !scroll ? undefined : keyboard ? Math.max(120, height - keyboard - insets.top - 16) : Math.max(
                   120,
                   (below
                     ? height - anchor.y - anchor.height - insets.bottom
@@ -204,11 +207,17 @@ export function Popover({
                 overflow: "hidden",
               }}
             >
-              <FormScrollView
-                contentContainerStyle={[{ padding: 18, gap: 12 }, contentStyle]}
-              >
-                {typeof children === "function" ? children(close) : children}
-              </FormScrollView>
+              {scroll ? (
+                <FormScrollView
+                  contentContainerStyle={[{ padding: 18, gap: 12 }, contentStyle]}
+                >
+                  {typeof children === "function" ? children(close) : children}
+                </FormScrollView>
+              ) : (
+                <View style={[{ padding: 18, gap: 12 }, contentStyle]}>
+                  {typeof children === "function" ? children(close) : children}
+                </View>
+              )}
             </Animated.View>
           )}
         </View>
