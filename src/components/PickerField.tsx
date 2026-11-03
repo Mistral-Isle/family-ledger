@@ -24,7 +24,7 @@ export function PickerBox({
     <View
       style={{
         alignSelf: "stretch",
-        minHeight: 46,
+        minHeight: 48,
         paddingHorizontal: 12,
         borderRadius: 13,
         borderWidth: 1,
@@ -107,7 +107,7 @@ export function AccountField({
           <View style={{ alignSelf: "stretch" }}>
             <View
               style={{
-                minHeight: 46,
+                minHeight: 48,
                 paddingHorizontal: 12,
                 borderRadius: 13,
                 borderWidth: 1,

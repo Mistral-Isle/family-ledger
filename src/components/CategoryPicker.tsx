@@ -10,6 +10,7 @@ export function CategoryPicker({
   label = "选择分类",
   allowAll = false,
   field = false,
+  placeholder = "选择分类",
 }: {
   value: string;
   onChange: (id: string) => void;
@@ -18,6 +19,8 @@ export function CategoryPicker({
   allowAll?: boolean;
   /** Render as a labelled input-sized box showing the category icon. */
   field?: boolean;
+  /** Field text while nothing is chosen. */
+  placeholder?: string;
 }) {
   const { data } = useLedger(),
     t = useTheme();
@@ -37,7 +40,7 @@ export function CategoryPicker({
       {field ? (
         <PickerBox
           label={label}
-          text={selected?.name ?? "选择分类"}
+          text={selected?.name ?? placeholder}
           leading={
             selected && (
               <Icon name={selected.icon} color={selected.color} size={20} />

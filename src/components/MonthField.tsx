@@ -58,10 +58,13 @@ export function MonthField({
           setOpen(true);
         }}
         style={({ pressed }) => ({
-          minHeight: 44,
+          minHeight: compact ? 44 : 48,
+          justifyContent: "center",
           paddingHorizontal: compact ? 4 : 14,
           paddingVertical: 10,
-          borderRadius: 16,
+          borderRadius: compact ? 16 : 13,
+          borderWidth: compact ? 0 : 1,
+          borderColor: t.line,
           backgroundColor: compact ? "transparent" : t.card,
           opacity: pressed ? 0.55 : 1,
         })}

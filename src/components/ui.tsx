@@ -643,7 +643,7 @@ export function Field({ label, ...props }: TextInputProps & { label: string }) {
   const reveal = useContext(RevealInput);
   if (props.keyboardType === "decimal-pad" || props.keyboardType === "numbers-and-punctuation") return <MoneyField label={label} {...props} />;
   return (
-    <View style={{ gap: 8 }}>
+    <View style={{ gap: 6 }}>
       <Txt size={12} color={t.muted}>
         {label}
       </Txt>

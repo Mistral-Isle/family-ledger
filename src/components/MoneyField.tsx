@@ -53,7 +53,7 @@ export function MoneyField({
           setOpen(true);
         }}
         style={{
-          minHeight: 46,
+          minHeight: 48,
           paddingHorizontal: 14,
           paddingVertical: 10,
           borderRadius: 13,

@@ -21,7 +21,7 @@ import { accountBalance } from "../domain/selectors";
 import { formatMoney } from "../domain/money";
 import { today, thisMonth } from "../domain/date";
 import { MonthField } from "../components/MonthField";
-import { financialRow } from "../domain/financialRows";
+import { financeKind, financialRow } from "../domain/financialRows";
 import { zh } from "../i18n/zh";
 export default function AccountDetailRoute() {
   const { id } = useLocalSearchParams<{ id: string }>(),
@@ -161,10 +161,13 @@ function AccountDetail() {
                         if (txn.type === "adjust") {
                           if (!account.deleted) setAction("balance");
                         } else if (
-                          financialRow(data, txn) ||
+                          financeKind(data, txn) ||
                           txn.type === "repayment"
                         )
-                          router.push("/finance");
+                          router.push({
+                            pathname: "/finance",
+                            params: { kind: financeKind(data, txn) ?? "rent" },
+                          });
                         else if (["scope_in", "scope_out"].includes(txn.type))
                           router.push({
                             pathname: "/scope-transfer",

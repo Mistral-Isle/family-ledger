@@ -77,3 +77,24 @@ export function financialRowGroups(s: Snapshot, txns: Txn[]) {
   }
   return groups;
 }
+
+/** Which finance tab shows the plan behind a row, so links land on it. */
+export function financeKind(
+  s: Snapshot,
+  txn: Txn,
+): "loan" | "deposit" | "rent" | null {
+  const loan = s.plans.find((p) => {
+    if (p.deleted || p.kind !== "loan") return false;
+    const d = JSON.parse(p.data);
+    return (
+      d.txnIds?.includes(txn.id) ||
+      txn.accountId === d.accountId ||
+      txn.toAccountId === d.accountId
+    );
+  });
+  if (loan) return "loan";
+  const row = financialRow(s, txn);
+  if (!row) return null;
+  const group = s.plans.find((p) => p.id === row.groupId) ?? row.plan;
+  return group.kind === "deposit" ? "deposit" : "rent";
+}

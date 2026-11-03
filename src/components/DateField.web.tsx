@@ -42,12 +42,12 @@ export function DateField({
         style={{
           boxSizing: "border-box",
           colorScheme: t.dark ? "dark" : "light",
-          minHeight: 44,
+          minHeight: compact ? 44 : 48,
           width: compact ? (mode === "time" ? 100 : 196) : "100%",
           maxWidth: "100%",
-          border: "none",
-          borderRadius: 16,
-          padding: compact ? 4 : 14,
+          border: compact ? "none" : `1px solid ${t.line}`,
+          borderRadius: compact ? 16 : 13,
+          padding: compact ? 4 : "12px 14px",
           fontFamily:
             '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
           fontSize: 15,

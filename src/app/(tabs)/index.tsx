@@ -36,7 +36,11 @@ import { formatMoney } from "../../domain/money";
 import { today } from "../../domain/date";
 import { zh } from "../../i18n/zh";
 import type { Txn, TxnType } from "../../domain/types";
-import { financialRow, financialRowGroups } from "../../domain/financialRows";
+import {
+  financeKind,
+  financialRow,
+  financialRowGroups,
+} from "../../domain/financialRows";
 import { owningPlan, planRowRemoval } from "../../domain/planRecords";
 import { holdingName, isHoldingAccount } from "../../domain/rentAccounts";
 
@@ -248,9 +252,10 @@ function TransactionRow({ txn }: { txn: Txn }) {
     (txn.type === "adjust" && txn.amount > 0);
   const transfer = txn.type === "transfer";
   const refunded = refundState(data.txns, txn);
+  const planKind = financeKind(data, txn);
   const open = () =>
-    financial
-      ? router.push("/finance")
+    planKind
+      ? router.push({ pathname: "/finance", params: { kind: planKind } })
       : txn.type === "adjust"
         ? router.push({
             pathname: "/account-detail",

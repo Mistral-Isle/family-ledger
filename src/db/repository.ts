@@ -1717,7 +1717,7 @@ export class LedgerRepository {
       name: "车贷",
       kind: "expense",
       parentId: parent?.id ?? null,
-      icon: "category:purchase-1",
+      icon: "category:car-rounded",
       color: parent?.color ?? "#689FA0",
       hidden: false,
       sort: categories.length,

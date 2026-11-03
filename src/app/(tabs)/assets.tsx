@@ -147,6 +147,29 @@ export default function Assets() {
         <Txt size={36} bold>
           {displayMoney(headline === "net" ? total : available.total)}
         </Txt>
+        {headline === "net" ? (
+          <View style={{ alignSelf: "flex-start", marginVertical: -10 }}>
+          <Popover
+            label="可用余额组成"
+            align="start"
+            menuWidth={260}
+            triggerContent={
+              <Row style={{ gap: 4 }}>
+                <Txt size={13} color={t.muted}>
+                  {zh.available} {displayMoney(available.total)}
+                </Txt>
+                <Icon name="questionmark.circle" size={12} color={t.muted} />
+              </Row>
+            }
+          >
+            {composition}
+          </Popover>
+          </View>
+        ) : (
+          <Txt size={13} color={t.muted} style={{ marginTop: -10 }}>
+            {netLabel} {displayMoney(total)}
+          </Txt>
+        )}
         <Row style={{ alignItems: "flex-start" }}>
           <View style={{ flex: 1, gap: 5 }}>
             <Txt size={11} color={t.muted}>
@@ -163,39 +186,6 @@ export default function Assets() {
             <Txt size={17} bold>
               {displayMoney(debt)}
             </Txt>
-          </View>
-          <View style={{ flex: 1, gap: 5 }}>
-            {headline === "net" ? (
-              <Popover
-                label="可用余额组成"
-                align="end"
-                menuWidth={260}
-                triggerContent={
-                  <View style={{ gap: 5 }}>
-                    <Row style={{ gap: 3 }}>
-                      <Txt size={11} color={t.muted}>
-                        {zh.available}
-                      </Txt>
-                      <Icon name="questionmark.circle" size={11} color={t.muted} />
-                    </Row>
-                    <Txt size={17} bold>
-                      {displayMoney(available.total)}
-                    </Txt>
-                  </View>
-                }
-              >
-                {composition}
-              </Popover>
-            ) : (
-              <>
-                <Txt size={11} color={t.muted}>
-                  {netLabel}
-                </Txt>
-                <Txt size={17} bold>
-                  {displayMoney(total)}
-                </Txt>
-              </>
-            )}
           </View>
         </Row>
         {headline === "available" && (

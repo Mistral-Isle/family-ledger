@@ -663,6 +663,7 @@ export const zh = {
         ["购车", "category:purchase-1"],
         ["数码", "category:purchase-2"],
         ["家电", "category:purchase-3"],
+        ["车贷", "category:car-rounded"],
       ],
     },
     {

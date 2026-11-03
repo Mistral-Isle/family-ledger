@@ -63,10 +63,14 @@ export function DateField({
         accessibilityLabel={label}
         onPress={show}
         style={{
-          minHeight: 44,
+          minHeight: compact ? 44 : 48,
+          justifyContent: "center",
           paddingHorizontal: compact ? 6 : 14,
           paddingVertical: compact ? 4 : 12,
-          borderRadius: 16,
+          // Same box as a text field, so a form reads as one set of inputs.
+          borderRadius: compact ? 16 : 13,
+          borderWidth: compact ? 0 : 1,
+          borderColor: t.line,
           backgroundColor: compact ? "transparent" : t.card,
         }}
       >

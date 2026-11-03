@@ -328,37 +328,37 @@ export function LoanForm({
           ? "借到的钱会记一笔转入所选账户。"
           : "不入账：钱直接付给了商家（如车贷），只记下欠款。"}
       </Txt>
-      <Row style={{ alignItems: "center" }}>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Txt>还款计入支出</Txt>
+      <Row style={{ alignItems: "flex-start" }}>
+        <View style={{ flex: 1, gap: 6 }}>
           <Txt size={12} color={t.muted}>
-            每期还款（本金加利息）记为支出，计入统计和预算。买东西时已记过全款支出的不要打开，以免重复。
+            还款计入支出
           </Txt>
+          <Row style={{ minHeight: 48, gap: 0 }}>
+            <Switch
+              accessibilityLabel="还款计入支出"
+              value={countAsExpense}
+              trackColor={{ true: t.blue }}
+              thumbColor={Platform.OS === "web" ? "#fff" : undefined}
+              ios_backgroundColor={t.line}
+              onValueChange={setCountAsExpense}
+            />
+            <HelpBubble label="还款计入支出">
+              每期还款（本金加利息）记为支出，计入统计和预算。买东西时已记过全款支出的不要打开，以免重复。
+            </HelpBubble>
+          </Row>
         </View>
-        <Switch
-          accessibilityLabel="还款计入支出"
-          value={countAsExpense}
-          trackColor={{ true: t.blue }}
-          thumbColor={Platform.OS === "web" ? "#fff" : undefined}
-          ios_backgroundColor={t.line}
-          onValueChange={setCountAsExpense}
-        />
-      </Row>
-      {countAsExpense && (
-        <>
-          <CategoryPicker
-            field
-            label="支出分类"
-            value={expenseCategory}
-            onChange={setExpenseCategory}
-          />
-          {!expenseCategory && (
-            <Txt size={12} color={t.muted}>
-              保存时自动创建“大额支出 · 车贷”分类。
-            </Txt>
+        <View style={{ flex: 1 }}>
+          {countAsExpense && (
+            <CategoryPicker
+              field
+              label="支出分类"
+              value={expenseCategory}
+              placeholder="车贷（自动创建）"
+              onChange={setExpenseCategory}
+            />
           )}
-        </>
-      )}
+        </View>
+      </Row>
       {!!summary && <Txt size={12}>{summary}</Txt>}
       <ErrorText message={error || previewError} />
       <Row>

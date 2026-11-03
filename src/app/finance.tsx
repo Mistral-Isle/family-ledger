@@ -8,7 +8,7 @@ import { Pill } from "../components/LeaseForm";
 import { CategoryPicker } from "../components/CategoryPicker";
 import { useSubmissionGuard } from "../components/useSubmissionGuard";
 import { DateField } from "../components/DateField";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useLedger } from "../components/LedgerProvider";
@@ -51,6 +51,11 @@ export default function Finance() {
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [editing, setEditing] = useState("");
+  // A link from a ledger row opens the tab of its plan, even when already here.
+  useEffect(() => {
+    if (requested === "loan" || requested === "deposit" || requested === "rent")
+      setKind(requested);
+  }, [requested]);
   const [showSchedule, setShowSchedule] = useState(false);
   let parts: ReturnType<typeof splitPrepayment> = [];
   let previewError = "";
