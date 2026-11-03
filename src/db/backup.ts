@@ -494,7 +494,8 @@ function parseBackupData(
     prefs.budgetLinkedCategories !== undefined &&
     (!Array.isArray(prefs.budgetLinkedCategories) ||
       !prefs.budgetLinkedCategories.every(
-        (id: unknown) => typeof id === "string",
+        (l: any) =>
+          !!l && typeof l.id === "string" && typeof l.total === "boolean",
       ))
   )
     return fail();

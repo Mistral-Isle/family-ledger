@@ -5,9 +5,11 @@ import {
   planMonthAmounts,
   unbudgetedClosedCategories,
 } from "../src/domain/planBudgets";
-import { categoryBudgetUsage } from "../src/domain/budgets";
+import { budgetAddition, categoryBudgetUsage } from "../src/domain/budgets";
 import { loanExpenseTxns } from "../src/domain/selectors";
 import type { Snapshot } from "../src/domain/types";
+
+const s0 = (f: ReturnType<typeof fixture>) => f.repo.snapshot();
 
 function carLoan(f: ReturnType<typeof fixture>) {
   const bank = f.repo.snapshot().accounts[0]!.id;
@@ -88,15 +90,23 @@ test("a linked budget follows its plan from this month on and leaves the total w
     const parent = s.categories.find((c) => c.id === categoryId)!.parentId!;
     const saved = { [parent]: 150000, [categoryId]: 100000 };
     const amounts = planMonthAmounts(s, "2027-02");
+    const onTop = [{ id: categoryId, total: true }];
     expect(
-      linkedBudget("2027-02", 500000, saved, [categoryId], amounts, s.categories, "2026-11-02"),
+      linkedBudget("2027-02", 500000, saved, onTop, amounts, s.categories, "2026-11-02"),
     ).toMatchObject({
       total: 400000,
       allocations: { [parent]: 50000, [categoryId]: 0 },
     });
+    // Carved out of existing room: the room goes back, the total stays.
+    expect(
+      linkedBudget("2027-02", 500000, saved, [{ id: categoryId, total: false }], amounts, s.categories, "2026-11-02"),
+    ).toMatchObject({
+      total: 500000,
+      allocations: { [parent]: 150000, [categoryId]: 0 },
+    });
     // Months already over keep what was saved.
     expect(
-      linkedBudget("2027-02", 500000, saved, [categoryId], amounts, s.categories, "2027-03-01"),
+      linkedBudget("2027-02", 500000, saved, onTop, amounts, s.categories, "2027-03-01"),
     ).toMatchObject({ total: 500000, allocations: saved });
     // Without the link nothing moves.
     expect(
@@ -111,7 +121,11 @@ test("a closed category without a budget is offered its plan amount, added to th
   const f = fixture();
   try {
     const { categoryId } = carLoan(f);
-    f.repo.setMonthBudget("2026-11", 500000, {});
+    // Every yuan of the total is already allocated, so the loan goes on top.
+    const other = s0(f).categories.find(
+      (c) => c.kind === "expense" && !c.parentId && c.name !== "大额支出",
+    )!;
+    f.repo.setMonthBudget("2026-11", 500000, { [other.id]: 500000 });
     f.repo.setDetailBudgetPreferences({
       excludedCategoryIds: [categoryId],
       title: "",
@@ -130,7 +144,9 @@ test("a closed category without a budget is offered its plan amount, added to th
     expect(rows[0]).toMatchObject({ planned: true, suggested: 100000 });
     f.repo.addCategoryBudget("2026-11", categoryId, 100000, true);
     expect(f.repo.monthBudget("2026-11")).toBe(600000);
-    expect(f.repo.getLinkedBudgetCategories()).toEqual([categoryId]);
+    expect(f.repo.getLinkedBudgetCategories()).toEqual([
+      { id: categoryId, total: true },
+    ]);
     expect(
       monthBudgetView(
         f.repo.snapshot(),
@@ -144,6 +160,58 @@ test("a closed category without a budget is offered its plan amount, added to th
     expect(() =>
       f.repo.addCategoryBudget("2026-11", categoryId, 100000, true),
     ).toThrow("已设置");
+  } finally {
+    f.sqlite.close();
+  }
+});
+
+test("a zero budget counts as missing, and carving a child out of its parent's room keeps the total", () => {
+  const f = fixture();
+  try {
+    const s = f.repo.snapshot();
+    const rent = s.categories.find((c) => c.name === "房租")!;
+    const utilities = s.categories.find(
+      (c) => c.parentId === rent.parentId && c.id !== rent.id,
+    )!;
+    const allocations = { [rent.parentId!]: 600000, [rent.id]: 0, [utilities.id]: 100000 };
+    expect(
+      budgetAddition(1000000, allocations, s.categories, rent.id, 450000),
+    ).toMatchObject({
+      total: 1000000,
+      raised: 0,
+      allocations: { [rent.parentId!]: 600000, [rent.id]: 450000 },
+    });
+    // The parent lacks 50,000: it and the full total grow by exactly that.
+    expect(
+      budgetAddition(600000, allocations, s.categories, rent.id, 550000),
+    ).toMatchObject({
+      total: 650000,
+      raised: 50000,
+      allocations: { [rent.parentId!]: 650000 },
+    });
+    f.repo.setMonthBudget("2026-11", 1000000, allocations);
+    f.repo.saveTxn({
+      type: "expense",
+      amount: 450000,
+      accountId: s.accounts[0]!.id,
+      categoryId: rent.id,
+      occurredAt: "2026-11-01",
+      note: "",
+      forWhom: "both",
+    });
+    const after = f.repo.snapshot();
+    const rows = unbudgetedClosedCategories(
+      after,
+      "2026-11",
+      f.repo.monthAllocations("2026-11"),
+      [rent.id],
+      (m) => categoryBudgetUsage(after.txns, after.categories, m),
+      new Map(),
+    );
+    expect(rows.map((r) => [r.category.id, r.suggested])).toEqual([[rent.id, 450000]]);
+    f.repo.addCategoryBudget("2026-11", rent.id, 450000, false);
+    expect(f.repo.monthBudget("2026-11")).toBe(1000000);
+    expect(f.repo.monthAllocations("2026-11")[rent.id]).toBe(450000);
   } finally {
     f.sqlite.close();
   }

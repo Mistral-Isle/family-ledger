@@ -20,8 +20,10 @@ import {
 } from "../domain/lease";
 import {
   validateBudgetAllocation,
+  budgetAddition,
   type DetailBudgetPreferences,
 } from "../domain/budgets";
+import type { BudgetLink } from "../domain/planBudgets";
 import { accountBalance } from "../domain/selectors";
 import { today } from "../domain/date";
 import {
@@ -468,15 +470,19 @@ export class LedgerRepository {
     });
   }
   /** Categories whose budget follows their lease or loan (local, like the detail budget). */
-  getLinkedBudgetCategories(): string[] {
-    const ids = this.pref<unknown>("budgetLinkedCategories", []);
-    return Array.isArray(ids)
-      ? ids.filter((id): id is string => typeof id === "string")
+  getLinkedBudgetCategories(): BudgetLink[] {
+    const links = this.pref<unknown>("budgetLinkedCategories", []);
+    return Array.isArray(links)
+      ? links.filter(
+          (l): l is BudgetLink =>
+            !!l && typeof l.id === "string" && typeof l.total === "boolean",
+        )
       : [];
   }
-  setLinkedBudgetCategories(ids: string[]) {
+  setLinkedBudgetCategories(links: BudgetLink[]) {
+    const unique = [...new Map(links.map((l) => [l.id, l])).values()];
     this.db.withTransactionSync(() =>
-      this.setPref("budgetLinkedCategories", [...new Set(ids)]),
+      this.setPref("budgetLinkedCategories", unique),
     );
   }
   /** Give a category its own budget, added to its parent and the total. */
@@ -487,23 +493,20 @@ export class LedgerRepository {
     followPlan: boolean,
   ) {
     if (assertMoney(amount) <= 0) throw new Error(zh.errors.amount);
-    const allocations = { ...this.monthAllocations(month) };
-    if (categoryId in allocations) throw new Error("该分类已设置预算");
-    const parent = this.all<Category>("category").find(
-      (c) => c.id === categoryId,
-    )?.parentId;
-    allocations[categoryId] = amount;
-    if (parent && parent in allocations)
-      allocations[parent] = assertMoney(allocations[parent]! + amount);
-    this.setMonthBudget(
-      month,
-      assertMoney((this.monthBudget(month) ?? 0) + amount),
-      allocations,
+    const current = this.monthAllocations(month);
+    if (current[categoryId]! > 0) throw new Error("该分类已设置预算");
+    const next = budgetAddition(
+      this.monthBudget(month),
+      current,
+      this.all<Category>("category").filter((c) => !c.deleted),
+      categoryId,
+      amount,
     );
+    this.setMonthBudget(month, next.total, next.allocations);
     if (followPlan)
       this.setLinkedBudgetCategories([
         ...this.getLinkedBudgetCategories(),
-        categoryId,
+        { id: categoryId, total: next.raised > 0 },
       ]);
   }
   getSummaryPreferences(): SummaryPreferences {

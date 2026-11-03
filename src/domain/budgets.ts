@@ -195,6 +195,47 @@ export function budgetAllocationWarnings(
   };
 }
 
+/**
+ * Give a category its own amount. Its parent and the total grow only by what
+ * they lack: a child carved out of a parent that still has room changes
+ * neither, while an over-allocated total grows by the whole addition.
+ */
+export function budgetAddition(
+  total: number | null,
+  allocations: Record<string, number>,
+  categories: Category[],
+  id: string,
+  amount: number,
+) {
+  const next = { ...allocations, [id]: assertMoney(amount) };
+  const added = assertMoney(amount - (allocations[id] ?? 0));
+  const parent = categories.find((c) => c.id === id)?.parentId;
+  let rootIncrease = added;
+  if (parent && parent in allocations) {
+    const children = categories
+      .filter((c) => c.parentId === parent && !c.deleted)
+      .reduce((sum, c) => assertMoney(sum + (next[c.id] ?? 0)), 0);
+    rootIncrease = Math.max(0, assertMoney(children - allocations[parent]!));
+    next[parent] = assertMoney(allocations[parent]! + rootIncrease);
+  }
+  const rootSum = categories
+    .filter((c) => !c.parentId && !c.deleted && c.kind === "expense")
+    .reduce(
+      (sum, c) =>
+        assertMoney(sum + (effectiveAllocation(c.id, allocations, categories) ?? 0)),
+      0,
+    );
+  const raised = Math.min(
+    rootIncrease,
+    Math.max(0, assertMoney(rootSum + rootIncrease - (total ?? 0))),
+  );
+  return {
+    allocations: next,
+    total: assertMoney((total ?? 0) + raised),
+    raised,
+  };
+}
+
 /** A parent without its own amount is budgeted by what its children add up to. */
 export function effectiveAllocation(
   id: string,

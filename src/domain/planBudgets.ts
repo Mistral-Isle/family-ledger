@@ -74,32 +74,35 @@ function loanMonth(
   }
 }
 
+/** A category budget following its plan; `total` when it was added on top of the total. */
+export type BudgetLink = { id: string; total: boolean };
+
 /**
- * Linked category budgets follow their plans from the current month on, and
- * the total and parent budgets move by the same difference, so a finished
- * lease or loan drops out of the budget by itself. Earlier months keep what
- * was saved.
+ * Linked category budgets follow their plans from the current month on, so a
+ * finished lease or loan drops out by itself. A budget that was added on top
+ * moves its parent and the total with it; one carved out of existing room
+ * hands that room back. Earlier months keep what was saved.
  */
 export function linkedBudget(
   month: string,
   total: number | null,
   allocations: Record<string, number>,
-  linkedIds: string[],
+  links: BudgetLink[],
   amounts: Map<string, number>,
   categories: Category[],
   now = today(),
 ) {
-  const linked = new Set(
-    linkedIds.filter((id) => amounts.has(id) && id in allocations),
-  );
+  const active = links.filter((l) => amounts.has(l.id) && l.id in allocations);
+  const linked = new Set(active.map((l) => l.id));
   if (total === null || month < now.slice(0, 7))
     return { total, allocations, linked };
   let nextTotal = total;
   const next = { ...allocations };
-  for (const id of linked) {
-    const delta = assertMoney(amounts.get(id)! - allocations[id]!);
-    next[id] = amounts.get(id)!;
-    const parent = categories.find((c) => c.id === id)?.parentId;
+  for (const link of active) {
+    const delta = assertMoney(amounts.get(link.id)! - allocations[link.id]!);
+    next[link.id] = amounts.get(link.id)!;
+    if (!link.total) continue;
+    const parent = categories.find((c) => c.id === link.id)?.parentId;
     if (parent && parent in next)
       next[parent] = Math.max(0, assertMoney(next[parent]! + delta));
     nextTotal = Math.max(0, assertMoney(nextTotal + delta));
@@ -135,10 +138,13 @@ export function unbudgetedClosedCategories(
         c.kind === "expense" &&
         excluded.has(c.id) &&
         !(c.parentId && excluded.has(c.parentId)) &&
-        !(c.id in allocations) &&
+        // A zero amount leaves the same gap as none.
+        !(allocations[c.id]! > 0) &&
         !s.categories.some(
           (child) =>
-            child.parentId === c.id && !child.deleted && child.id in allocations,
+            child.parentId === c.id &&
+            !child.deleted &&
+            allocations[child.id]! > 0,
         ),
     )
     .map((c) => {
@@ -160,14 +166,14 @@ export function monthBudgetView(
   month: string,
   total: number | null,
   allocations: Record<string, number>,
-  linkedIds: string[],
+  links: BudgetLink[],
   now = today(),
 ) {
   return linkedBudget(
     month,
     total,
     allocations,
-    linkedIds,
+    links,
     planMonthAmounts(s, month),
     s.categories,
     now,

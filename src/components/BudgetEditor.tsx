@@ -23,7 +23,7 @@ import {
   useTheme,
 } from "./ui";
 import { EntryKeyboard } from "./EntryKeyboard";
-import { Popover } from "./HelpBubble";
+import { HelpBubble, Popover } from "./HelpBubble";
 import { DetailBudgetSettings } from "./DetailBudgetSettings";
 import { Segmented } from "./Segmented";
 import { loanExpenseTxns } from "../domain/selectors";
@@ -40,6 +40,7 @@ import {
   assertMoney,
 } from "../domain/money";
 import {
+  budgetAddition,
   budgetAllocationWarnings,
   categoryBudgetUsage,
   effectiveAllocation,
@@ -76,13 +77,13 @@ export function BudgetEditor({ month }: { month: string }) {
     () => repo.getSummaryPreferences().budgetScope,
   );
   // Shown and edited as they apply this month: linked categories follow their plans.
-  const linkedIds = repo.getLinkedBudgetCategories();
+  const links = repo.getLinkedBudgetCategories();
   const effective = monthBudgetView(
     data,
     month,
     repo.monthBudget(month),
     repo.monthAllocations(month),
-    linkedIds,
+    links,
   );
   const total = effective.total,
     allocations = effective.allocations,
@@ -108,6 +109,24 @@ export function BudgetEditor({ month }: { month: string }) {
     preferences,
   );
   const selectedTitle = preferences.title.trim() || "日常预算";
+  // Explanations live behind the ❓: how the daily budget is derived, and
+  // which month's budget a month without its own record carries forward.
+  const inherited =
+    total !== null &&
+    !data.budgets.some((b) => b.month === month && !b.deleted);
+  const closed = cats.filter(
+    (c) => excluded.has(c.id) && !(c.parentId && excluded.has(c.parentId)),
+  );
+  const budgetHelp = [
+    scope === "selected" && view.filtered && total !== null
+      ? `${selectedTitle} = 总预算 ${formatMoney(total)} − 已关闭分类的预算 ${formatMoney(Math.max(0, total - (view.budget ?? 0)))}。已关闭：${closed.map((c) => c.name).join("、")}。${closed.some((c) => !(effectiveAllocation(c.id, allocations, data.categories)! > 0)) ? "其中预算为 0 或未设置的分类扣不掉。" : ""}`
+      : "",
+    inherited
+      ? "本月没有单独设置，沿用之前月份的预算。在这里修改后从本月起生效，之后没有单独设置的月份继续沿用。"
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
   const unbudgeted = unbudgetedClosedCategories(
     data,
     month,
@@ -168,7 +187,7 @@ export function BudgetEditor({ month }: { month: string }) {
       repo.setMonthBudget(month, id ? total : amount, next);
       // A typed amount takes over from the plan.
       if (id && linked.has(id))
-        repo.setLinkedBudgetCategories(linkedIds.filter((l) => l !== id));
+        repo.setLinkedBudgetCategories(links.filter((l) => l.id !== id));
     });
   }
   function change(value: string) {
@@ -317,12 +336,12 @@ export function BudgetEditor({ month }: { month: string }) {
                 {own === undefined && amount !== undefined ? "（二级合计）" : ""}
                 {linked.has(category.id) ? "（跟随计划）" : ""} ·
                 支出 {formatMoney(spent)}
-                {!!over && (
-                  <Txt size={12} color={t.orange}>
-                    {" "}· 二级超 {formatMoney(over)}
-                  </Txt>
-                )}
               </Txt>
+              {!!over && (
+                <Txt size={12} color={t.orange}>
+                  二级预算超出 {formatMoney(over)}
+                </Txt>
+              )}
             </View>
             <Icon name="chevron.right" size={14} color={t.muted} />
           </Pressable>
@@ -376,9 +395,16 @@ export function BudgetEditor({ month }: { month: string }) {
             onChange={chooseScope}
           />
           <Row style={{ justifyContent: "space-between" }}>
-            <Txt bold color={t.muted}>
-              {scope === "all" ? "支出总预算" : view.title}
-            </Txt>
+            <Row style={{ gap: 0, flexShrink: 1 }}>
+              <Txt bold color={t.muted}>
+                {scope === "all" ? "支出总预算" : view.title}
+              </Txt>
+              {!!budgetHelp && (
+                <HelpBubble label={scope === "all" ? "总预算" : selectedTitle}>
+                  {budgetHelp}
+                </HelpBubble>
+              )}
+            </Row>
             <Button secondary label="合计预算" onPress={sumChildren} />
           </Row>
           <Pressable
@@ -394,12 +420,6 @@ export function BudgetEditor({ month }: { month: string }) {
               <Icon name="pencil" size={18} color={t.muted} />
             </Row>
           </Pressable>
-          {scope === "selected" && view.filtered && total !== null && (
-            <Txt size={12} color={t.muted}>
-              总预算 {formatMoney(total)} − 已关闭分类{" "}
-              {formatMoney(Math.max(0, total - (view.budget ?? 0)))}
-            </Txt>
-          )}
           <Row style={{ flexWrap: "wrap" }}>
             <Txt color={overBudget ? t.red : t.muted}>
               已用 {formatMoney(view.expense)}
@@ -417,9 +437,6 @@ export function BudgetEditor({ month }: { month: string }) {
               </Txt>
             </Txt>
           )}
-          <Txt size={12} color={t.muted}>
-            修改即时生效；未单独设置的后续月份自动沿用。
-          </Txt>
         </Card>
       )}
       {parent && (
@@ -427,21 +444,43 @@ export function BudgetEditor({ month }: { month: string }) {
           {categoryRow(parent, true, true)}
         </Card>
       )}
-      {!parent &&
-        unbudgeted.map((row) => (
-          <Card key={row.category.id} style={{ gap: 8, padding: 14 }}>
-            <Txt size={13} color={t.muted}>
-              {row.category.name}没有计入{selectedTitle}，但还没有自己的预算，
-              {selectedTitle}扣不掉它这部分。
-              {row.planned ? "设置后会跟随计划，计划结束自动扣除。" : ""}
-            </Txt>
-            <Button
-              secondary
-              label={`设为每月 ${formatMoney(row.suggested)}，并加到总预算`}
-              onPress={() => addBudget(row)}
-            />
-          </Card>
-        ))}
+      {unbudgeted
+        .filter(
+          (row) =>
+            !parent ||
+            row.category.id === parent.id ||
+            row.category.parentId === parent.id,
+        )
+        .map((row) => {
+          const next = budgetAddition(
+            total,
+            allocations,
+            data.categories.filter((c) => !c.deleted),
+            row.category.id,
+            row.suggested,
+          );
+          const daily = row.suggested - next.raised;
+          return (
+            <Card key={row.category.id} style={{ gap: 8, padding: 14 }}>
+              <Txt size={13} color={t.muted}>
+                {row.category.name}已关闭，但预算
+                {row.category.id in allocations ? "是 0" : "没设置"}，
+                {selectedTitle}没法把它扣掉。
+                {row.planned ? "设置后跟随计划，计划结束自动扣除。" : ""}
+              </Txt>
+              <Button
+                secondary
+                label={`设为每月 ${formatMoney(row.suggested)}`}
+                onPress={() => addBudget(row)}
+              />
+              <Txt size={12} color={t.muted}>
+                设置后：{selectedTitle}
+                {daily ? ` −${formatMoney(daily)}` : "不变"}，总预算
+                {next.raised ? ` +${formatMoney(next.raised)}` : "不变"}
+              </Txt>
+            </Card>
+          );
+        })}
       <Row style={{ justifyContent: "space-between" }}>
         <Txt bold>{parent ? "二级分类" : "分类预算"}</Txt>
         <Row style={{ gap: 4 }}>
