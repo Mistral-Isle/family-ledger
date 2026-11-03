@@ -35,13 +35,47 @@ function MetricPicker<T extends string>({
   options,
   label,
   onChange,
+  extra = [],
 }: {
   value: T;
   options: readonly { value: T; label: string }[];
   label: string;
   onChange: (value: T) => void;
+  /** A second group below a divider, such as which budget to show. */
+  extra?: { label: string; selected: boolean; onPress: () => void }[];
 }) {
   const t = useTheme();
+  const item = (
+    key: string,
+    text: string,
+    selected: boolean,
+    a11y: string,
+    press: () => void,
+  ) => (
+    <Pressable
+      key={key}
+      accessibilityRole="button"
+      accessibilityLabel={a11y}
+      accessibilityState={{ selected }}
+      aria-pressed={selected}
+      onPress={press}
+      style={({ pressed }) => ({
+        minHeight: 44,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderRadius: 12,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        backgroundColor: pressed || selected ? t.soft : "transparent",
+      })}
+    >
+      <Txt size={14} color={selected ? t.blue : t.text} style={{ flex: 1 }}>
+        {text}
+      </Txt>
+      {selected && <Icon name="checkmark" size={15} color={t.blue} />}
+    </Pressable>
+  );
   return (
     <Popover
       label={label}
@@ -57,43 +91,33 @@ function MetricPicker<T extends string>({
         </Row>
       }
     >
-      {(close) =>
-        options.map((option) => (
-          <Pressable
-            key={option.value}
-            accessibilityRole="button"
-            accessibilityLabel={`主数字显示${option.label}`}
-            accessibilityState={{ selected: value === option.value }}
-            aria-pressed={value === option.value}
-            onPress={() => {
-              onChange(option.value);
+      {(close) => (
+        <>
+          {options.map((option) =>
+            item(
+              option.value,
+              option.label,
+              value === option.value,
+              `主数字显示${option.label}`,
+              () => {
+                onChange(option.value);
+                close();
+              },
+            ),
+          )}
+          {!!extra.length && (
+            <View
+              style={{ height: 0.5, backgroundColor: t.line, marginVertical: 5 }}
+            />
+          )}
+          {extra.map((e) =>
+            item(e.label, e.label, e.selected, `显示${e.label}`, () => {
+              e.onPress();
               close();
-            }}
-            style={({ pressed }) => ({
-              minHeight: 44,
-              paddingHorizontal: 12,
-              paddingVertical: 10,
-              borderRadius: 12,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 12,
-              backgroundColor:
-                pressed || value === option.value ? t.soft : "transparent",
-            })}
-          >
-            <Txt
-              size={14}
-              color={value === option.value ? t.blue : t.text}
-              style={{ flex: 1 }}
-            >
-              {option.label}
-            </Txt>
-            {value === option.value && (
-              <Icon name="checkmark" size={15} color={t.blue} />
-            )}
-          </Pressable>
-        ))
-      }
+            }),
+          )}
+        </>
+      )}
     </Popover>
   );
 }
@@ -203,7 +227,7 @@ export function MonthlySummaryCard({
     repo.getLinkedBudgetCategories(),
   );
   const budget = scopedBudget(
-    choices.budgetScope,
+    repo.getSummaryPreferences().budgetScope,
     loanExpenseTxns(txns, data.plans),
     data.categories,
     month,
@@ -234,8 +258,11 @@ export function MonthlySummaryCard({
           : budget.budget > 0
             ? `已用 ${((budget.expense / budget.budget) * 100).toFixed(1)}%`
             : `已用 ${formatMoney(budget.expense)}`;
+  // The budget page changes the scope too, so it is read fresh rather than
+  // kept from when this card mounted (which would also write it back stale).
+  const budgetScope = repo.getSummaryPreferences().budgetScope;
   const saveChoices = (update: Partial<SummaryPreferences>) => {
-    const next = { ...choices, ...update };
+    const next = { ...choices, budgetScope, ...update };
     setChoices(next);
     try {
       repo.setSummaryPreferences(next);
@@ -342,6 +369,20 @@ export function MonthlySummaryCard({
                   options={budgetOptions}
                   label="切换预算主数字"
                   onChange={(budgetMetric) => saveChoices({ budgetMetric })}
+                  extra={[
+                    {
+                      label: "全部预算",
+                      selected: budgetScope === "all",
+                      onPress: () => saveChoices({ budgetScope: "all" }),
+                    },
+                    {
+                      label:
+                        repo.getDetailBudgetPreferences().title.trim() ||
+                        "日常预算",
+                      selected: budgetScope === "selected",
+                      onPress: () => saveChoices({ budgetScope: "selected" }),
+                    },
+                  ]}
                 />
               </View>
               <Pressable

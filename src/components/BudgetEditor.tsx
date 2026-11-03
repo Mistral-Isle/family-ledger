@@ -15,6 +15,7 @@ import { useLedger } from "./LedgerProvider";
 import {
   Button,
   Card,
+  confirmAction,
   ErrorText,
   Icon,
   IconButton,
@@ -226,25 +227,29 @@ export function BudgetEditor({ month }: { month: string }) {
     }
   }
   function sumChildren() {
-    try {
-      const next = { ...allocations };
-      if (parent) {
-        next[parent.id] = children.reduce(
-          (sum, c) => assertMoney(sum + (next[c.id] ?? 0)),
-          0,
-        );
-        run(() => repo.setMonthBudget(month, total, next));
-      } else {
-        const sum = roots.reduce(
-          (n, c) => assertMoney(n + (next[c.id] ?? 0)),
-          0,
-        );
-        run(() => repo.setMonthBudget(month, sum, next));
-      }
-      setError("");
-    } catch (e) {
-      setError((e as Error).message);
-    }
+    const next = { ...allocations };
+    const sum = (parent ? children : roots).reduce(
+      (n, c) => assertMoney(n + (next[c.id] ?? 0)),
+      0,
+    );
+    const before = parent ? allocations[parent.id] : total;
+    const name = parent ? parent.name + "预算" : "支出总预算";
+    if (before === sum) return;
+    confirmAction(
+      parent ? "合计二级预算" : "合计预算",
+      `${name}将从 ${before == null ? "未设置" : formatMoney(before)} 改为 ${formatMoney(sum)}（${parent ? "二级" : "一级"}分类预算之和）。`,
+      () => {
+        try {
+          if (parent) {
+            next[parent.id] = sum;
+            run(() => repo.setMonthBudget(month, total, next));
+          } else run(() => repo.setMonthBudget(month, sum, next));
+          setError("");
+        } catch (e) {
+          setError((e as Error).message);
+        }
+      },
+    );
   }
   function categoryRow(category: Category, last: boolean, detail = false) {
     const own = allocations[category.id],
