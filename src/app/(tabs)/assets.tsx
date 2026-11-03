@@ -1,4 +1,9 @@
-import { assetViewAccounts, assetAccountGroups } from "../../domain/assetView";
+import {
+  assetViewAccounts,
+  assetAccountGroups,
+  availableBalance,
+} from "../../domain/assetView";
+import { Popover } from "../../components/HelpBubble";
 import { Segmented } from "../../components/Segmented";
 import { InlineReorderList } from "../../components/InlineReorderList";
 import { AccountActionSheet } from "../../components/AccountActionSheet";
@@ -60,6 +65,38 @@ export default function Assets() {
   const debt = accounts
     .filter((a) => a.balance < 0)
     .reduce((sum, a) => sum - a.balance, 0);
+  const available = availableBalance(accounts);
+  const netLabel = view === "mine" ? "我的净资产" : "家庭净资产";
+  const [headline, setHeadline] = useState(() => repo.getAssetHeadline());
+  const switchHeadline = () => {
+    const next = headline === "net" ? "available" : "net";
+    setHeadline(next);
+    try {
+      repo.setAssetHeadline(next);
+      setError("");
+    } catch {
+      setError("未能保存显示设置，请重试。");
+    }
+  };
+  const composition = (
+    <>
+      {available.parts.map((part) => (
+        <Row key={part.kind} style={{ justifyContent: "space-between" }}>
+          <Txt size={13} color={t.muted}>
+            {part.kind === "credit" && part.amount < 0
+              ? "信用卡待还"
+              : zh.accountKinds[part.kind]}
+          </Txt>
+          <Txt size={13}>{displayMoney(part.amount)}</Txt>
+        </Row>
+      ))}
+      {!available.parts.length && (
+        <Txt size={13} color={t.muted}>
+          暂无储蓄卡、微信、支付宝、现金或信用卡余额。
+        </Txt>
+      )}
+    </>
+  );
   return (
     <Page>
       <Heading
@@ -83,9 +120,23 @@ export default function Assets() {
         }}
       >
         <Row style={{ gap: 2, marginVertical: -10 }}>
-          <Txt size={12} color={t.blue}>
-            {view === "mine" ? "我的净资产" : "家庭净资产"}
-          </Txt>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`大字显示${headline === "net" ? zh.available : netLabel}`}
+            onPress={switchHeadline}
+            style={({ pressed }) => ({
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
+              minHeight: 44,
+              opacity: pressed ? 0.6 : 1,
+            })}
+          >
+            <Txt size={12} color={t.blue}>
+              {headline === "net" ? netLabel : zh.available}
+            </Txt>
+            <Icon name="arrow.left.arrow.right" size={12} color={t.blue} />
+          </Pressable>
           <IconButton
             name={amountsHidden ? "eye.slash" : "eye"}
             label={amountsHidden ? "显示资产金额" : "隐藏资产金额"}
@@ -94,9 +145,9 @@ export default function Assets() {
           />
         </Row>
         <Txt size={36} bold>
-          {displayMoney(total)}
+          {displayMoney(headline === "net" ? total : available.total)}
         </Txt>
-        <Row>
+        <Row style={{ alignItems: "flex-start" }}>
           <View style={{ flex: 1, gap: 5 }}>
             <Txt size={11} color={t.muted}>
               {zh.totalAssets}
@@ -113,20 +164,46 @@ export default function Assets() {
               {displayMoney(debt)}
             </Txt>
           </View>
+          <View style={{ flex: 1, gap: 5 }}>
+            {headline === "net" ? (
+              <Popover
+                label="可用余额组成"
+                align="end"
+                menuWidth={260}
+                triggerContent={
+                  <View style={{ gap: 5 }}>
+                    <Row style={{ gap: 3 }}>
+                      <Txt size={11} color={t.muted}>
+                        {zh.available}
+                      </Txt>
+                      <Icon name="questionmark.circle" size={11} color={t.muted} />
+                    </Row>
+                    <Txt size={17} bold>
+                      {displayMoney(available.total)}
+                    </Txt>
+                  </View>
+                }
+              >
+                {composition}
+              </Popover>
+            ) : (
+              <>
+                <Txt size={11} color={t.muted}>
+                  {netLabel}
+                </Txt>
+                <Txt size={17} bold>
+                  {displayMoney(total)}
+                </Txt>
+              </>
+            )}
+          </View>
         </Row>
+        {headline === "available" && (
+          <View style={{ gap: 6 }}>{composition}</View>
+        )}
       </Card>
       <ErrorText message={error} />
       <Card>
-        <Txt>
-          {zh.finance.available} ·{" "}
-          {displayMoney(
-            accounts
-              .filter(
-                (a) => !["deposit", "prepaid", "loan"].includes(a.account.kind),
-              )
-              .reduce((sum, a) => sum + a.balance, 0),
-          )}
-        </Txt>
         <Txt>
           {zh.finance.frozen} ·{" "}
           {displayMoney(

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { LedgerRepository } from "../src/db/repository";
-import { assetViewAccounts, assetAccountGroups } from "../src/domain/assetView";
+import { assetViewAccounts, assetAccountGroups, availableBalance } from "../src/domain/assetView";
 import { fixture } from "./sqlite";
 
 test("personal assets use account ownership and family assets include each owner once, while excluding private/deleted accounts", () => {
@@ -47,4 +47,28 @@ test("asset view defaults to mine and persists locally without altering balances
     expect(f.repo.snapshot()).toEqual(before);
     expect(f.sqlite.prepare("SELECT * FROM outbox ORDER BY seq").all()).toEqual(outbox);
   } finally { f.sqlite.close(); }
+});
+
+test("available balance adds bank, wallet and cash balances and subtracts credit card debt", () => {
+  const f = fixture();
+  try {
+    const data = f.repo.snapshot(), base = data.accounts[0]!;
+    data.txns = [];
+    data.accounts = [
+      { ...base, id: "bank", kind: "bank", initialBalance: 500000 },
+      { ...base, id: "wechat", kind: "wechat", initialBalance: 12000 },
+      { ...base, id: "alipay", kind: "alipay", initialBalance: 8000 },
+      { ...base, id: "cash", kind: "cash", initialBalance: 3000 },
+      { ...base, id: "credit", kind: "credit", initialBalance: -150000 },
+      { ...base, id: "loan", kind: "loan", initialBalance: -2000000 },
+      { ...base, id: "deposit", kind: "deposit", initialBalance: 600000 },
+    ];
+    const result = availableBalance(assetViewAccounts(data, "family", "2026-11-01"));
+    expect(result.total).toBe(373000);
+    expect(result.parts.map(p => p.kind)).toEqual(["bank", "wechat", "alipay", "cash", "credit"]);
+    f.repo.setAssetHeadline("available");
+    expect(new LedgerRepository(f.driver, randomUUID).getAssetHeadline()).toBe("available");
+  } finally {
+    f.sqlite.close();
+  }
 });

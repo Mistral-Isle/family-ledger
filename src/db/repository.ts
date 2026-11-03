@@ -436,6 +436,15 @@ export class LedgerRepository {
   getAssetAmountsHidden(): boolean {
     return this.pref<boolean>("assetAmountsHidden", false) === true;
   }
+  /** Which figure the asset card shows large. */
+  getAssetHeadline(): "net" | "available" {
+    return this.pref<string>("assetHeadline", "net") === "available"
+      ? "available"
+      : "net";
+  }
+  setAssetHeadline(value: "net" | "available") {
+    this.setPref("assetHeadline", value === "available" ? "available" : "net");
+  }
   getAssetView(): "mine" | "family" {
     return this.pref<string>("assetView", "mine") === "family" ? "family" : "mine";
   }
