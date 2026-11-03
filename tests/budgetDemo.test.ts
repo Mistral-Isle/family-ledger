@@ -39,7 +39,7 @@ test("demo keeps agreed categories and housing exclusion changes 10000/6800/3200
     expect(f.repo.monthBudget("2026-10")).toBe(1000000);
     seedBudgetDemo(f.repo, "2026-10");
     expect(f.repo.snapshot()).toEqual(before);
-    expect(calculate().title).toBe("所选分类预算");
+    expect(calculate().title).toBe("日常预算");
   } finally {
     f.sqlite.close();
   }

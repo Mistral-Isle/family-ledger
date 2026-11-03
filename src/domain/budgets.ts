@@ -32,15 +32,13 @@ export function detailBudget(
   const filtered = omitted.length > 0;
   const none = cats.length > 0 && included.length === 0;
   // A parent's allocation already contains its children. Subtract it only once.
-  const excludedAmount = Object.entries(allocations).reduce(
-    (sum, [id, amount]) => {
-      const parent = byId.get(id)?.parentId;
-      return excluded.has(id) && (!parent || !excluded.has(parent))
-        ? assertMoney(sum + amount)
-        : sum;
-    },
-    0,
-  );
+  const excludedAmount = cats.reduce((sum, c) => {
+    if (!excluded.has(c.id) || (c.parentId && excluded.has(c.parentId)))
+      return sum;
+    return assertMoney(
+      sum + (effectiveAllocation(c.id, allocations, categories) ?? 0),
+    );
+  }, 0);
   const budget =
     total === null
       ? null
@@ -66,13 +64,37 @@ export function detailBudget(
           : expense > 0
             ? 1
             : 0,
-    title: preferences.title.trim() || (filtered ? "所选分类预算" : "本月预算"),
+    title: preferences.title.trim() || (filtered ? "日常预算" : "本月预算"),
     filtered,
     included,
     omitted,
     explanation: filtered
       ? "按已开启的分类计算预算与支出。可在预算设置中调整范围，不影响账单和完整预算。"
       : "当前包含全部支出分类。可在预算设置中调整明细页的显示范围。",
+  };
+}
+
+export type BudgetScope = "all" | "selected";
+
+/** "all" ignores the category switches; "selected" is the detail budget. */
+export function scopedBudget(
+  scope: BudgetScope,
+  txns: Txn[],
+  categories: Category[],
+  month: string,
+  total: number | null,
+  allocations: Record<string, number>,
+  preferences: DetailBudgetPreferences,
+) {
+  if (scope === "selected")
+    return detailBudget(txns, categories, month, total, allocations, preferences);
+  return {
+    ...detailBudget(txns, categories, month, total, allocations, {
+      ...preferences,
+      excludedCategoryIds: [],
+    }),
+    title: "全部预算",
+    explanation: "包含全部支出分类，已关闭的分类（如房租、车贷）也计入。",
   };
 }
 
@@ -133,26 +155,57 @@ export function validateBudgetAllocation(
 ) {
   if (total !== null && assertMoney(total) < 0)
     throw new Error("总预算不能小于零");
-  let roots = 0;
   for (const [id, amount] of Object.entries(allocations)) {
     if (assertMoney(amount) < 0) throw new Error("分类预算不能小于零");
     const category = categories.find(
       (c) => c.id === id && !c.deleted && c.kind === "expense",
     );
     if (!category) throw new Error("请选择有效的支出分类");
-    if (!category.parentId) roots = assertMoney(roots + amount);
-    else if (!(category.parentId in allocations))
-      throw new Error("请先设置该分类的一级预算");
   }
   if (Object.keys(allocations).length && total === null)
     throw new Error("请先填写总预算");
-  if (roots > (total ?? 0)) throw new Error("一级分类预算之和不能超过总预算");
-  for (const root of categories.filter((c) => !c.parentId && !c.deleted)) {
-    const children = categories
-      .filter((c) => c.parentId === root.id && !c.deleted)
-      .reduce((sum, c) => assertMoney(sum + (allocations[c.id] ?? 0)), 0);
-    if (children > (allocations[root.id] ?? 0))
-      throw new Error(`${root.name}的二级预算之和不能超过一级预算`);
-  }
   return allocations;
+}
+
+/** Over-allocation is allowed while typing; the editor only points it out. */
+export function budgetAllocationWarnings(
+  total: number | null,
+  allocations: Record<string, number>,
+  categories: Category[],
+) {
+  const live = categories.filter((c) => !c.deleted && c.kind === "expense");
+  const rootSum = live
+    .filter((c) => !c.parentId)
+    .reduce((sum, c) => assertMoney(sum + (allocations[c.id] ?? 0)), 0);
+  const children: Record<string, { sum: number; over: number }> = {};
+  for (const root of live.filter((c) => !c.parentId)) {
+    const sum = live
+      .filter((c) => c.parentId === root.id)
+      .reduce((n, c) => assertMoney(n + (allocations[c.id] ?? 0)), 0);
+    const limit = allocations[root.id];
+    // Without its own amount a parent simply shows what its children add up to.
+    if (limit !== undefined && sum > limit)
+      children[root.id] = { sum, over: assertMoney(sum - limit) };
+  }
+  return {
+    rootSum,
+    rootOver:
+      total !== null && rootSum > total ? assertMoney(rootSum - total) : 0,
+    children,
+  };
+}
+
+/** A parent without its own amount is budgeted by what its children add up to. */
+export function effectiveAllocation(
+  id: string,
+  allocations: Record<string, number>,
+  categories: Category[],
+): number | undefined {
+  if (id in allocations) return allocations[id];
+  const children = categories.filter(
+    (c) => c.parentId === id && !c.deleted && c.id in allocations,
+  );
+  return children.length
+    ? children.reduce((sum, c) => assertMoney(sum + allocations[c.id]!), 0)
+    : undefined;
 }

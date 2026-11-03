@@ -75,6 +75,7 @@ export function useTheme() {
     onSelected: dark ? darcula.onSelected : "#1C1C1E",
     red: dark ? darcula.red : coral,
     green: dark ? darcula.green : "#247342",
+    orange: dark ? "#E0A75E" : "#B85F00",
   };
 }
 const symbols = [

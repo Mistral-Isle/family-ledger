@@ -1,7 +1,9 @@
 export type SummaryPreferences = {
   page: "cashflow" | "budget";
   cashflowMetric: "expense" | "income" | "balance";
-  budgetMetric: "remaining" | "total";
+  budgetMetric: "remaining" | "used" | "total";
+  /** Shared by the budget page and the detail card so both show the same numbers. */
+  budgetScope: "all" | "selected";
 };
 
 /** Local display choices only; older backups may not contain this preference. */
@@ -15,6 +17,10 @@ export function summaryPreferences(value: unknown): SummaryPreferences {
       saved.cashflowMetric === "income" || saved.cashflowMetric === "balance"
         ? saved.cashflowMetric
         : "expense",
-    budgetMetric: saved.budgetMetric === "total" ? "total" : "remaining",
+    budgetMetric:
+      saved.budgetMetric === "total" || saved.budgetMetric === "used"
+        ? saved.budgetMetric
+        : "remaining",
+    budgetScope: saved.budgetScope === "all" ? "all" : "selected",
   };
 }

@@ -3,7 +3,7 @@ import { reportingSnapshot } from "../domain/reports";
 import { useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
-import { detailBudget, monthDailyMetrics } from "../domain/budgets";
+import { monthDailyMetrics, scopedBudget } from "../domain/budgets";
 import { formatMoney } from "../domain/money";
 import { totals, visibleTxns } from "../domain/selectors";
 import type { SummaryPreferences } from "../domain/summaryPreferences";
@@ -19,8 +19,9 @@ const cashflowOptions = [
   { value: "balance", label: "本月结余", short: "结余" },
 ] as const;
 const budgetOptions = [
-  { value: "remaining", label: "预算剩余" },
-  { value: "total", label: "预算总额" },
+  { value: "remaining", label: "预算剩余", short: "剩余" },
+  { value: "used", label: "预算已用", short: "已用" },
+  { value: "total", label: "预算总额", short: "总预算" },
 ] as const;
 
 function MetricPicker<T extends string>({
@@ -188,7 +189,8 @@ export function MonthlySummaryCard({
   const summary = totals(
     visibleTxns(reportingSnapshot({ ...data, txns }, memberId, false, "payer").txns).filter((txn) => txn.occurredAt.startsWith(month)),
   );
-  const budget = detailBudget(
+  const budget = scopedBudget(
+    choices.budgetScope,
     txns,
     data.categories,
     month,
@@ -204,6 +206,11 @@ export function MonthlySummaryCard({
       ? "未设置"
       : formatMoney(budgetDays.dailyRemaining);
   const overBudget = budget.remaining !== null && budget.remaining < 0;
+  const budgetAmounts = {
+    remaining: budget.remaining,
+    used: budget.budget === null ? null : budget.expense,
+    total: budget.budget,
+  };
   const usage =
     budget.budget === null
       ? "未设置"
@@ -333,61 +340,36 @@ export function MonthlySummaryCard({
                   { opacity: pressed ? 0.6 : 1 },
                 ]}
               >
-                <MainAmount
-                  amount={
-                    choices.budgetMetric === "total"
-                      ? budget.budget
-                      : budget.remaining
-                  }
-                />
+                <MainAmount amount={budgetAmounts[choices.budgetMetric]} />
               </Pressable>
               <View style={styles.auxiliary}>
-                <View style={styles.auxiliaryItem}>
-                  <Auxiliary
-                    label={
-                      choices.budgetMetric === "total" || budget.budget === null
-                        ? "已用"
-                        : "总预算"
-                    }
-                    value={
-                      choices.budgetMetric === "total" || budget.budget === null
-                        ? formatMoney(budget.expense)
-                        : formatMoney(budget.budget!)
-                    }
-                  />
-                </View>
-                <View style={styles.auxiliaryItem}>
-                  {choices.budgetMetric === "total" ? (
-                    <Auxiliary
-                      label="剩余"
-                      value={
-                        budget.remaining === null
-                          ? "未设置"
-                          : formatMoney(budget.remaining)
-                      }
-                      color={overBudget ? t.red : undefined}
-                    />
-                  ) : (
-                    <Explanation
-                      label="预算日均剩余说明"
-                      trigger={
-                        <Auxiliary
-                          label="剩余日均"
-                          value={dailyRemaining}
-                          color={
-                            (budgetDays.dailyRemaining ?? 0) < 0
-                              ? t.red
-                              : undefined
-                          }
-                        />
-                      }
-                    >
-                      <Txt size={14}>
-                        按明细预算所选分类计算剩余预算，再除以本月剩余天数（含今天）。未来月份按全月天数计算；历史月份显示已结束；未设置预算时不计算。负数表示已经超支。
-                      </Txt>
-                    </Explanation>
-                  )}
-                </View>
+                {budgetOptions
+                  .filter((option) => option.value !== choices.budgetMetric)
+                  .map((option) => (
+                    <View key={option.value} style={styles.auxiliaryItem}>
+                      <Auxiliary
+                        label={
+                          option.value === "remaining" && overBudget
+                            ? "已超出"
+                            : option.short
+                        }
+                        value={
+                          budgetAmounts[option.value] === null
+                            ? "未设置"
+                            : formatMoney(
+                                option.value === "remaining" && overBudget
+                                  ? -budgetAmounts.remaining!
+                                  : budgetAmounts[option.value]!,
+                              )
+                        }
+                        color={
+                          option.value !== "total" && overBudget
+                            ? t.red
+                            : undefined
+                        }
+                      />
+                    </View>
+                  ))}
               </View>
               <View style={styles.footer}>
                 <View

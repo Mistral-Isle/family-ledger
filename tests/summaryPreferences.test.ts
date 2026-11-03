@@ -15,11 +15,13 @@ test("summary choices survive reopening and backup without changing ledger or sy
       page: "cashflow",
       cashflowMetric: "expense",
       budgetMetric: "remaining",
+      budgetScope: "selected",
     });
     const chosen = {
       page: "budget",
       cashflowMetric: "balance",
-      budgetMetric: "total",
+      budgetMetric: "used",
+      budgetScope: "all",
     } as const;
     f.repo.setSummaryPreferences(chosen);
     const reopened = new LedgerRepository(f.driver, randomUUID);
@@ -43,12 +45,13 @@ test("missing, legacy and unknown display choices use safe defaults independentl
     false,
     "budget",
     {},
-    { page: "other", cashflowMetric: "other", budgetMetric: "other" },
+    { page: "other", cashflowMetric: "other", budgetMetric: "other", budgetScope: "other" },
   ]) {
     expect(summaryPreferences(input)).toEqual({
       page: "cashflow",
       cashflowMetric: "expense",
       budgetMetric: "remaining",
+      budgetScope: "selected",
     });
   }
   expect(
@@ -61,5 +64,6 @@ test("missing, legacy and unknown display choices use safe defaults independentl
     page: "budget",
     cashflowMetric: "income",
     budgetMetric: "remaining",
+    budgetScope: "selected",
   });
 });

@@ -77,7 +77,7 @@ test("parent and child exclusions adjust all budget metrics once, with refunds a
       filtered: false,
     });
     expect(project([child.id])).toMatchObject({
-      title: "所选分类预算",
+      title: "日常预算",
       budget: 6000,
       expense: 2000,
       remaining: 4000,

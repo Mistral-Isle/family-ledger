@@ -25,6 +25,7 @@ import {
 import { EntryKeyboard } from "./EntryKeyboard";
 import { Popover } from "./HelpBubble";
 import { DetailBudgetSettings } from "./DetailBudgetSettings";
+import { Segmented } from "./Segmented";
 import {
   calculate,
   formatMoney,
@@ -32,8 +33,13 @@ import {
   moneyKey,
   assertMoney,
 } from "../domain/money";
-import { categoryBudgetUsage } from "../domain/budgets";
-import { budgetTxns, totals } from "../domain/selectors";
+import {
+  budgetAllocationWarnings,
+  categoryBudgetUsage,
+  effectiveAllocation,
+  scopedBudget,
+  type BudgetScope,
+} from "../domain/budgets";
 import type { Category } from "../domain/types";
 
 export function BudgetEditor({ month }: { month: string }) {
@@ -60,6 +66,9 @@ export function BudgetEditor({ month }: { month: string }) {
     return () => animation.stop();
   }, [parentId, reduced, motion]);
   const [error, setError] = useState("");
+  const [scope, setScope] = useState<BudgetScope>(
+    () => repo.getSummaryPreferences().budgetScope,
+  );
   const total = repo.monthBudget(month),
     allocations = repo.monthAllocations(month);
   const preferences = repo.getDetailBudgetPreferences(),
@@ -71,9 +80,31 @@ export function BudgetEditor({ month }: { month: string }) {
     parent = cats.find((c) => c.id === parentId);
   const children = cats.filter((c) => c.parentId === parentId);
   const usage = categoryBudgetUsage(data.txns, data.categories, month);
-  const expense = totals(
-    budgetTxns(data.txns).filter((txn) => txn.occurredAt.startsWith(month)),
-  ).expense;
+  const warnings = budgetAllocationWarnings(total, allocations, data.categories);
+  const view = scopedBudget(
+    scope,
+    data.txns,
+    data.categories,
+    month,
+    total,
+    allocations,
+    preferences,
+  );
+  const selectedTitle = preferences.title.trim() || "日常预算";
+  const overBudget = view.remaining !== null && view.remaining < 0;
+  function chooseScope(next: BudgetScope) {
+    setScope(next);
+    try {
+      run(() =>
+        repo.setSummaryPreferences({
+          ...repo.getSummaryPreferences(),
+          budgetScope: next,
+        }),
+      );
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
   function openAmount(id: string | null) {
     const amount = id ? allocations[id] : total;
     setError("");
@@ -155,8 +186,10 @@ export function BudgetEditor({ month }: { month: string }) {
     }
   }
   function categoryRow(category: Category, last: boolean, detail = false) {
-    const amount = allocations[category.id],
-      spent = usage.get(category.id) ?? 0;
+    const own = allocations[category.id],
+      amount = effectiveAllocation(category.id, allocations, data.categories),
+      spent = usage.get(category.id) ?? 0,
+      over = warnings.children[category.id]?.over;
     const hasChildren = cats.some((c) => c.parentId === category.id);
     const disabled = !!category.parentId && excluded.has(category.parentId);
     return (
@@ -237,8 +270,14 @@ export function BudgetEditor({ month }: { month: string }) {
                 />
               </View>
               <Txt size={12} color={spent > (amount ?? Infinity) ? t.red : t.muted}>
-                预算 {amount === undefined ? "未设置" : formatMoney(amount)} ·
+                预算 {amount === undefined ? "未设置" : formatMoney(amount)}
+                {own === undefined && amount !== undefined ? "（二级合计）" : ""} ·
                 支出 {formatMoney(spent)}
+                {!!over && (
+                  <Txt size={12} color={t.orange}>
+                    {" "}· 二级超 {formatMoney(over)}
+                  </Txt>
+                )}
               </Txt>
             </View>
             <Icon name="chevron.right" size={14} color={t.muted} />
@@ -252,7 +291,7 @@ export function BudgetEditor({ month }: { month: string }) {
             }}
           >
             <Switch
-              accessibilityLabel={category.name + "计入明细预算"}
+              accessibilityLabel={category.name + "计入" + selectedTitle}
               value={!disabled && !excluded.has(category.id)}
               disabled={disabled}
               style={{ alignSelf: "center" }}
@@ -283,9 +322,18 @@ export function BudgetEditor({ month }: { month: string }) {
         </Row>
       ) : (
         <Card style={{ gap: 12 }}>
+          <Segmented
+            height={36}
+            value={scope}
+            options={[
+              { value: "all", label: "全部预算" },
+              { value: "selected", label: selectedTitle },
+            ]}
+            onChange={chooseScope}
+          />
           <Row style={{ justifyContent: "space-between" }}>
             <Txt bold color={t.muted}>
-              支出总预算
+              {scope === "all" ? "支出总预算" : view.title}
             </Txt>
             <Button secondary label="合计预算" onPress={sumChildren} />
           </Row>
@@ -297,17 +345,34 @@ export function BudgetEditor({ month }: { month: string }) {
           >
             <Row>
               <Txt size={34} bold>
-                {total === null ? "未设置" : formatMoney(total)}
+                {view.budget === null ? "未设置" : formatMoney(view.budget)}
               </Txt>
               <Icon name="pencil" size={18} color={t.muted} />
             </Row>
           </Pressable>
+          {scope === "selected" && view.filtered && total !== null && (
+            <Txt size={12} color={t.muted}>
+              总预算 {formatMoney(total)} − 已关闭分类{" "}
+              {formatMoney(Math.max(0, total - (view.budget ?? 0)))}
+            </Txt>
+          )}
           <Row style={{ flexWrap: "wrap" }}>
-            <Txt color={total !== null && expense > total ? t.red : t.muted}>已用 {formatMoney(expense)}</Txt>
-            <Txt color={total !== null && expense > total ? t.red : t.muted}>
-              可用 {total === null ? "未设置" : formatMoney(total - expense)}
+            <Txt color={overBudget ? t.red : t.muted}>
+              已用 {formatMoney(view.expense)}
+            </Txt>
+            <Txt color={overBudget ? t.red : t.muted}>
+              可用{" "}
+              {view.remaining === null ? "未设置" : formatMoney(view.remaining)}
             </Txt>
           </Row>
+          {warnings.rootOver > 0 && (
+            <Txt size={12} color={t.muted}>
+              一级预算合计 {formatMoney(warnings.rootSum)}，超出总预算{" "}
+              <Txt size={12} color={t.orange}>
+                {formatMoney(warnings.rootOver)}
+              </Txt>
+            </Txt>
+          )}
           <Txt size={12} color={t.muted}>
             修改即时生效；未单独设置的后续月份自动沿用。
           </Txt>
@@ -322,7 +387,7 @@ export function BudgetEditor({ month }: { month: string }) {
         <Txt bold>{parent ? "二级分类" : "分类预算"}</Txt>
         <Row style={{ gap: 4 }}>
           <Txt size={12} color={t.muted}>
-            计入明细
+            计入{selectedTitle}
           </Txt>
           <Popover label="明细预算显示设置">
             <DetailBudgetSettings />
