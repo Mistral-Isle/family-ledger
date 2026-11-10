@@ -68,17 +68,3 @@ export function GlassSurface({
     </View>
   );
 }
-
-/** The moving tab indicator: a clear glass lens over the glass bar, like iOS 26 tab bars. */
-export function GlassThumb() {
-  const t = useTheme();
-  return (
-    <GlassView
-      glassEffectStyle="clear"
-      isInteractive
-      colorScheme={t.dark ? "dark" : "light"}
-      tintColor={t.dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.05)"}
-      style={{ flex: 1, borderRadius: 25, borderCurve: "continuous" }}
-    />
-  );
-}

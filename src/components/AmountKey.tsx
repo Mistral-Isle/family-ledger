@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, View, type ViewStyle } from "react-native";
 import { amountKeyFeedback } from "../services/amountKeyFeedback";
 
+const MIN_PRESSED_MS = 110;
+
 /**
  * One key of the amount keypad.
  *
@@ -33,11 +35,17 @@ export function AmountKey({
   const [pressed, setPressed] = useState(false);
   const touches = useRef(new Set<number>());
   const longTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const liftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressedAt = useRef(0);
   const clearLong = () => {
     if (longTimer.current) clearTimeout(longTimer.current);
     longTimer.current = null;
   };
-  useEffect(() => clearLong, []);
+  const clearLift = () => {
+    if (liftTimer.current) clearTimeout(liftTimer.current);
+    liftTimer.current = null;
+  };
+  useEffect(() => () => { clearLong(); clearLift(); }, []);
   if (Platform.OS === "web")
     return (
       <Pressable
@@ -56,7 +64,12 @@ export function AmountKey({
     ids.forEach((id) => touches.current.delete(id));
     if (touches.current.size) return;
     clearLong();
-    setPressed(false);
+    // A quick tap lifts within a few milliseconds; keep the pressed look on
+    // screen long enough to be seen, as Pressable does.
+    const left = MIN_PRESSED_MS - (Date.now() - pressedAt.current);
+    clearLift();
+    if (left > 0) liftTimer.current = setTimeout(() => setPressed(false), left);
+    else setPressed(false);
   };
   return (
     <View
@@ -66,19 +79,26 @@ export function AmountKey({
       accessibilityHint={hint}
       onAccessibilityTap={onPress}
       onTouchStart={(e) => {
-        // A touch that began on this key is reported once, however many
-        // other fingers are down elsewhere on the keypad.
-        // Two fingers landing in the same frame arrive together, so keep
-        // only the touches that started on this key.
+        // Every touch in a touch-start has just begun. Two fingers landing in
+        // the same frame arrive together, so keep only those on this key.
         const changed = e.nativeEvent.changedTouches;
         const mine = changed.filter(
           (touch) => String(touch.target) === String(e.nativeEvent.target),
         );
-        const fresh = (mine.length || changed.length !== 1 ? mine : changed)
-          .filter((touch) => !touches.current.has(Number(touch.identifier)));
+        const fresh = mine.length || changed.length !== 1 ? mine : changed;
         if (!fresh.length) return;
+        // Ids are reused once a finger lifts; drop any this key still holds
+        // that are off the screen, so a missed lift cannot keep it pressed.
+        const active = new Set(
+          e.nativeEvent.touches.map((touch) => Number(touch.identifier)),
+        );
+        touches.current.forEach((id) => {
+          if (!active.has(id)) touches.current.delete(id);
+        });
         fresh.forEach((touch) => touches.current.add(Number(touch.identifier)));
         amountKeyFeedback();
+        clearLift();
+        pressedAt.current = Date.now();
         setPressed(true);
         onPress();
         if (onLongPress) {

@@ -2,12 +2,21 @@ import ExpoModulesCore
 import UIKit
 
 public final class LedgerCategoryOrderModule: Module {
+  // One long-lived, pre-warmed generator per kind. A generator created for a
+  // single tap and released right away is cold (the Taptic Engine is not
+  // prepared), so quick taps arrived late or not at all.
+  private lazy var keyFeedback = UIImpactFeedbackGenerator(style: .light)
+  private lazy var buttonFeedback = UIImpactFeedbackGenerator(style: .medium)
+
   public func definition() -> ModuleDefinition {
     Name("LedgerCategoryOrder")
     AsyncFunction("amountKeyFeedback") {
-      let feedback = UISelectionFeedbackGenerator()
-      feedback.prepare()
-      feedback.selectionChanged()
+      self.keyFeedback.impactOccurred(intensity: 0.7)
+      self.keyFeedback.prepare()
+    }.runOnQueue(.main)
+    AsyncFunction("buttonFeedback") {
+      self.buttonFeedback.impactOccurred()
+      self.buttonFeedback.prepare()
     }.runOnQueue(.main)
     View(LedgerCategoryOrderView.self) {
       Events("onOrderChange", "onItemPress", "onItemAction")

@@ -1,20 +1,19 @@
 import { useRef } from "react";
-import { Animated, Pressable, View, type ViewStyle } from "react-native";
-import { GlassView } from "expo-glass-effect";
+import { Animated, Pressable, type ViewStyle } from "react-native";
 import { Icon, useTheme } from "./ui";
-import { useLiquidGlass } from "./GlassSurface";
 import { useReducedMotion } from "./useReducedMotion";
+import { buttonFeedback } from "../services/amountKeyFeedback";
 
 const SIZE = 60;
 
 /**
  * The floating "记一笔" button.
  *
- * On iOS 26 it is tinted interactive Liquid Glass: the system draws the
- * light along the rim and makes the button swell and spring back under the
- * finger, as Apple's own floating buttons do. Elsewhere a spring squeezes it
- * on press and lets it overshoot on release, and an inner highlight stands in
- * for the glass rim.
+ * It keeps the solid theme color: tinted Liquid Glass blends with whatever
+ * scrolls behind it, which turned the button a different color from the rest
+ * of the theme and drew a second ring inside it. The glass look comes from a
+ * light rim and a soft inner shade instead; a spring squeezes it under the
+ * finger and lets it overshoot on release, with a haptic tap on touch.
  */
 export function FloatingAddButton({
   onPress,
@@ -24,19 +23,15 @@ export function FloatingAddButton({
   style?: ViewStyle;
 }) {
   const t = useTheme();
-  const glass = useLiquidGlass();
   const reduced = useReducedMotion();
   const scale = useRef(new Animated.Value(1)).current;
   const spring = (toValue: number, bounciness: number) =>
     Animated.spring(scale, {
       toValue,
       bounciness,
-      speed: 18,
+      speed: 20,
       useNativeDriver: true,
     }).start();
-  const shadow = t.dark
-    ? "0 8px 24px rgba(0,0,0,.30)"
-    : "0 8px 24px rgba(0,0,0,.16)";
   return (
     <Animated.View
       style={[
@@ -44,8 +39,10 @@ export function FloatingAddButton({
           width: SIZE,
           height: SIZE,
           borderRadius: SIZE / 2,
-          boxShadow: shadow,
           transform: [{ scale }],
+          boxShadow: t.dark
+            ? "0 8px 22px rgba(0,0,0,.32)"
+            : "0 8px 22px rgba(0,0,0,.18)",
         },
         style,
       ]}
@@ -54,43 +51,27 @@ export function FloatingAddButton({
         accessibilityRole="button"
         accessibilityLabel="记一笔"
         onPress={onPress}
-        onPressIn={() => !glass && !reduced && spring(0.88, 0)}
-        onPressOut={() => !glass && !reduced && spring(1, 14)}
-        style={{ flex: 1 }}
+        onPressIn={() => {
+          buttonFeedback();
+          if (!reduced) spring(0.86, 0);
+        }}
+        onPressOut={() => {
+          if (!reduced) spring(1, 16);
+        }}
+        style={{
+          flex: 1,
+          borderRadius: SIZE / 2,
+          backgroundColor: t.primary,
+          alignItems: "center",
+          justifyContent: "center",
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.30)",
+          // A bright upper rim and a soft lower shade read as light on glass.
+          boxShadow:
+            "inset 0 1.5px 1.5px rgba(255,255,255,0.50), inset 0 -3px 6px rgba(0,0,0,0.14)",
+        }}
       >
-        {glass ? (
-          <GlassView
-            glassEffectStyle="regular"
-            isInteractive
-            tintColor={t.primary}
-            colorScheme={t.dark ? "dark" : "light"}
-            style={{
-              flex: 1,
-              borderRadius: SIZE / 2,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Icon name="plus" color={t.onPrimary} size={28} />
-          </GlassView>
-        ) : (
-          <View
-            style={{
-              flex: 1,
-              borderRadius: SIZE / 2,
-              backgroundColor: t.primary,
-              alignItems: "center",
-              justifyContent: "center",
-              borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.28)",
-              // A bright top edge and a soft lower one read as light on a rim.
-              boxShadow:
-                "inset 0 1.5px 1px rgba(255,255,255,0.45), inset 0 -2px 4px rgba(0,0,0,0.12)",
-            }}
-          >
-            <Icon name="plus" color={t.onPrimary} size={28} />
-          </View>
-        )}
+        <Icon name="plus" color={t.onPrimary} size={28} />
       </Pressable>
     </Animated.View>
   );
