@@ -3,7 +3,7 @@ import {
   assetAccountGroups,
   availableBalance,
 } from "../../domain/assetView";
-import { Popover } from "../../components/HelpBubble";
+import { HelpLabel, Popover } from "../../components/HelpBubble";
 import { Segmented } from "../../components/Segmented";
 import { InlineReorderList } from "../../components/InlineReorderList";
 import { AccountActionSheet } from "../../components/AccountActionSheet";
@@ -153,14 +153,11 @@ export default function Assets() {
             label="可用余额组成"
             align="start"
             menuWidth={260}
-            triggerContent={
-              <Row style={{ gap: 4 }}>
-                <Txt size={13} color={t.muted}>
-                  {zh.available} {displayMoney(available.total)}
-                </Txt>
-                <Icon name="questionmark.circle" size={12} color={t.muted} />
-              </Row>
-            }
+            triggerContent={(pressed) => (
+              <HelpLabel pressed={pressed} size={13} iconSize={13}>
+                {zh.available} {displayMoney(available.total)}
+              </HelpLabel>
+            )}
           >
             {composition}
           </Popover>

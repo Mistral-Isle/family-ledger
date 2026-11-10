@@ -14,7 +14,7 @@ import {
 } from "../domain/selectors";
 import type { SummaryPreferences } from "../domain/summaryPreferences";
 import { useUi } from "../state/ui";
-import { Popover } from "./HelpBubble";
+import { HelpLabel, Popover } from "./HelpBubble";
 import { useLedger } from "./LedgerProvider";
 import { SummaryPager } from "./SummaryPager";
 import { ErrorText, Icon, Row, Txt, useTheme } from "./ui";
@@ -190,7 +190,7 @@ function Explanation({
   children,
 }: {
   label: string;
-  trigger: ReactNode;
+  trigger: (pressed: boolean) => ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -336,21 +336,14 @@ export function MonthlySummaryCard({
               <View style={styles.footer}>
                 <Explanation
                   label="日均支出说明"
-                  trigger={
-                    <Row style={{ gap: 6 }}>
-                      <Txt size={12} color={t.muted}>
-                        日均支出{" "}
-                        {cashDays.dailyExpense === null
-                          ? "—"
-                          : formatMoney(cashDays.dailyExpense)}
-                      </Txt>
-                      <Icon
-                        name="questionmark.circle"
-                        size={14}
-                        color={t.muted}
-                      />
-                    </Row>
-                  }
+                  trigger={(pressed) => (
+                    <HelpLabel pressed={pressed}>
+                      日均支出{" "}
+                      {cashDays.dailyExpense === null
+                        ? "—"
+                        : formatMoney(cashDays.dailyExpense)}
+                    </HelpLabel>
+                  )}
                 >
                   <Txt size={14}>
                     当月支出除以已过天数（含今天）；历史月份按全月天数计算，未来月份暂不计算。退款抵减支出，还款本金（计入支出的贷款除外）与本人账户间转账不计入。
@@ -432,22 +425,14 @@ export function MonthlySummaryCard({
                 >
                   <Explanation
                     label="明细预算范围说明"
-                    trigger={
-                      <Row style={{ gap: 5, flexShrink: 1 }}>
-                        <Txt
-                          size={12}
-                          color={overBudget ? t.red : t.muted}
-                          style={{ flexShrink: 1 }}
-                        >
-                          {memberId ? "共同 · " : ""}{budget.title} · {usage}
-                        </Txt>
-                        <Icon
-                          name="questionmark.circle"
-                          size={14}
-                          color={t.muted}
-                        />
-                      </Row>
-                    }
+                    trigger={(pressed) => (
+                      <HelpLabel
+                        pressed={pressed}
+                        color={overBudget ? t.red : t.muted}
+                      >
+                        {memberId ? "共同 · " : ""}{budget.title} · {usage}
+                      </HelpLabel>
+                    )}
                   >
                     <Txt bold>{budget.title}</Txt>
                     <Txt size={14}>{budget.explanation}</Txt>

@@ -76,7 +76,21 @@ export function calculate(input: string): number {
 }
 
 /** Keep each calculator operand at cent precision before submission. */
+/**
+ * "+×" and "−÷" share a key: the first press gives the first operator, and
+ * pressing again right away swaps it for the second (and back).
+ */
+const pairedOperators: Record<string, [string, string]> = {
+  "+×": ["+", "×"],
+  "−÷": ["−", "÷"],
+};
 export function moneyKey(input: string, key: string): string {
+  const pair = pairedOperators[key];
+  if (pair) {
+    const last = input.at(-1);
+    const next = last === pair[0] && input !== "−" ? pair[1] : pair[0];
+    return moneyKey(input, last === pair[1] ? pair[0] : next);
+  }
   if (key === "clear") return "0";
   if (key === "⌫") return input.slice(0, -1);
   if (input.length >= 36) return input;

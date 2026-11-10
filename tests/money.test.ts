@@ -65,3 +65,17 @@ describe("integer cents", () => {
     expect(() => calculate(input)).toThrow(),
   );
 });
+
+test("shared operator keys give the first operator, and swap on a repeat press", () => {
+  const press = (input: string, ...keys: string[]) => keys.reduce(moneyKey, input);
+  expect(press("12", "+×")).toBe("12+");
+  expect(press("12", "+×", "+×")).toBe("12×");
+  expect(press("12", "+×", "+×", "+×")).toBe("12+");
+  expect(press("12", "−÷")).toBe("12−");
+  expect(press("12", "−÷", "−÷")).toBe("12÷");
+  expect(press("12", "+×", "−÷")).toBe("12−");
+  expect(press("12+3", "+×")).toBe("15+");
+  expect(press("", "−÷")).toBe("−");
+  expect(press("", "−÷", "−÷")).toBe("−");
+  expect(press("", "+×")).toBe("");
+});

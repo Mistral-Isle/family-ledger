@@ -2,6 +2,7 @@ import { effectiveTripId, memberName, payerId } from "./travel";
 import type { Snapshot, TxnType, Txn } from "./types";
 import { visibleTxns } from "./selectors";
 import { reportingSnapshot } from "./reports";
+import { moneyInput } from "./money";
 
 export type DetailView = "mine" | "shared";
 
@@ -27,6 +28,29 @@ export function isFutureTransaction(
   );
 }
 
+/**
+ * A number typed into search also finds amounts: "32" matches ¥32.00–¥32.99,
+ * "32.5" matches ¥32.50–¥32.59 and "32.50" only ¥32.50.
+ */
+export function amountMatchesQuery(amount: number, query: string) {
+  const q = query.trim().replace(/^[¥￥]/, "").replace(/,/g, "");
+  if (!/^\d+(\.\d{0,2})?$/.test(q)) return false;
+  const value = moneyInput(Math.abs(amount));
+  return value === q || value.startsWith(q.includes(".") ? q : `${q}.`);
+}
+
+function matchesQuery(data: Snapshot, txn: Txn, search: string) {
+  if (!search) return true;
+  if (amountMatchesQuery(txn.amount, search)) return true;
+  const category = data.categories.find((c) => c.id === txn.categoryId);
+  const parent = data.categories.find((c) => c.id === category?.parentId);
+  const account = data.accounts.find((a) => a.id === txn.accountId);
+  const target = data.accounts.find((a) => a.id === txn.toAccountId);
+  return `${memberName(data, payerId(data, txn))} ${memberName(data, txn.recorderMemberId)} ${data.trips?.find((t) => t.id === effectiveTripId(data, txn))?.name ?? ""} ${txn.note} ${category?.name ?? ""} ${parent?.name ?? ""} ${account?.name ?? ""} ${target?.name ?? ""}`
+    .toLocaleLowerCase()
+    .includes(search);
+}
+
 export function filterMonthTransactions(
   data: Snapshot,
   month: string,
@@ -35,19 +59,28 @@ export function filterMonthTransactions(
   asOf?: Date,
 ) {
   const search = query.trim().toLocaleLowerCase();
-  return visibleTxns(data.txns).filter((txn) => {
-    if (asOf && isFutureTransaction(txn, asOf)) return false;
-    if (
-      !txn.occurredAt.startsWith(month) ||
-      (types.length && !types.includes(txn.type))
-    )
-      return false;
-    const category = data.categories.find((c) => c.id === txn.categoryId);
-    const parent = data.categories.find((c) => c.id === category?.parentId);
-    const account = data.accounts.find((a) => a.id === txn.accountId);
-    const target = data.accounts.find((a) => a.id === txn.toAccountId);
-    return `${memberName(data, payerId(data, txn))} ${memberName(data, txn.recorderMemberId)} ${data.trips?.find((t) => t.id === effectiveTripId(data, txn))?.name ?? ""} ${txn.note} ${category?.name ?? ""} ${parent?.name ?? ""} ${account?.name ?? ""} ${target?.name ?? ""}`
-      .toLocaleLowerCase()
-      .includes(search);
-  });
+  return visibleTxns(data.txns).filter(
+    (txn) =>
+      !(asOf && isFutureTransaction(txn, asOf)) &&
+      txn.occurredAt.startsWith(month) &&
+      (!types.length || types.includes(txn.type)) &&
+      matchesQuery(data, txn, search),
+  );
+}
+
+/** Search every month, newest first: a remembered amount is rarely in the month on screen. */
+export function searchTransactions(
+  data: Snapshot,
+  types: TxnType[],
+  query: string,
+  asOf?: Date,
+) {
+  const search = query.trim().toLocaleLowerCase();
+  if (!search) return [];
+  return visibleTxns(data.txns).filter(
+    (txn) =>
+      !(asOf && isFutureTransaction(txn, asOf)) &&
+      (!types.length || types.includes(txn.type)) &&
+      matchesQuery(data, txn, search),
+  );
 }

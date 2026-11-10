@@ -278,7 +278,7 @@ export const zh = {
   noTransactionsHint: "把小日子，记成好日子",
   firstEntry: "记下第一笔",
   noResults: "没有符合条件的记录",
-  search: "搜索备注、分类或账户",
+  search: "搜索备注、分类、账户或金额",
   today: "今天",
   yesterday: "昨天",
   entries: (n: number) => `${n} 笔`,

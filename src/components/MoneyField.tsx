@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Keyboard,
   Modal,
@@ -27,8 +27,13 @@ export function MoneyField({
   const [open, setOpen] = useState(false),
     [error, setError] = useState("");
   const [replaceNext, setReplaceNext] = useState(true);
+  // Keys can arrive faster than the parent re-renders; chain each key onto
+  // the previous one instead of the value from the last render.
+  const typed = useRef({ value, replaceNext });
+  typed.current = { value, replaceNext };
   const finish = () => {
     try {
+      const value = typed.current.value;
       if (value.trim()) onChangeText?.(moneyInput(calculate(value)));
       setOpen(false);
       setError("");
@@ -116,12 +121,13 @@ export function MoneyField({
             <EntryKeyboard
               onKey={(key) => {
                 setError("");
-                onChangeText?.(
-                  moneyKey(
-                    replaceNext && /^[\d.]$/.test(key) ? "" : value,
-                    key,
-                  ),
+                const current = typed.current;
+                const next = moneyKey(
+                  current.replaceNext && /^[\d.]$/.test(key) ? "" : current.value,
+                  key,
                 );
+                typed.current = { value: next, replaceNext: false };
+                onChangeText?.(next);
                 setReplaceNext(false);
               }}
               onSave={finish}

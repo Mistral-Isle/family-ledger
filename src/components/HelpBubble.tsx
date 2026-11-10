@@ -37,7 +37,12 @@ export function Popover({
   triggerText?: string;
   compact?: boolean;
   disclosure?: boolean;
-  triggerContent?: ReactNode;
+  /**
+   * A custom trigger. Pass a function to draw the pressed state yourself (a
+   * help label highlights only its "?"); plain content dims while pressed,
+   * because a fill behind a text label would hug the letters.
+   */
+  triggerContent?: ReactNode | ((pressed: boolean) => ReactNode);
   menuWidth?: number;
   align?: "start" | "end";
   contentStyle?: StyleProp<ViewStyle>;
@@ -115,10 +120,17 @@ export function Popover({
           borderRadius: 22,
           paddingHorizontal: triggerText ? 10 : 0,
           backgroundColor:
-            pressed || active || compact ? t.soft : "transparent",
+            triggerContent === undefined && (pressed || active || compact)
+              ? t.soft
+              : "transparent",
+          opacity:
+            pressed && triggerContent !== undefined && typeof triggerContent !== "function"
+              ? 0.6
+              : 1,
         })}
       >
-        {triggerContent ??
+        {({ pressed }) =>
+          typeof triggerContent === "function" ? triggerContent(pressed) : triggerContent ??
           (triggerText ? (
             <View
               style={{ flexDirection: "row", alignItems: "center", gap: 5 }}
@@ -140,7 +152,8 @@ export function Popover({
               size={icon === "questionmark.circle" ? 18 : 22}
               color={active ? t.blue : t.muted}
             />
-          ))}
+          ))
+        }
       </Pressable>
       <Modal
         visible={!!anchor}
@@ -237,5 +250,46 @@ export function HelpBubble({
     <Popover label={`${label}说明`} icon="questionmark.circle">
       <Txt size={14}>{children}</Txt>
     </Popover>
+  );
+}
+
+/**
+ * A text label followed by a "?" that opens an explanation. The whole label is
+ * the tap target, but only the "?" lights up, inside its own round backing,
+ * so the highlight never presses against the words.
+ */
+export function HelpLabel({
+  pressed,
+  children,
+  color,
+  size = 12,
+  iconSize = 14,
+}: {
+  pressed: boolean;
+  children: ReactNode;
+  color?: string;
+  size?: number;
+  iconSize?: number;
+}) {
+  const t = useTheme();
+  const disc = iconSize + 12;
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 1, flexShrink: 1 }}>
+      <Txt size={size} color={color ?? t.muted} style={{ flexShrink: 1 }}>
+        {children}
+      </Txt>
+      <View
+        style={{
+          width: disc,
+          height: disc,
+          borderRadius: disc / 2,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: pressed ? t.soft : "transparent",
+        }}
+      >
+        <Icon name="questionmark.circle" size={iconSize} color={pressed ? t.text : t.muted} />
+      </View>
+    </View>
   );
 }

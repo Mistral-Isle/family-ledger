@@ -10,7 +10,7 @@ import {
 import { TxnMetadata } from "../../components/TxnMetadata";
 import { MonthlySummaryCard } from "../../components/MonthlySummaryCard";
 import { Popover } from "../../components/HelpBubble";
-import { detailViewSnapshot, filterMonthTransactions } from "../../domain/transactionFilters";
+import { detailViewSnapshot, filterMonthTransactions, searchTransactions } from "../../domain/transactionFilters";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Pressable, TextInput, View, Switch } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -43,6 +43,9 @@ import {
 } from "../../domain/financialRows";
 import { owningPlan, planRowRemoval } from "../../domain/planRecords";
 import { holdingName, isHoldingAccount } from "../../domain/rentAccounts";
+
+/** Rows reach the card's edges so a pressed row lights up edge to edge; content keeps this inset. */
+const ROW_INSET = 17;
 
 const SelectionContext = createContext({
   active: false,
@@ -139,7 +142,7 @@ function FinancialGroup({ name, txns }: { name: string; txns: Txn[] }) {
         disabled={selection.active}
         actionWidth={64}
         actions={
-          <Row style={{ justifyContent: "flex-end" }}>
+          <Row style={{ justifyContent: "flex-end", paddingRight: 6 }}>
             <IconButton
               name="trash"
               color={t.red}
@@ -151,7 +154,7 @@ function FinancialGroup({ name, txns }: { name: string; txns: Txn[] }) {
       >
         <View style={{ backgroundColor: t.card }}>
           {!!notice && (
-            <Txt size={11} color={t.blue}>
+            <Txt size={11} color={t.blue} style={{ paddingHorizontal: ROW_INSET }}>
               {notice}
             </Txt>
           )}
@@ -162,6 +165,7 @@ function FinancialGroup({ name, txns }: { name: string; txns: Txn[] }) {
             onPress={() => setExpanded(!expanded)}
             style={({ pressed }) => ({
               paddingVertical: 10,
+              paddingHorizontal: ROW_INSET,
               backgroundColor: pressed ? t.soft : "transparent",
             })}
           >
@@ -212,8 +216,9 @@ function FinancialGroup({ name, txns }: { name: string; txns: Txn[] }) {
         </View>
       </SwipeActions>
       {expanded && (
-        <View style={{ borderTopWidth: 1, borderColor: t.line, paddingTop: 8 }}>
-          <Txt size={12} color={t.muted}>
+        <View style={{ paddingTop: 8 }}>
+          <View style={{ height: 1, backgroundColor: t.line, marginHorizontal: ROW_INSET }} />
+          <Txt size={12} color={t.muted} style={{ paddingHorizontal: ROW_INSET, paddingTop: 8 }}>
             本日计入支出 {formatMoney(expense)}；以下分摊不重复扣款。
           </Txt>
           {txns.map((txn) => (
@@ -277,7 +282,7 @@ function TransactionRow({ txn }: { txn: Txn }) {
         startWidth={100}
         startActions={
           canRefund ? (
-            <View style={{ paddingRight: 20 }}>
+            <View style={{ paddingLeft: 10, paddingRight: 20 }}>
             <Button
               secondary
               label={zh.refund}
@@ -292,7 +297,7 @@ function TransactionRow({ txn }: { txn: Txn }) {
           ) : undefined
         }
         actions={
-          <Row style={{ justifyContent: "flex-end", gap: 4 }}>
+          <Row style={{ justifyContent: "flex-end", gap: 4, paddingRight: 6 }}>
             {canFavorite && (
               <Button
                 secondary
@@ -311,7 +316,7 @@ function TransactionRow({ txn }: { txn: Txn }) {
       >
         <View style={{ backgroundColor: t.card }}>
           {!!notice && (
-            <Txt size={11} color={t.blue}>
+            <Txt size={11} color={t.blue} style={{ paddingHorizontal: ROW_INSET }}>
               {notice}
             </Txt>
           )}
@@ -331,6 +336,7 @@ function TransactionRow({ txn }: { txn: Txn }) {
             }}
             style={({ pressed }) => ({
               paddingVertical: 10,
+              paddingHorizontal: ROW_INSET,
               backgroundColor: pressed ? t.soft : "transparent",
             })}
           >
@@ -502,13 +508,18 @@ export default function Details() {
     const timer = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(timer);
   }, [hideFuture]);
-  const filtered = filterMonthTransactions(
-    viewData,
-    month,
-    types,
-    query,
-    hideFuture ? now : undefined,
-  );
+  // A search looks through every month and replaces the month view.
+  const searching = !!query.trim();
+  const filtered = searching
+    ? searchTransactions(viewData, types, query, hideFuture ? now : undefined)
+    : filterMonthTransactions(
+        viewData,
+        month,
+        types,
+        query,
+        hideFuture ? now : undefined,
+      );
+  const searchTotals = searching ? totals(filtered) : undefined;
   const [selection, setSelection] = useState<Set<string> | null>(null);
   const [selectionError, setSelectionError] = useState("");
   const selectable = filtered.filter(
@@ -631,6 +642,8 @@ export default function Details() {
               placeholderTextColor={t.muted}
               value={query}
               onChangeText={setQuery}
+              returnKeyType="search"
+              clearButtonMode="never"
               style={{
                 flex: 1,
                 paddingVertical: 13,
@@ -756,18 +769,59 @@ export default function Details() {
           </Pressable>
         </Row>
         {!!syncMessage && <Txt size={12} color={syncStatus.error ? t.red : t.muted}>{syncMessage}</Txt>}
-        <MonthPicker />
-        <MonthlySummaryCard month={month} asOf={hideFuture ? now : undefined} memberId={detailView === "mine" ? data.meId : ""} />
-        <Row style={{ justifyContent: "space-between" }}>
-          <Txt size={20} bold>
-            {hideFuture ? "截至现在的明细" : "本月明细"}
-          </Txt>
-          {!!types.length && (
-            <Txt size={12} color={t.blue}>
-              {types.length} 种类型 · {filtered.length} 笔
-            </Txt>
-          )}
-        </Row>
+        {searchTotals ? (
+          <>
+            <Row style={{ justifyContent: "space-between" }}>
+              <Txt size={20} bold>
+                搜索结果
+              </Txt>
+              <Txt size={12} color={t.muted}>
+                全部月份 · 共 {filtered.length} 笔
+              </Txt>
+            </Row>
+            {filtered.length > 0 && (
+              <Row style={{ gap: 8 }}>
+                {[
+                  { label: zh.expense, value: searchTotals.expense, color: t.red },
+                  { label: zh.income, value: searchTotals.income, color: t.green },
+                  {
+                    label: "结余",
+                    value: searchTotals.income - searchTotals.expense,
+                    color: t.orange,
+                  },
+                ].map((item) => (
+                  <Card
+                    key={item.label}
+                    style={{ flex: 1, paddingVertical: 12, paddingHorizontal: 12, gap: 4 }}
+                  >
+                    <Txt size={12} bold color={item.color}>
+                      {item.label}
+                    </Txt>
+                    <Txt size={16} bold numberOfLines={1}>
+                      {item.value < 0 ? "−" : ""}
+                      {formatMoney(Math.abs(item.value))}
+                    </Txt>
+                  </Card>
+                ))}
+              </Row>
+            )}
+          </>
+        ) : (
+          <>
+            <MonthPicker />
+            <MonthlySummaryCard month={month} asOf={hideFuture ? now : undefined} memberId={detailView === "mine" ? data.meId : ""} />
+            <Row style={{ justifyContent: "space-between" }}>
+              <Txt size={20} bold>
+                {hideFuture ? "截至现在的明细" : "本月明细"}
+              </Txt>
+              {!!types.length && (
+                <Txt size={12} color={t.blue}>
+                  {types.length} 种类型 · {filtered.length} 笔
+                </Txt>
+              )}
+            </Row>
+          </>
+        )}
         {groups.length === 0 ? (
           <Card style={{ alignItems: "center", paddingVertical: 40, gap: 12 }}>
             <View
@@ -784,7 +838,7 @@ export default function Details() {
               <Icon name="book.fill" size={30} color={t.blue} />
             </View>
             <Txt size={18} bold>
-              {query || types.length ? zh.noResults : zh.noTransactions}
+              {searching || types.length ? zh.noResults : zh.noTransactions}
             </Txt>
             <Txt size={12} color={t.muted}>
               {zh.noTransactionsHint}
@@ -811,7 +865,9 @@ export default function Details() {
                   <Txt size={12} color={t.muted}>
                     {group.date === today()
                       ? zh.today
-                      : group.date.slice(5).replace("-", " / ")}
+                      : group.date.slice(0, 4) !== today().slice(0, 4)
+                        ? group.date.replaceAll("-", " / ")
+                        : group.date.slice(5).replace("-", " / ")}
                   </Txt>
                   <Txt size={11} color={t.muted}>
                     {zh.expense} {formatMoney(daily.expense, false)}　
@@ -821,16 +877,22 @@ export default function Details() {
                 <Card
                   style={{
                     paddingVertical: 0,
-                    paddingHorizontal: 17,
+                    paddingHorizontal: 0,
                     gap: 0,
                     overflow: "hidden",
                   }}
                 >
                   {financialRowGroups(data, group.txns).map((row, i) => (
-                    <View
-                      key={row.id}
-                      style={{ borderTopWidth: i ? 1 : 0, borderColor: t.line }}
-                    >
+                    <View key={row.id}>
+                      {i > 0 && (
+                        <View
+                          style={{
+                            height: 1,
+                            backgroundColor: t.line,
+                            marginHorizontal: ROW_INSET,
+                          }}
+                        />
+                      )}
                       {row.txns.length > 1 ? (
                         <FinancialGroup name={row.name} txns={row.txns} />
                       ) : (

@@ -17,8 +17,10 @@ import { VaultGate } from "../components/VaultGate";
 import { SharedEntryFields } from "../components/SharedEntryFields";
 import { TxnMetadata } from "../components/TxnMetadata";
 import { type DuplicateMatch } from "../domain/travel";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  Animated,
+  BackHandler,
   Pressable,
   TextInput,
   Text,
@@ -52,7 +54,7 @@ import {
 } from "../components/ui";
 import { calculate, formatMoney, moneyInput } from "../domain/money";
 import { today } from "../domain/date";
-import { firstCategory } from "../domain/selectors";
+import { accountBalance, firstCategory } from "../domain/selectors";
 import type { Favorite, Txn } from "../domain/types";
 import { zh } from "../i18n/zh";
 
@@ -224,6 +226,18 @@ function Entry() {
           a.id === existing?.toAccountId),
     )
     .sort((a, b) => Number(b.ownerMemberId === data.meId) - Number(a.ownerMemberId === data.meId) || a.sort - b.sort);
+  // The account's real balance, future-dated bills included (rent or tickets
+  // already paid but dated ahead), counting this transfer as not yet made.
+  const fromAccount =
+    type === "transfer"
+      ? data.accounts.find((a) => a.id === accountId && !a.deleted)
+      : undefined;
+  const fromBalance = fromAccount
+    ? accountBalance(
+        fromAccount,
+        data.txns.filter((txn) => txn.id !== existing?.id),
+      )
+    : null;
   const roots = data.categories
     .filter((c) => !c.deleted && !c.hidden && !c.parentId && c.kind === type)
     .sort((a, b) => a.sort - b.sort);
@@ -396,6 +410,39 @@ function Entry() {
     Keyboard.dismiss();
     setTextEditing(false);
   };
+  // However the system keyboard goes away (return key, swipe, back), the
+  // amount keypad comes back without an extra "完成输入" tap.
+  useEffect(() => {
+    const sub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setTextEditing(false),
+    );
+    return () => sub.remove();
+  }, []);
+  // The subcategory sheet is an in-screen overlay rather than a native Modal:
+  // a Modal presented from a tap inside the category ScrollView swallowed the
+  // first backdrop tap on iOS, so closing it took two taps.
+  const childFade = useRef(new Animated.Value(1)).current;
+  function openChildPicker(parentId: string) {
+    Keyboard.dismiss();
+    setExpanded(parentId);
+    setChildPicker(true);
+    childFade.setValue(reducedMotion ? 1 : 0);
+    if (!reducedMotion)
+      Animated.timing(childFade, {
+        toValue: 1,
+        duration: 180,
+        useNativeDriver: true,
+      }).start();
+  }
+  useEffect(() => {
+    if (!childPicker) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      setChildPicker(false);
+      return true;
+    });
+    return () => sub.remove();
+  }, [childPicker]);
   function accountSelector() {
     const selected = accounts.find((a) => a.id === accountId);
     return (
@@ -508,7 +555,7 @@ function Entry() {
       <CategoryTile
         key={c.id} category={c} shown={shown} selected={selected} hasChildren={hasChildren}
         onPress={() => {
-          if (hasChildren) { setExpanded(c.id); setChildPicker(true); }
+          if (hasChildren) openChildPicker(c.id);
           else { selectCategory(c.id); setExpanded(c.parentId ?? c.id); setChildPicker(false); }
         }}
       />
@@ -527,7 +574,7 @@ function Entry() {
           alignSelf: "center",
           paddingTop: Platform.OS === "ios" ? 8 : Math.max(insets.top, 8),
           paddingBottom: Math.max(insets.bottom, 10),
-          paddingHorizontal: 16,
+          paddingHorizontal: 12,
         }}
       >
         <Row style={{ gap: 8, marginBottom: 8 }}>
@@ -653,6 +700,37 @@ function Entry() {
                       </Txt>
                       <Icon name="chevron.down" size={14} color={t.muted} />
                     </Row>
+                    {side === "from" && fromBalance !== null && (
+                      <Row style={{ justifyContent: "space-between", gap: 8 }}>
+                        <Txt size={13} color={fromBalance < 0 ? t.red : t.muted}>
+                          余额 {fromBalance < 0 ? "−" : ""}
+                          {formatMoney(Math.abs(fromBalance))}
+                        </Txt>
+                        {fromBalance > 0 && (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`全部转出 ${formatMoney(fromBalance)}`}
+                            hitSlop={8}
+                            onPress={() => {
+                              setAmount(moneyInput(fromBalance));
+                              setMessage("");
+                              setError("");
+                            }}
+                            style={({ pressed }) => ({
+                              paddingHorizontal: 12,
+                              paddingVertical: 6,
+                              borderRadius: 14,
+                              backgroundColor: t.card,
+                              opacity: pressed ? 0.6 : 1,
+                            })}
+                          >
+                            <Txt size={13} bold color={t.buttonText}>
+                              全部转出
+                            </Txt>
+                          </Pressable>
+                        )}
+                      </Row>
+                    )}
                   </Pressable>
                 );
               })}
@@ -967,6 +1045,8 @@ function Entry() {
                 value={note}
                 onChangeText={setNote}
                 onFocus={focusText}
+                onSubmitEditing={finishText}
+                returnKeyType="done"
                 maxLength={500}
                 placeholder={zh.notePlaceholder}
                 placeholderTextColor={t.muted}
@@ -1056,63 +1136,6 @@ function Entry() {
                 label={zh.cancel}
                 onPress={() => setDuplicateMatches([])}
               />
-            </View>
-          </View>
-        </Modal>
-        <Modal
-          transparent
-          visible={childPicker}
-          animationType={reducedMotion ? "none" : "fade"}
-          onRequestClose={() => setChildPicker(false)}
-        >
-          <View
-            style={{
-              flex: 1,
-              justifyContent: "flex-end",
-              backgroundColor: "rgba(0,0,0,0.35)",
-            }}
-          >
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="收起二级分类"
-              onPress={() => setChildPicker(false)}
-              style={{ position: "absolute", inset: 0 }}
-            />
-            <View
-              style={{
-                backgroundColor: t.bg,
-                borderTopLeftRadius: 26,
-                borderTopRightRadius: 26,
-                padding: 18,
-                paddingBottom: Math.max(insets.bottom, 20),
-                maxHeight: "65%",
-                width: "100%",
-                maxWidth: 600,
-                alignSelf: "center",
-                gap: 12,
-              }}
-            >
-              <Row style={{ justifyContent: "space-between" }}>
-                <Txt size={18} bold>
-                  {data.categories.find((c) => c.id === expanded)?.name}
-                </Txt>
-                <IconButton
-                  name="xmark"
-                  label="关闭二级分类"
-                  onPress={() => setChildPicker(false)}
-                />
-              </Row>
-              <ScrollView keyboardShouldPersistTaps="handled">
-                <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-                  {children.map((c) => tile(c, true))}
-                </View>
-                <Button
-                  secondary
-                  icon="plus"
-                  label="新增二级分类"
-                  onPress={() => newCategory(expanded)}
-                />
-              </ScrollView>
             </View>
           </View>
         </Modal>
@@ -1337,6 +1360,66 @@ function Entry() {
           </KeyboardAvoidingView>
         </Modal>
       </View>
+      {childPicker && (
+        <Animated.View
+          accessibilityViewIsModal
+          style={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            zIndex: 10,
+            elevation: 10,
+            justifyContent: "flex-end",
+            backgroundColor: "rgba(0,0,0,0.35)",
+            opacity: childFade,
+          }}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="收起二级分类"
+            onPress={() => setChildPicker(false)}
+            style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
+          />
+          <View
+            style={{
+              backgroundColor: t.bg,
+              borderTopLeftRadius: 26,
+              borderTopRightRadius: 26,
+              padding: 18,
+              paddingBottom: Math.max(insets.bottom, 20),
+              maxHeight: "65%",
+              width: "100%",
+              maxWidth: 600,
+              alignSelf: "center",
+              gap: 12,
+            }}
+          >
+            <Row style={{ justifyContent: "space-between" }}>
+              <Txt size={18} bold>
+                {data.categories.find((c) => c.id === expanded)?.name}
+              </Txt>
+              <IconButton
+                name="xmark"
+                label="关闭二级分类"
+                onPress={() => setChildPicker(false)}
+              />
+            </Row>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                {children.map((c) => tile(c, true))}
+              </View>
+              <Button
+                secondary
+                icon="plus"
+                label="新增二级分类"
+                onPress={() => newCategory(expanded)}
+              />
+            </ScrollView>
+          </View>
+        </Animated.View>
+      )}
     </KeyboardAvoidingView>
   );
 }

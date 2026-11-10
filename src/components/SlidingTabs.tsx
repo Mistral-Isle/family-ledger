@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Animated, PanResponder, Pressable, View } from "react-native";
 import { Txt, useTheme, Icon } from "./ui";
 import { useReducedMotion } from "./useReducedMotion";
-import { GlassSurface } from "./GlassSurface";
+import { GlassSurface, GlassThumb, useLiquidGlass } from "./GlassSurface";
 export function Segmented<T extends string>({
   value,
   options,
@@ -13,7 +13,8 @@ export function Segmented<T extends string>({
   onChange: (value: T) => void;
 }) {
   const t = useTheme(),
-    reduced = useReducedMotion();
+    reduced = useReducedMotion(),
+    glass = useLiquidGlass();
   const [width, setWidth] = useState(0);
   const x = useRef(new Animated.Value(0)).current;
   const step = width / options.length,
@@ -70,10 +71,12 @@ export function Segmented<T extends string>({
               left: 0,
               width: step,
               borderRadius: 25,
-              backgroundColor: t.selected,
+              backgroundColor: glass ? "transparent" : t.selected,
               transform: [{ translateX: x }],
             }}
-          />
+          >
+            {glass && <GlassThumb />}
+          </Animated.View>
         )}
         {options.map((o) => (
           <Pressable

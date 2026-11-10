@@ -1,5 +1,12 @@
 import NativeSegmentedControl from "@react-native-segmented-control/segmented-control";
+import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { useTheme } from "./ui";
+
+// On iOS 26 the system control draws a clear track and a Liquid Glass thumb,
+// but only while its colors are left alone: a background or tint color
+// replaces both with flat fills.
+const nativeGlass = isLiquidGlassAvailable();
+
 export function Segmented<T extends string>({
   value,
   options,
@@ -14,6 +21,7 @@ export function Segmented<T extends string>({
   onChange: (value: T) => void;
 }) {
   const t = useTheme();
+  const size = height ?? (compact ? 32 : 48);
   return (
     <NativeSegmentedControl
       values={options.map((o) => o.label)}
@@ -22,11 +30,23 @@ export function Segmented<T extends string>({
         onChange(options[event.nativeEvent.selectedSegmentIndex]!.value)
       }
       appearance={t.dark ? "dark" : "light"}
-      backgroundColor={t.soft}
-      tintColor={t.dark ? t.selected : t.card}
-      fontStyle={{ color: t.muted, fontSize: 15 }}
-      activeFontStyle={{ color: t.onSelected, fontWeight: "600", fontSize: 15 }}
-      style={{ height: height ?? (compact ? 32 : 48), borderRadius: (height ?? (compact ? 32 : 48)) / 2, overflow: "hidden" }}
+      {...(nativeGlass
+        ? {
+            fontStyle: { fontSize: 15 },
+            activeFontStyle: { fontWeight: "600" as const, fontSize: 15 },
+            style: { height: size },
+          }
+        : {
+            backgroundColor: t.soft,
+            tintColor: t.dark ? t.selected : t.card,
+            fontStyle: { color: t.muted, fontSize: 15 },
+            activeFontStyle: {
+              color: t.onSelected,
+              fontWeight: "600" as const,
+              fontSize: 15,
+            },
+            style: { height: size, borderRadius: size / 2, overflow: "hidden" as const },
+          })}
     />
   );
 }

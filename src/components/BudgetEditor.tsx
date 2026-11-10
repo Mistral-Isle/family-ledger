@@ -190,9 +190,14 @@ export function BudgetEditor({ month }: { month: string }) {
         repo.setLinkedBudgetCategories(links.filter((l) => l.id !== id));
     });
   }
+  // Keys can arrive faster than a re-render; each one builds on the last.
+  const typed = useRef(editor);
+  typed.current = editor;
   function change(value: string) {
+    const editor = typed.current;
     if (!editor) return;
-    setEditor({ ...editor, value, replace: false });
+    typed.current = { ...editor, value, replace: false };
+    setEditor(typed.current);
     try {
       persist(value, editor.id);
       setError("");
@@ -201,6 +206,7 @@ export function BudgetEditor({ month }: { month: string }) {
     }
   }
   function finish() {
+    const editor = typed.current;
     if (!editor) return;
     try {
       persist(editor.value, editor.id);
@@ -553,9 +559,9 @@ export function BudgetEditor({ month }: { month: string }) {
               onKey={(key) =>
                 change(
                   moneyKey(
-                    editor?.replace && /^[\d.]$/.test(key)
+                    typed.current?.replace && /^[\d.]$/.test(key)
                       ? ""
-                      : (editor?.value ?? ""),
+                      : (typed.current?.value ?? ""),
                     key,
                   ),
                 )

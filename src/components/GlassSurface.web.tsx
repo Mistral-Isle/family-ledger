@@ -27,3 +27,12 @@ export function GlassSurface({
     </View>
   );
 }
+
+export function useLiquidGlass() {
+  return false;
+}
+
+/** Web previews have no Liquid Glass; the tab thumb stays a flat fill. */
+export function GlassThumb() {
+  return null;
+}
