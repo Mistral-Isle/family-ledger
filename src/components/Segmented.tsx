@@ -110,7 +110,9 @@ export function Segmented<T extends string>({
             <Txt
               size={compact ? 13 : o.icon ? 10 : 15}
               bold={o.value === value}
-              color={value === o.value ? t.onSelected : t.muted}
+              color={
+                value === o.value ? (t.dark ? t.onSelected : t.blue) : t.muted
+              }
             >
               {o.label}
             </Txt>

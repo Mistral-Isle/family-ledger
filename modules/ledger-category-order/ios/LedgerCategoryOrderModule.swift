@@ -5,13 +5,13 @@ public final class LedgerCategoryOrderModule: Module {
   // One long-lived, pre-warmed generator per kind. A generator created for a
   // single tap and released right away is cold (the Taptic Engine is not
   // prepared), so quick taps arrived late or not at all.
-  private lazy var keyFeedback = UIImpactFeedbackGenerator(style: .light)
+  private lazy var keyFeedback = UIImpactFeedbackGenerator(style: .medium)
   private lazy var buttonFeedback = UIImpactFeedbackGenerator(style: .medium)
 
   public func definition() -> ModuleDefinition {
     Name("LedgerCategoryOrder")
     AsyncFunction("amountKeyFeedback") {
-      self.keyFeedback.impactOccurred(intensity: 0.7)
+      self.keyFeedback.impactOccurred()
       self.keyFeedback.prepare()
     }.runOnQueue(.main)
     AsyncFunction("buttonFeedback") {

@@ -33,7 +33,12 @@ export function Segmented<T extends string>({
       {...(nativeGlass
         ? {
             fontStyle: { fontSize: 15 },
-            activeFontStyle: { fontWeight: "600" as const, fontSize: 15 },
+            // A text color leaves the glass alone; only fills replace it.
+            activeFontStyle: {
+              color: t.blue,
+              fontWeight: "600" as const,
+              fontSize: 15,
+            },
             style: { height: size },
           }
         : {
@@ -41,7 +46,7 @@ export function Segmented<T extends string>({
             tintColor: t.dark ? t.selected : t.card,
             fontStyle: { color: t.muted, fontSize: 15 },
             activeFontStyle: {
-              color: t.onSelected,
+              color: t.dark ? t.onSelected : t.blue,
               fontWeight: "600" as const,
               fontSize: 15,
             },

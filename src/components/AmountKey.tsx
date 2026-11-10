@@ -60,8 +60,11 @@ export function AmountKey({
         {children}
       </Pressable>
     );
-  const release = (ids: number[]) => {
-    ids.forEach((id) => touches.current.delete(id));
+  const release = (ids: number[], lifted: boolean) => {
+    const mine = ids.filter((id) => touches.current.delete(id));
+    // The tap is felt as the finger lifts, like a button clicking back up;
+    // the digit itself already went in on touch-down so none is lost.
+    if (lifted && mine.length) amountKeyFeedback();
     if (touches.current.size) return;
     clearLong();
     // A quick tap lifts within a few milliseconds; keep the pressed look on
@@ -96,7 +99,6 @@ export function AmountKey({
           if (!active.has(id)) touches.current.delete(id);
         });
         fresh.forEach((touch) => touches.current.add(Number(touch.identifier)));
-        amountKeyFeedback();
         clearLift();
         pressedAt.current = Date.now();
         setPressed(true);
@@ -110,10 +112,16 @@ export function AmountKey({
         }
       }}
       onTouchEnd={(e) =>
-        release(e.nativeEvent.changedTouches.map((t) => Number(t.identifier)))
+        release(
+          e.nativeEvent.changedTouches.map((t) => Number(t.identifier)),
+          true,
+        )
       }
       onTouchCancel={(e) =>
-        release(e.nativeEvent.changedTouches.map((t) => Number(t.identifier)))
+        release(
+          e.nativeEvent.changedTouches.map((t) => Number(t.identifier)),
+          false,
+        )
       }
       style={[style, pressed && pressedStyle]}
     >
