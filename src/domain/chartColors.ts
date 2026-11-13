@@ -3,26 +3,32 @@ import type { Category } from "./types";
 // Categorical colors for statistics, independent of the app's warm accent and
 // the editable category swatches. Keep gray exclusively for grouped slices.
 export const chartPalette = [
-  "#EF747B",
-  "#F29D58",
-  "#EAC44F",
-  "#66B99B",
-  "#49ADC0",
-  "#679DDF",
-  "#8586D5",
-  "#AF83CD",
-  "#D580AD",
-  "#CF8370",
-  "#B3AF54",
-  "#7BAC6C",
-  "#5EAAA6",
-  "#648CB7",
-  "#9B91C5",
-  "#C99ABC",
-  "#CEAC7A",
-  "#88A6A0",
+  "#E57368",
+  "#E89A54",
+  "#E6BE53",
+  "#64B896",
+  "#4FAEC4",
+  "#5F93E4",
+  "#767FE0",
+  "#A679DC",
+  "#DC78A8",
+  "#E0856B",
 ] as const;
 export const chartOtherColor = "#8B95A5";
+
+export function cycleChartColors(orderedIds: string[]) {
+  const colors = new Map<string, string>();
+  const n = orderedIds.length;
+  const wrapCollision = n > 2 && (n - 1) % chartPalette.length === 0;
+  orderedIds.forEach((id, index) => {
+    const color =
+      index === n - 1 && wrapCollision
+        ? chartPalette[1]!
+        : chartPalette[index % chartPalette.length]!;
+    colors.set(id, color);
+  });
+  return colors;
+}
 
 export function categoryChartColors(
   categories: Pick<Category, "id" | "parentId" | "sort">[],

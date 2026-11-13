@@ -17,11 +17,12 @@ export function Segmented<T extends string>({
   compact?: boolean;
   height?: number;
   value: T;
-  options: { value: T; label: string; icon?: string }[];
+  options: { value: T; label: string; icon?: string; accessibilityLabel?: string }[];
   onChange: (value: T) => void;
 }) {
   const t = useTheme();
   const size = height ?? (compact ? 32 : 48);
+  const fontSize = compact ? 13 : 15;
   return (
     <NativeSegmentedControl
       values={options.map((o) => o.label)}
@@ -32,23 +33,23 @@ export function Segmented<T extends string>({
       appearance={t.dark ? "dark" : "light"}
       {...(nativeGlass
         ? {
-            fontStyle: { fontSize: 15 },
+            fontStyle: { fontSize },
             // A text color leaves the glass alone; only fills replace it.
             activeFontStyle: {
               color: t.blue,
               fontWeight: "600" as const,
-              fontSize: 15,
+              fontSize,
             },
             style: { height: size },
           }
         : {
             backgroundColor: t.soft,
             tintColor: t.dark ? t.selected : t.card,
-            fontStyle: { color: t.muted, fontSize: 15 },
+            fontStyle: { color: t.muted, fontSize },
             activeFontStyle: {
               color: t.dark ? t.onSelected : t.blue,
               fontWeight: "600" as const,
-              fontSize: 15,
+              fontSize,
             },
             style: { height: size, borderRadius: size / 2, overflow: "hidden" as const },
           })}

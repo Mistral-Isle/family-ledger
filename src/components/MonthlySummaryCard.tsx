@@ -16,6 +16,7 @@ import type { SummaryPreferences } from "../domain/summaryPreferences";
 import { useUi } from "../state/ui";
 import { HelpLabel, Popover } from "./HelpBubble";
 import { useLedger } from "./LedgerProvider";
+import { Segmented } from "./Segmented";
 import { SummaryPager } from "./SummaryPager";
 import { ErrorText, Icon, Row, Txt, useTheme } from "./ui";
 
@@ -488,45 +489,17 @@ export function MonthlySummaryCard({
             </View>,
           ]}
         </SummaryPager>
-        <View style={[styles.tabs, { backgroundColor: t.soft }]}>
-          {(["收支", "预算"] as const).map((label, index) => (
-            <Pressable
-              key={label}
-              accessibilityRole="tab"
-              accessibilityLabel={`${label}概览`}
-              accessibilityState={{ selected: page === index }}
-              aria-selected={page === index}
-              onPress={() =>
-                saveChoices({ page: index === 0 ? "cashflow" : "budget" })
-              }
-              style={({ pressed }) => ({
-                minWidth: 46,
-                minHeight: 28,
-                paddingHorizontal: 10,
-                paddingVertical: 4,
-                borderRadius: 10,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor:
-                  page === index
-                    ? t.dark
-                      ? t.selected
-                      : t.card
-                    : "transparent",
-                opacity: pressed ? 0.6 : 1,
-              })}
-            >
-              <Txt
-                size={12}
-                bold={page === index}
-                color={
-                  page === index ? (t.dark ? t.onSelected : t.blue) : t.muted
-                }
-              >
-                {label}
-              </Txt>
-            </Pressable>
-          ))}
+        <View style={styles.tabs}>
+          <Segmented
+            compact
+            height={34}
+            value={choices.page === "budget" ? "budget" : "cashflow"}
+            options={[
+              { value: "cashflow", label: "收支", accessibilityLabel: "收支概览" },
+              { value: "budget", label: "预算", accessibilityLabel: "预算概览" },
+            ]}
+            onChange={(next) => saveChoices({ page: next })}
+          />
         </View>
       </View>
       <ErrorText message={error} />
@@ -537,7 +510,7 @@ export function MonthlySummaryCard({
 const styles = StyleSheet.create({
   card: { borderRadius: 24, borderCurve: "continuous", overflow: "hidden" },
   pane: { padding: 16, flex: 1 },
-  heading: { minHeight: 44, paddingRight: 106, alignItems: "flex-start" },
+  heading: { minHeight: 44, paddingRight: 132, alignItems: "flex-start" },
   amount: {
     minHeight: 50,
     marginTop: 4,
@@ -565,10 +538,8 @@ const styles = StyleSheet.create({
   progress: { height: 4, borderRadius: 2, overflow: "hidden" },
   tabs: {
     position: "absolute",
-    top: 22,
+    top: 20,
     right: 16,
-    flexDirection: "row",
-    padding: 2,
-    borderRadius: 12,
+    width: 120,
   },
 });

@@ -1,21 +1,19 @@
 import { InlineReorderList } from "../components/InlineReorderList";
-import { HorizontalStrip } from "../components/HorizontalStrip";
+import { CategoryTile } from "../components/CategoryTile";
 import { CategoryEditor } from "../components/CategoryEditor";
 import { CategoryDeletionSheet } from "../components/CategoryDeletionSheet";
+import { Segmented } from "../components/Segmented";
 import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useLedger } from "../components/LedgerProvider";
 import {
   Button,
   Card,
-  Chip,
   ErrorText,
   Heading,
-  Icon,
   IconButton,
   Page,
-  Row,
   Txt,
   useTheme,
 } from "../components/ui";
@@ -89,24 +87,46 @@ export default function Categories() {
             />
           }
         />
-        <Row>
-          <Chip
-            label={zh.expense}
-            selected={kind === "expense"}
-            onPress={() => setKind("expense")}
-          />
-          <Chip
-            label={zh.income}
-            selected={kind === "income"}
-            onPress={() => setKind("income")}
-          />
-        </Row>
+        <Segmented
+          height={40}
+          value={kind}
+          options={[
+            { value: "expense", label: zh.expense },
+            { value: "income", label: zh.income },
+          ]}
+          onChange={(next) => {
+            setKind(next);
+            setParentId("");
+          }}
+        />
         <ErrorText message={form ? "" : error} />
-        <Row>
-          <Chip label="一级分类" selected={level === "root"} onPress={() => setLevel("root")} />
-          <Chip label="二级分类" selected={level === "child"} onPress={() => setLevel("child")} />
-        </Row>
-        {level === "child" && <HorizontalStrip>{roots.map((c) => <Chip key={c.id} label={c.name} selected={selectedParent?.id === c.id} onPress={() => setParentId(c.id)} />)}</HorizontalStrip>}
+        <Segmented
+          height={40}
+          value={level}
+          options={[
+            { value: "root", label: "一级分类" },
+            { value: "child", label: "二级分类" },
+          ]}
+          onChange={setLevel}
+        />
+        {level === "child" && (
+          <Card style={{ padding: 12, gap: 8 }}>
+            <Txt size={12} color={t.muted}>
+              选择所属一级分类
+            </Txt>
+            <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+              {roots.map((c) => (
+                <CategoryTile
+                  key={c.id}
+                  category={c}
+                  selected={selectedParent?.id === c.id}
+                  hasChildren={false}
+                  onPress={() => setParentId(c.id)}
+                />
+              ))}
+            </View>
+          </Card>
+        )}
         <Txt size={12} color={t.muted}>长按列表或拖动右侧手柄排序；左滑隐藏或删除，点击编辑。</Txt>
         <Button
           secondary

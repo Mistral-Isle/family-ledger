@@ -1,19 +1,20 @@
 import { zh } from "../i18n/zh";
 import { assertMoney } from "../domain/money";
+import { categoryPath } from "../domain/travel";
 import { useState } from "react";
 import { Modal, View } from "react-native";
 import { useLedger } from "./LedgerProvider";
+import { CategoryGrid } from "./CategoryGrid";
+import { Segmented } from "./Segmented";
 import {
   Button,
   Card,
-  Chip,
   ErrorText,
   Field,
   Heading,
   IconButton,
   Page,
   Txt,
-  styles,
   useTheme,
 } from "./ui";
 import {
@@ -90,45 +91,32 @@ export function CategoryDeletionSheet({
               个相关常用项会迁移到接收分类，选择丢弃则移除。恢复时仅还原未被后续修改的常用项。
             </Txt>
           </Card>
-          <View style={styles.wrap}>
-            <Chip
-              label="迁移到已有分类"
-              selected={action === "migrate"}
-              onPress={() => setAction("migrate")}
-            />
-            <Chip
-              label="新建分类接收"
-              selected={action === "create"}
-              onPress={() => setAction("create")}
-            />
-            <Chip
-              label="丢弃流水"
-              selected={action === "discard"}
-              onPress={() => setAction("discard")}
-            />
-          </View>
+          <Segmented
+            height={40}
+            value={action}
+            options={[
+              { value: "migrate", label: "迁移已有" },
+              { value: "create", label: "新建接收" },
+              { value: "discard", label: "丢弃流水" },
+            ]}
+            onChange={setAction}
+          />
           {action === "migrate" && (
-            <>
-              <Txt>选择同类型接收分类</Txt>
-              <View style={styles.wrap}>
-                {targets.map((c) => (
-                  <Chip
-                    key={c.id}
-                    label={[
-                      data.categories.find((p) => p.id === c.parentId)?.name,
-                      c.name,
-                    ]
-                      .filter(Boolean)
-                      .join(" / ")}
-                    selected={targetId === c.id}
-                    onPress={() => setTargetId(c.id)}
-                  />
-                ))}
-              </View>
-              {!targets.length && (
-                <Txt>没有可接收的分类，请选择新建分类接收。</Txt>
+            <Card style={{ padding: 14, gap: 10 }}>
+              <Txt bold>选择同类型接收分类</Txt>
+              {!!targetId && (
+                <Txt size={12} color={theme.blue}>
+                  已选：{categoryPath(data, targetId)}
+                </Txt>
               )}
-            </>
+              <CategoryGrid
+                categories={targets}
+                value={targetId}
+                onChange={setTargetId}
+                allowSelectParent
+                emptyText="没有可接收的分类，请选择新建分类接收。"
+              />
+            </Card>
           )}
           {action === "create" && (
             <Field

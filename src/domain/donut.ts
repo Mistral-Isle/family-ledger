@@ -94,8 +94,12 @@ export function donutLabels(
   return labels;
 }
 
-/** Keep every slice, but label only the largest readable categories. Labels follow
- * the circumference; short radial leaders take priority over column alignment. */
+export function compactShareLabel(share: number) {
+  return share > 0 ? `${(share * 100).toFixed(1)}%` : "—";
+}
+
+/** Keep every slice, but render Scheme B2 flush-edge side labels with vertical color bars
+ * and slice-colored leaders that stay clockwise and non-crossing. */
 export function donutLayout(
   items: DonutItem[],
   width: number,
@@ -105,15 +109,22 @@ export function donutLayout(
   const source = donutSlices(items);
   const cx = width / 2,
     cy = height / 2;
-  const fontSize = width < 280 ? 10 : 11.5;
+  const fontSize = width < 280 ? 9 : 11;
+  const edgePad = width < 280 ? 2 : 6;
+  const barWidth = 3.5;
+  const barGap = width < 280 ? 3 : 6;
+  const labelMargin = edgePad + barWidth + barGap;
   const textWidth = (text: string) =>
     Array.from(text).reduce(
       (sum, char) => sum + (/[^\x00-\x7F]/.test(char) ? 1 : 0.57) * fontSize,
       0,
     );
   const candidates = source
-    .filter((s, i) => i === 0 || s.share >= 0.02)
-    .slice(0, width < 280 ? 6 : 10);
+    .filter((s, i) => i === 0 || s.share >= 0.025)
+    .slice(0, width < 280 ? 6 : 9);
+  const clamp = (val: number, min: number, max: number) =>
+    Math.max(min, Math.min(max, val));
+
   function candidate(rotation: number, count: number) {
     const slices = source.map((s) => ({
       ...s,
@@ -124,17 +135,45 @@ export function donutLayout(
     const labels = slices
       .filter((s) => ids.has(s.id))
       .map((slice) => {
-        const cos = Math.cos(slice.angle),
-          sin = Math.sin(slice.angle);
+        const span = slice.share * Math.PI * 2;
+        const half = span / 2;
+        const a0 = slice.angle - half;
+        const a1 = slice.angle + half;
+        let anchorAngle = slice.angle;
+        // Keep wide slices crossing 6 or 12 o'clock off the vertical poles so labels
+        // step out cleanly to the left or right instead of hanging at the bottom.
+        if (span >= 0.48 && Math.abs(Math.cos(anchorAngle)) < 0.52) {
+          const pad = Math.min(0.28, span * 0.25);
+          const safeStart = a0 + pad;
+          const safeEnd = a1 - pad;
+          if (safeStart <= safeEnd) {
+            const target =
+              Math.cos(anchorAngle) >= 0
+                ? Math.sin(anchorAngle) >= 0
+                  ? 0.92
+                  : -0.92
+                : Math.sin(anchorAngle) >= 0
+                  ? Math.PI - 0.92
+                  : -Math.PI + 0.92;
+            anchorAngle = clamp(target, safeStart, safeEnd);
+          }
+        }
+        const cos = Math.cos(anchorAngle),
+          sin = Math.sin(anchorAngle);
         const side = cos >= 0 ? 1 : -1;
         const x = cx + cos * outerRadius,
           anchorY = cy + sin * outerRadius;
-        const naturalY = cy + sin * (outerRadius + 12);
+        const naturalY = cy + sin * (outerRadius + 10);
         const name = slice.name.replace(/[\s/／]+/g, "");
         const shortName = name.length > 4 ? name.slice(0, 3) + "…" : name;
-        const available = width / 2 - Math.abs(cos * (outerRadius + 12)) - 12;
-        const singleText = shortName + " " + shareLabel(slice.share, 1);
-        const twoLine = slice.share >= 0.1 || textWidth(singleText) > available;
+        const compactPct = compactShareLabel(slice.share);
+        const singleText = shortName + " " + compactPct;
+        const maxSingleWidth =
+          width / 2 - (outerRadius + 10) - labelMargin - 6;
+        const twoLine =
+          slice.share >= 0.1 || textWidth(singleText) > maxSingleWidth;
+        const barX = side === 1 ? width - edgePad - barWidth : edgePad;
+        const textX = side === 1 ? barX - barGap : barX + barWidth + barGap;
         return {
           ...slice,
           side,
@@ -144,9 +183,13 @@ export function donutLayout(
           y: naturalY,
           elbowX: 0,
           endX: 0,
+          barX,
+          barWidth,
+          textX,
+          compactPct,
           twoLine,
           displayName: shortName,
-          labelHeight: twoLine ? 29 : 16,
+          labelHeight: twoLine ? 28 : 16,
         };
       });
     for (const side of [-1, 1]) {
@@ -175,7 +218,7 @@ export function donutLayout(
         );
     }
     let valid = true,
-      score = Math.abs(rotation) * 8;
+      score = Math.abs(rotation) * 800;
     for (const l of labels) {
       const dy = l.y - cy;
       l.elbowX =
@@ -183,24 +226,25 @@ export function donutLayout(
         l.side *
           Math.max(
             Math.abs(l.x - cx) + 5,
-            Math.sqrt(Math.max(0, (outerRadius + 12) ** 2 - dy ** 2)),
+            Math.sqrt(Math.max(0, (outerRadius + 10) ** 2 - dy ** 2)),
           );
-      l.endX = l.elbowX + l.side * 7;
+      const needed = l.twoLine
+        ? Math.max(textWidth(l.displayName), textWidth(shareLabel(l.share, 1)))
+        : textWidth(l.displayName + " " + l.compactPct);
+      const textInnerX = l.side === 1 ? l.textX - needed : l.textX + needed;
+      l.endX = l.side === 1 ? textInnerX - 5 : textInnerX + 5;
       const dx = l.elbowX - l.x,
         deltaY = l.y - l.anchorY;
       // A line leaving the ring must point outward, including after label avoidance.
-      if ((l.x - cx) * dx + (l.anchorY - cy) * deltaY < -1e-6 || l.y < 24)
-        valid = false;
-      const available = l.side === 1 ? width - l.endX - 5 : l.endX - 5;
       if (
-        !l.twoLine &&
-        textWidth(l.displayName + " " + shareLabel(l.share, 1)) > available
-      ) {
+        (l.x - cx) * dx + (l.anchorY - cy) * deltaY < -1e-6 ||
+        l.y < 24 ||
+        Math.hypot(dx, deltaY) >= 47
+      )
         valid = false;
-      }
-      const needed = l.twoLine
-        ? Math.max(textWidth(l.displayName), textWidth(shareLabel(l.share, 1)))
-        : textWidth(l.displayName + " " + shareLabel(l.share, 1));
+      if (l.side * (l.endX - l.elbowX) < 3) valid = false;
+      const available =
+        l.side === 1 ? l.textX - l.elbowX - 5 : l.elbowX - l.textX - 5;
       if (needed > available) valid = false;
       score += (l.y - l.naturalY) ** 2 * 8 + dx * dx + deltaY * deltaY;
     }

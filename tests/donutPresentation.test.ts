@@ -2,6 +2,7 @@ import {
   categoryChartColors,
   chartPalette,
   chartOtherColor,
+  cycleChartColors,
 } from "../src/domain/chartColors";
 import { donutLayout, donutSlices } from "../src/domain/donut";
 
@@ -145,6 +146,50 @@ test.each([326, 440])(
     expect(layout.labels.some((l) => l.y > l.anchorY)).toBe(true);
   },
 );
+test("cycleChartColors applies the warm soft 10-color spectrum sequentially and avoids wrap collision", () => {
+  const ids10 = Array.from({ length: 10 }, (_, i) => `cat-${i}`);
+  const map10 = cycleChartColors(ids10);
+  expect(ids10.map((id) => map10.get(id))).toEqual([...chartPalette]);
+
+  const ids11 = Array.from({ length: 11 }, (_, i) => `cat-${i}`);
+  const map11 = cycleChartColors(ids11);
+  expect(map11.get("cat-0")).toBe(chartPalette[0]);
+  expect(map11.get("cat-10")).not.toBe(map11.get("cat-0"));
+  expect(map11.get("cat-10")).toBe(chartPalette[1]);
+});
+
+test("Scheme B2 places flush edge bars, two-line major slices, and compact single-line minor slices", () => {
+  const width = 360;
+  const height = Math.max(248, Math.round(width * 0.72));
+  const outerRadius = Math.max(46, Math.min(width * 0.22, width / 2 - 82));
+  const layout = donutLayout(
+    [
+      { id: "food", name: "三餐", amount: 1533.26, color: chartPalette[0]! },
+      { id: "gift", name: "礼金", amount: 1000, color: chartPalette[1]! },
+      { id: "pet", name: "宠物", amount: 231.52, color: chartPalette[2]! },
+      { id: "ticket", name: "车票", amount: 179.89, color: chartPalette[3]! },
+      { id: "shop", name: "购物", amount: 156.11, color: chartPalette[4]! },
+    ],
+    width,
+    height,
+    outerRadius,
+  );
+  expect(layout.labels.length).toBeGreaterThanOrEqual(4);
+  for (const label of layout.labels) {
+    if (label.side === 1) {
+      expect(label.barX).toBeCloseTo(width - 6 - label.barWidth);
+      expect(label.endX).toBeLessThan(label.textX);
+      expect(label.endX).toBeGreaterThan(label.elbowX);
+    } else {
+      expect(label.barX).toBe(6);
+      expect(label.endX).toBeGreaterThan(label.textX);
+      expect(label.endX).toBeLessThan(label.elbowX);
+    }
+    if (label.share >= 0.1) expect(label.twoLine).toBe(true);
+    else expect(label.twoLine).toBe(false);
+  }
+});
+
 test("dense charts preserve slices and choose a bounded set of readable labels", () => {
   const input = items(Array.from({ length: 30 }, (_, i) => 30 - i));
   const layout = donutLayout(input, 326, 280.36, 97);

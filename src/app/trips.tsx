@@ -9,11 +9,13 @@ import {
   ErrorText,
   Field,
   Heading,
+  Icon,
   IconButton,
   Page,
   Row,
   Txt,
   confirmAction,
+  useTheme,
 } from "../components/ui";
 import { TxnMetadata } from "../components/TxnMetadata";
 import { categoryPath, memberName, tripSummary } from "../domain/travel";
@@ -33,6 +35,7 @@ type Draft = {
 export default function Trips() {
   const { data, repo, run } = useLedger(),
     router = useRouter(),
+    t = useTheme(),
     c = zh.collaboration;
   const params = useLocalSearchParams<{ id?: string }>();
   const [selected, setSelected] = useState(params.id ?? ""),
@@ -202,12 +205,32 @@ export default function Trips() {
             />
           </Card>
           <Card>
-            {summary.categories.map(([id, amount]) => (
-              <Row key={id}>
-                <Txt style={{ flex: 1 }}>{categoryPath(data, id)}</Txt>
-                <Txt>{formatMoney(amount)}</Txt>
-              </Row>
-            ))}
+            {summary.categories.map(([id, amount]) => {
+              const cat = data.categories.find((x) => x.id === id);
+              return (
+                <Row key={id} style={{ gap: 10 }}>
+                  <View
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 10,
+                      backgroundColor:
+                        cat?.kind === "income" ? t.incomeIcon : t.expenseIcon,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Icon
+                      name={cat?.icon ?? "sparkles"}
+                      color="#fff"
+                      size={17}
+                    />
+                  </View>
+                  <Txt style={{ flex: 1 }}>{categoryPath(data, id)}</Txt>
+                  <Txt>{formatMoney(amount)}</Txt>
+                </Row>
+              );
+            })}
           </Card>
           {summary.rows.map((txn) => (
             <Card key={txn.id}>

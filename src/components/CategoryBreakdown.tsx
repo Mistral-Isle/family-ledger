@@ -1,9 +1,14 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
+import { useRouter } from "expo-router";
 import type { Snapshot } from "../domain/types";
 import { categoryReport, type DateRange } from "../domain/reports";
 import { shareLabel } from "../domain/donut";
-import { categoryChartColors, chartOtherColor } from "../domain/chartColors";
+import {
+  chartOtherColor,
+  chartPalette,
+  cycleChartColors,
+} from "../domain/chartColors";
 import { formatMoney } from "../domain/money";
 import { CategoryDonut } from "./CategoryDonut";
 import { CategoryPicker } from "./CategoryPicker";
@@ -16,6 +21,7 @@ export function CategoryBreakdown({
   range,
   previous,
   kind,
+  memberId = "",
   includeRepayments,
   onKindChange,
 }: {
@@ -23,10 +29,12 @@ export function CategoryBreakdown({
   range: DateRange;
   previous: DateRange | null;
   kind: "expense" | "income";
+  memberId?: string;
   includeRepayments: boolean;
   onKindChange?: (kind: "expense" | "income") => void;
 }) {
   const t = useTheme();
+  const router = useRouter();
   const [level, setLevel] = useState<"root" | "leaf">("root");
   const [comparison, setComparison] = useState<"amount" | "percent" | "none">(
     "amount",
@@ -62,12 +70,23 @@ export function CategoryBreakdown({
     0,
   );
   const total = categories.reduce((sum, c) => sum + c.amount, 0);
-  const colors = categoryChartColors(
-    data.categories.filter((c) => c.kind === kind),
-    categories.map((c) => c.id),
-  );
+  const colors = cycleChartColors(categories.map((c) => c.id));
   const label =
     kind === "income" ? "收入" : includeRepayments ? "流出" : "支出";
+  const openCategoryDetail = (targetId: string, scope: "tree" | "exact") => {
+    router.push({
+      pathname: "/category-detail",
+      params: {
+        id: targetId,
+        scope,
+        start: range.start,
+        end: range.end,
+        kind,
+        memberId,
+        includeRepayments: includeRepayments ? "1" : "0",
+      },
+    });
+  };
   const change = (amount: number, id: string) => {
     if (!previous) return "无上期对比";
     const before = prior.get(id) ?? 0;
@@ -199,119 +218,162 @@ export function CategoryBreakdown({
           const open = expanded.includes(item.id);
           return (
             <View key={item.id} style={{ gap: 10 }}>
-              <Pressable
-                accessibilityRole={canExpand ? "button" : undefined}
-                disabled={!canExpand}
-                accessibilityLabel={`${canExpand ? "展开" : ""}${item.category?.name ?? "未分类"}`}
-                accessibilityState={canExpand ? { expanded: open } : undefined}
-                onPress={() =>
-                  setExpanded((current) =>
-                    open
-                      ? current.filter((id) => id !== item.id)
-                      : [...current, item.id],
-                  )
-                }
-                style={({ pressed }) => ({
-                  gap: 9,
-                  opacity: pressed ? 0.6 : 1,
-                  minHeight: 66,
-                })}
-              >
-                <Row style={{ gap: 10 }}>
-                  <View
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 19,
-                      backgroundColor: color,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Icon
-                      name={item.category?.icon ?? "sparkles"}
-                      color="#FFFFFF"
-                      size={20}
-                    />
-                  </View>
-                  <View style={{ flex: 1, gap: 4 }}>
-                    <Txt bold size={16}>
-                      {item.category?.name ?? "未分类"}
-                    </Txt>
-                    <Txt size={12} color={t.muted}>
-                      {shareLabel(item.amount, positiveTotal)}
-                      {level === "leaf" && item.category?.parentId
-                        ? ` · ${data.categories.find((c) => c.id === item.category?.parentId)?.name ?? ""}`
-                        : ""}
-                    </Txt>
-                  </View>
-                  <View style={{ alignItems: "flex-end", gap: 4 }}>
-                    <Txt bold size={17}>
-                      {formatMoney(item.amount)}
-                    </Txt>
-                    <Txt size={12} color={t.muted}>
-                      {item.count} 笔
-                    </Txt>
-                  </View>
-                  {canExpand && (
-                    <Icon
-                      name={open ? "arrow.down" : "chevron.right"}
-                      size={13}
-                      color={t.muted}
-                    />
-                  )}
-                </Row>
-                <View style={{ marginLeft: 48, gap: 6 }}>
-                  <View
-                    style={{
-                      height: 5,
-                      backgroundColor: t.line,
-                      borderRadius: 3,
-                      overflow: "hidden",
-                    }}
-                  >
+              <Row style={{ gap: 4, alignItems: "center" }}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`查看${item.category?.name ?? "未分类"}明细`}
+                  onPress={() =>
+                    openCategoryDetail(
+                      item.id,
+                      level === "root" ? "tree" : "exact",
+                    )
+                  }
+                  style={({ pressed }) => ({
+                    flex: 1,
+                    gap: 9,
+                    opacity: pressed ? 0.6 : 1,
+                    minHeight: 66,
+                  })}
+                >
+                  <Row style={{ gap: 10 }}>
+                    <View
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 19,
+                        backgroundColor: color,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Icon
+                        name={item.category?.icon ?? "sparkles"}
+                        color="#FFFFFF"
+                        size={20}
+                      />
+                    </View>
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <Txt bold size={16}>
+                        {item.category?.name ?? "未分类"}
+                      </Txt>
+                      <Txt size={12} color={t.muted}>
+                        {shareLabel(item.amount, positiveTotal)}
+                        {level === "leaf" && item.category?.parentId
+                          ? ` · ${data.categories.find((c) => c.id === item.category?.parentId)?.name ?? ""}`
+                          : ""}
+                      </Txt>
+                    </View>
+                    <View style={{ alignItems: "flex-end", gap: 4 }}>
+                      <Txt bold size={17}>
+                        {formatMoney(item.amount)}
+                      </Txt>
+                      <Txt size={12} color={t.muted}>
+                        {item.count} 笔
+                      </Txt>
+                    </View>
+                    {!canExpand && (
+                      <Icon name="chevron.right" size={13} color={t.muted} />
+                    )}
+                  </Row>
+                  <View style={{ marginLeft: 48, gap: 6 }}>
                     <View
                       style={{
                         height: 5,
+                        backgroundColor: t.line,
                         borderRadius: 3,
-                        width: `${positiveTotal ? (Math.max(0, item.amount) * 100) / positiveTotal : 0}%`,
-                        backgroundColor: color,
+                        overflow: "hidden",
                       }}
-                    />
-                  </View>
-                  {comparison !== "none" && (
-                    <Txt
-                      size={12}
-                      color={
-                        !previous || !delta
-                          ? t.muted
-                          : favorable
-                            ? t.green
-                            : t.red
-                      }
                     >
-                      {change(item.amount, item.id)}
-                    </Txt>
-                  )}
-                </View>
-              </Pressable>
+                      <View
+                        style={{
+                          height: 5,
+                          borderRadius: 3,
+                          width: `${positiveTotal ? (Math.max(0, item.amount) * 100) / positiveTotal : 0}%`,
+                          backgroundColor: color,
+                        }}
+                      />
+                    </View>
+                    {comparison !== "none" && (
+                      <Txt
+                        size={12}
+                        color={
+                          !previous || !delta
+                            ? t.muted
+                            : favorable
+                              ? t.green
+                              : t.red
+                        }
+                      >
+                        {change(item.amount, item.id)}
+                      </Txt>
+                    )}
+                  </View>
+                </Pressable>
+                {canExpand && (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${open ? "收起" : "展开"}${item.category?.name ?? "未分类"}子分类`}
+                    accessibilityState={{ expanded: open }}
+                    hitSlop={6}
+                    onPress={() =>
+                      setExpanded((current) =>
+                        open
+                          ? current.filter((id) => id !== item.id)
+                          : [...current, item.id],
+                      )
+                    }
+                    style={({ pressed }) => ({
+                      minWidth: 44,
+                      minHeight: 44,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      opacity: pressed ? 0.6 : 1,
+                    })}
+                  >
+                    <View
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: 14,
+                        backgroundColor: t.soft,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Icon
+                        name={open ? "chevron.down" : "chevron.right"}
+                        size={13}
+                        color={t.muted}
+                      />
+                    </View>
+                  </Pressable>
+                )}
+              </Row>
               {canExpand &&
                 open &&
-                children.map((child) => (
-                  <View
+                children.map((child, childIndex) => (
+                  <Pressable
                     key={child.id}
-                    style={{
+                    accessibilityRole="button"
+                    accessibilityLabel={`查看${child.id === item.id ? "未细分" : (child.category?.name ?? "子分类")}明细`}
+                    onPress={() => openCategoryDetail(child.id, "exact")}
+                    style={({ pressed }) => ({
                       marginLeft: 18,
                       padding: 12,
+                      minHeight: 48,
                       borderRadius: 14,
                       backgroundColor: t.soft,
-                    }}
+                      opacity: pressed ? 0.65 : 1,
+                    })}
                   >
                     <Row style={{ gap: 8 }}>
                       <Icon
                         name={child.category?.icon ?? "sparkles"}
                         size={18}
-                        color={colors.get(child.id) ?? color}
+                        color={
+                          colors.get(child.id) ??
+                          chartPalette[childIndex % chartPalette.length]
+                        }
                       />
                       <Txt size={13} style={{ flex: 1 }}>
                         {child.id === item.id ? "未细分" : child.category?.name}
@@ -323,8 +385,9 @@ export function CategoryBreakdown({
                           {shareLabel(child.amount, childTotal)}
                         </Txt>
                       </View>
+                      <Icon name="chevron.right" size={12} color={t.muted} />
                     </Row>
-                  </View>
+                  </Pressable>
                 ))}
             </View>
           );

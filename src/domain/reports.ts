@@ -115,6 +115,61 @@ export function categoryReport(
     }))
     .sort((a, b) => b.amount - a.amount);
 }
+export function categoryDetailReport(
+  s: Snapshot,
+  range: DateRange,
+  kind: CategoryKind,
+  categoryId: string,
+  scope: "tree" | "exact",
+) {
+  const transactions = rangeTxns(s.txns, range);
+  const category = s.categories.find((c) => c.id === categoryId);
+  const matchesId = (id: string | null | undefined) => {
+    if (!id) return false;
+    if (scope === "exact") return id === categoryId;
+    const c = s.categories.find((cat) => cat.id === id);
+    return id === categoryId || c?.parentId === categoryId;
+  };
+  const rows = transactions
+    .filter((txn) => {
+      const contributes =
+        txn.type === kind ||
+        (txn.type === "refund" &&
+          (kind === "expense"
+            ? txn.amount - (txn.refundIncome ?? 0) > 0
+            : (txn.refundIncome ?? 0) > 0));
+      if (!contributes || txn.excludeTotals) return false;
+      const effId =
+        txn.type === "refund" && kind === "income"
+          ? txn.refundIncomeCategoryId
+          : txn.categoryId;
+      return matchesId(effId);
+    })
+    .sort(
+      (a, b) =>
+        b.occurredAt.localeCompare(a.occurredAt) ||
+        (b.occurredTime ?? "").localeCompare(a.occurredTime ?? "") ||
+        b.createdAt.localeCompare(a.createdAt),
+    );
+  const amounts = categoryAmounts(transactions, kind);
+  let total = 0;
+  for (const [id, amount] of amounts) {
+    if (matchesId(id)) total = assertMoney(total + amount);
+  }
+  const children =
+    scope === "tree"
+      ? categoryReport(s, range, kind, "leaf").filter(
+          (c) => c.id === categoryId || c.category?.parentId === categoryId,
+        )
+      : [];
+  return {
+    category,
+    total,
+    count: rows.length,
+    rows,
+    children,
+  };
+}
 export function dailyReport(txns: Txn[], month: string) {
   const range = reportRange("month", month + "-01", txns);
   const rows = rangeTxns(txns, range);

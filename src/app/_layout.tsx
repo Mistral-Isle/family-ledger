@@ -37,6 +37,7 @@ export default function RootLayout() {
             <Stack.Screen name="refund" options={{ presentation: "modal" }} />
             <Stack.Screen name="account" options={{ presentation: "modal" }} />
             <Stack.Screen name="categories" />
+            <Stack.Screen name="category-detail" />
           </Stack>
         </LedgerProvider>
       </SafeAreaProvider>

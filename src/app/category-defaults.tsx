@@ -2,16 +2,20 @@ import { useState } from "react";
 import { View } from "react-native";
 import { useRouter } from "expo-router";
 import { useLedger } from "../components/LedgerProvider";
+import { CategoryGrid } from "../components/CategoryGrid";
+import { Segmented } from "../components/Segmented";
 import {
   Button,
   Card,
-  Chip,
   ErrorText,
   Heading,
+  Icon,
   IconButton,
   Page,
+  Row,
   Txt,
   confirmAction,
+  useTheme,
 } from "../components/ui";
 import { categoryPath } from "../domain/travel";
 import { formatMoney } from "../domain/money";
@@ -19,8 +23,10 @@ import { zh } from "../i18n/zh";
 export default function CategoryDefaults() {
   const { data, repo, run } = useLedger(),
     router = useRouter(),
+    t = useTheme(),
     c = zh.collaboration;
-  const [source, setSource] = useState(""),
+  const [kind, setKind] = useState<"expense" | "income">("expense"),
+    [source, setSource] = useState(""),
     [target, setTarget] = useState(""),
     [error, setError] = useState("");
   const missing = repo.defaultCategoryPreview(),
@@ -73,48 +79,65 @@ export default function CategoryDefaults() {
       </Card>
       <Card>
         <Txt bold>{zh.categoryManagement}</Txt>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-          {data.categories
-            .filter((x) => !x.deleted)
-            .map((x) => (
-              <Chip
-                key={x.id}
-                label={categoryPath(data, x.id)}
-                selected={source === x.id}
-                onPress={() => {
-                  setSource(x.id);
-                  setTarget("");
-                }}
-              />
-            ))}
-        </View>
+        <Segmented
+          height={38}
+          value={kind}
+          options={[
+            { value: "expense", label: zh.expense },
+            { value: "income", label: zh.income },
+          ]}
+          onChange={(next) => {
+            setKind(next);
+            setSource("");
+            setTarget("");
+          }}
+        />
+        <CategoryGrid
+          categories={data.categories.filter((x) => !x.deleted && x.kind === kind)}
+          value={source}
+          onChange={(id) => {
+            setSource(id);
+            setTarget("");
+          }}
+          allowSelectParent
+        />
       </Card>
       {old && (
         <Card>
-          <Txt bold>{categoryPath(data, source)}</Txt>
-          <Txt size={13}>
-            {rows.length} {zh.records} ·{" "}
-            {formatMoney(rows.reduce((n, t) => n + t.amount, 0))}
-          </Txt>
+          <Row style={{ gap: 10 }}>
+            <View
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 12,
+                backgroundColor: old.kind === "income" ? t.incomeIcon : t.expenseIcon,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Icon name={old.icon} color="#fff" size={19} />
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Txt bold>{categoryPath(data, source)}</Txt>
+              <Txt size={13} color={t.muted}>
+                {rows.length} {zh.records} ·{" "}
+                {formatMoney(rows.reduce((n, item) => n + item.amount, 0))}
+              </Txt>
+            </View>
+          </Row>
           <Txt size={12}>{c.keepOld}</Txt>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {data.categories
-              .filter(
-                (x) =>
-                  !x.deleted &&
-                  x.kind === old.kind &&
-                  x.id !== source &&
-                  x.parentId !== source,
-              )
-              .map((x) => (
-                <Chip
-                  key={x.id}
-                  label={categoryPath(data, x.id)}
-                  selected={target === x.id}
-                  onPress={() => setTarget(x.id)}
-                />
-              ))}
-          </View>
+          <CategoryGrid
+            categories={data.categories.filter(
+              (x) =>
+                !x.deleted &&
+                x.kind === old.kind &&
+                x.id !== source &&
+                x.parentId !== source,
+            )}
+            value={target}
+            onChange={setTarget}
+            allowSelectParent
+          />
           <Button
             secondary
             label={c.migrateOld}

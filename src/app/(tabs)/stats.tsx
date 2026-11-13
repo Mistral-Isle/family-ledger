@@ -481,6 +481,7 @@ export default function Stats() {
           range={range}
           previous={previous}
           kind={kind}
+          memberId={memberId}
           onKindChange={setView}
           includeRepayments={includeRepayments}
         />

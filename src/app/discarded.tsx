@@ -3,16 +3,18 @@ import { useState } from "react";
 import { View } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useLedger } from "../components/LedgerProvider";
+import { CategoryGrid } from "../components/CategoryGrid";
 import {
   Button,
   Card,
-  Chip,
   ErrorText,
   Heading,
+  Icon,
   IconButton,
   Page,
+  Row,
   Txt,
-  styles,
+  useTheme,
 } from "../components/ui";
 import { formatMoney } from "../domain/money";
 import { zh } from "../i18n/zh";
@@ -29,6 +31,7 @@ export default function DiscardedRoute() {
 function Discarded({ scope }: { scope: "family" | "private" }) {
   const { data, repo, run } = useLedger();
   const router = useRouter();
+  const theme = useTheme();
   const [selected, setSelected] = useState(""),
     [category, setCategory] = useState(""),
     [income, setIncome] = useState(""),
@@ -59,36 +62,26 @@ function Discarded({ scope }: { scope: "family" | "private" }) {
             {row.occurredAt} · {formatMoney(row.amount)}
           </Txt>
           <Txt>{zh.discarded.category}</Txt>
-          <View style={styles.wrap}>
-            {data.categories
-              .filter(
-                (c) =>
-                  !c.deleted &&
-                  c.kind === kind &&
-                  (!source || c.id === source.categoryId),
-              )
-              .map((c) => (
-                <Chip
-                  key={c.id}
-                  label={c.name}
-                  selected={category === c.id}
-                  onPress={() => setCategory(c.id)}
-                />
-              ))}
-          </View>
+          <CategoryGrid
+            categories={data.categories.filter(
+              (c) =>
+                !c.deleted &&
+                c.kind === kind &&
+                (!source || c.id === source.categoryId),
+            )}
+            value={category}
+            onChange={setCategory}
+            allowSelectParent
+          />
           <Txt>{zh.discarded.incomeCategory}</Txt>
-          <View style={styles.wrap}>
-            {data.categories
-              .filter((c) => !c.deleted && c.kind === "income")
-              .map((c) => (
-                <Chip
-                  key={c.id}
-                  label={c.name}
-                  selected={income === c.id}
-                  onPress={() => setIncome(c.id)}
-                />
-              ))}
-          </View>
+          <CategoryGrid
+            categories={data.categories.filter(
+              (c) => !c.deleted && c.kind === "income",
+            )}
+            value={income}
+            onChange={setIncome}
+            allowSelectParent
+          />
           <Button
             label={zh.discarded.restore}
             onPress={() => {
@@ -109,27 +102,47 @@ function Discarded({ scope }: { scope: "family" | "private" }) {
         </Card>
       )}
       {!rows.length && <Txt>{zh.discarded.empty}</Txt>}
-      {rows.map((t) => (
-        <Card key={t.id}>
-          <Txt>
-            {t.occurredAt} · {zh[t.type]} · {formatMoney(t.amount)}
-          </Txt>
-          <Txt>
-            {data.categories.find((c) => c.id === t.categoryId)?.name} ·{" "}
-            {t.note}
-          </Txt>
-          <Button
-            secondary
-            label={zh.discarded.restore}
-            onPress={() => {
-              setSelected(t.id);
-              setCategory(t.categoryId ?? "");
-              setIncome(t.refundIncomeCategoryId ?? "");
-              setError("");
-            }}
-          />
-        </Card>
-      ))}
+      {rows.map((t) => {
+        const cat = data.categories.find((c) => c.id === t.categoryId);
+        return (
+          <Card key={t.id}>
+            <Txt>
+              {t.occurredAt} · {zh[t.type]} · {formatMoney(t.amount)}
+            </Txt>
+            <Row style={{ gap: 8 }}>
+              <View
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 10,
+                  backgroundColor:
+                    cat?.kind === "income"
+                      ? theme.incomeIcon
+                      : theme.expenseIcon,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Icon name={cat?.icon ?? "sparkles"} color="#fff" size={16} />
+              </View>
+              <Txt style={{ flex: 1 }}>
+                {cat?.name ?? "未分类"}
+                {t.note ? ` · ${t.note}` : ""}
+              </Txt>
+            </Row>
+            <Button
+              secondary
+              label={zh.discarded.restore}
+              onPress={() => {
+                setSelected(t.id);
+                setCategory(t.categoryId ?? "");
+                setIncome(t.refundIncomeCategoryId ?? "");
+                setError("");
+              }}
+            />
+          </Card>
+        );
+      })}
     </Page>
   );
 }

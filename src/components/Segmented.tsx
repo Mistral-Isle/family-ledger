@@ -12,13 +12,25 @@ export function Segmented<T extends string>({
   compact?: boolean;
   height?: number;
   value: T;
-  options: { value: T; label: string; icon?: string }[];
+  options: { value: T; label: string; icon?: string; accessibilityLabel?: string }[];
   onChange: (value: T) => void;
 }) {
   const t = useTheme(),
     reduced = useReducedMotion();
   const [width, setWidth] = useState(0);
+  const [held, setHeld] = useState(false);
   const x = useRef(new Animated.Value(0)).current;
+  const lift = useRef(new Animated.Value(0)).current;
+  const hold = (on: boolean) => {
+    if (on === held) return;
+    setHeld(on);
+    if (reduced) return lift.setValue(on ? 1 : 0);
+    Animated.spring(lift, {
+      toValue: on ? 1 : 0,
+      useNativeDriver: true,
+      ...(on ? { speed: 28, bounciness: 6 } : { speed: 14, bounciness: 10 }),
+    }).start();
+  };
   const step = width / options.length,
     index = Math.max(
       0,
@@ -57,9 +69,18 @@ export function Segmented<T extends string>({
     onPanResponderTerminate: () => x.setValue(index * step),
   });
   return (
-    <View style={{ backgroundColor: t.soft, borderRadius: 28, padding: compact ? 2 : 4 }}>
+    <View
+      style={{
+        backgroundColor: t.soft,
+        borderRadius: 999,
+        padding: compact ? 2 : 4,
+      }}
+    >
       <View
         onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+        onTouchStart={() => hold(true)}
+        onTouchEnd={() => hold(false)}
+        onTouchCancel={() => hold(false)}
         {...pan.panHandlers}
         style={{ flexDirection: "row" }}
       >
@@ -72,10 +93,25 @@ export function Segmented<T extends string>({
               bottom: 0,
               left: 0,
               width: step,
-              borderRadius: 25,
-              backgroundColor: t.dark ? t.selected : t.card,
-              boxShadow: "0 2px 5px rgba(0,0,0,0.07)",
-              transform: [{ translateX: x }],
+              borderRadius: 999,
+              borderCurve: "continuous",
+              borderWidth: 0.5,
+              borderColor: t.dark
+                ? "rgba(255,255,255,0.16)"
+                : "rgba(255,255,255,0.85)",
+              backgroundColor: t.dark
+                ? t.selected
+                : held
+                  ? "rgba(255,255,255,0.88)"
+                  : t.card,
+              boxShadow: held
+                ? "0 4px 14px rgba(0,0,0,0.14)"
+                : "0 2px 5px rgba(0,0,0,0.07)",
+              transform: [
+                { translateX: x },
+                { scaleX: lift.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] }) },
+                { scaleY: lift.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] }) },
+              ],
             }}
           />
         )}
@@ -83,10 +119,12 @@ export function Segmented<T extends string>({
           <Pressable
             key={o.value}
             accessibilityRole="tab"
-            accessibilityLabel={o.label}
+            accessibilityLabel={o.accessibilityLabel ?? o.label}
             accessibilityState={{ selected: value === o.value }}
             aria-selected={value === o.value}
             onPress={() => onChange(o.value)}
+            onPressIn={() => hold(true)}
+            onPressOut={() => hold(false)}
             style={({ pressed }) => ({
               flex: 1,
               minHeight: height ? height - (compact ? 4 : 8) : compact ? 28 : o.icon ? 58 : 44,

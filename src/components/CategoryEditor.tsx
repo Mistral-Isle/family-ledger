@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLedger } from "./LedgerProvider";
+import { CategoryTile } from "./CategoryTile";
 import {
   Icon,
   IconButton,
@@ -151,29 +152,67 @@ export function CategoryEditor({
                 }}
               />
             </Row>
-            <View style={{ gap: 8 }}>
+            <View
+              style={{
+                backgroundColor: t.card,
+                borderRadius: 20,
+                padding: 12,
+                gap: 8,
+              }}
+            >
               <Txt size={12} color={t.muted}>
                 {zh.parent}
               </Txt>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: 8 }}
-              >
-                <Chip
-                  label={zh.root}
-                  selected={!form.parentId}
+              <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={zh.root}
+                  accessibilityState={{ selected: !form.parentId }}
                   onPress={() => setForm({ ...form, parentId: null })}
-                />
+                  style={({ pressed }) => ({
+                    width: "20%",
+                    alignItems: "center",
+                    paddingVertical: 6,
+                    gap: 5,
+                    opacity: pressed ? 0.6 : 1,
+                  })}
+                >
+                  <View
+                    style={{
+                      width: 46,
+                      height: 46,
+                      borderRadius: 16,
+                      backgroundColor: !form.parentId
+                        ? form.color
+                        : t.idleIconBackground,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Icon
+                      name={form.icon}
+                      size={25}
+                      color={!form.parentId ? "#fff" : t.idleIcon}
+                    />
+                  </View>
+                  <Txt
+                    size={11}
+                    color={!form.parentId ? t.text : t.muted}
+                    style={{ textAlign: "center" }}
+                  >
+                    {zh.root}
+                  </Txt>
+                </Pressable>
                 {roots.map((c) => (
-                  <Chip
+                  <CategoryTile
                     key={c.id}
-                    label={c.name}
+                    category={c}
                     selected={form.parentId === c.id}
+                    hasChildren={false}
                     onPress={() => setForm({ ...form, parentId: c.id })}
                   />
                 ))}
-              </ScrollView>
+              </View>
             </View>
             <ScrollView
               horizontal

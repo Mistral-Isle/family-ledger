@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Modal, Pressable, ScrollView, View } from "react-native";
 import { useLedger } from "./LedgerProvider";
+import { CategoryTile } from "./CategoryTile";
 import { Button, Icon, IconButton, Row, Txt, useTheme } from "./ui";
 import { PickerBox } from "./PickerField";
 export function CategoryPicker({
@@ -51,6 +52,7 @@ export function CategoryPicker({
       ) : (
         <Button
           secondary
+          icon={selected?.icon ?? "sparkles"}
           label={selected ? `${label} · ${selected.name}` : label}
           onPress={() => setOpen(true)}
         />
@@ -103,44 +105,40 @@ export function CategoryPicker({
             )}
             <ScrollView contentContainerStyle={{ gap: 16 }}>
               <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                {root && allowAll && (() => {
+                  const rootCat = cats.find((c) => c.id === root);
+                  if (!rootCat) return null;
+                  return (
+                    <CategoryTile
+                      key={`all-${rootCat.id}`}
+                      category={{ ...rootCat, name: `全部${rootCat.name}` }}
+                      selected={value === rootCat.id}
+                      hasChildren={false}
+                      onPress={() => choose(rootCat.id)}
+                    />
+                  );
+                })()}
                 {cats
                   .filter((c) => (root ? c.parentId === root : !c.parentId))
-                  .map((c) => (
-                    <Pressable
-                      key={c.id}
-                      accessibilityRole="button"
-                      accessibilityLabel={c.name}
-                      onPress={() => {
-                        if (!root && cats.some((x) => x.parentId === c.id))
-                          setRoot(c.id);
-                        else choose(c.id);
-                      }}
-                      style={{
-                        width: "25%",
-                        alignItems: "center",
-                        gap: 7,
-                        paddingVertical: 12,
-                      }}
-                    >
-                      <View
-                        style={{
-                          width: 48,
-                          height: 48,
-                          backgroundColor: value === c.id ? (c.kind === "income" ? t.incomeIcon : t.expenseIcon) : t.idleIconBackground,
-                          borderRadius: 18,
-                          alignItems: "center",
-                          justifyContent: "center",
+                  .map((c) => {
+                    const children = !root
+                      ? cats.filter((x) => x.parentId === c.id)
+                      : [];
+                    const selectedChild = children.find((x) => x.id === value);
+                    return (
+                      <CategoryTile
+                        key={c.id}
+                        category={c}
+                        shown={selectedChild ?? c}
+                        selected={value === c.id || !!selectedChild}
+                        hasChildren={children.length > 0}
+                        onPress={() => {
+                          if (children.length > 0) setRoot(c.id);
+                          else choose(c.id);
                         }}
-                      >
-                        <Icon
-                          name={c.icon}
-                          color={value === c.id ? "#fff" : t.idleIcon}
-                          size={24}
-                        />
-                      </View>
-                      <Txt size={12}>{c.name}</Txt>
-                    </Pressable>
-                  ))}
+                      />
+                    );
+                  })}
               </View>
               {root && allowAll && (
                 <Button
