@@ -186,18 +186,20 @@ export function CategoryBreakdown({
             onPress={() => setCategoryId("")}
           />
         )}
-        <CategoryDonut
-          title={`${categoryId ? "所选分类" : "总"}${label}`}
-          onToggle={onKindChange ? () => onKindChange(kind === "expense" ? "income" : "expense") : undefined}
-          toggleLabel={`切换为${kind === "expense" ? "收入" : "支出"}分类统计`}
-          total={total}
-          items={categories.map((c) => ({
-            id: c.id,
-            name: c.category?.name ?? "未分类",
-            amount: c.amount,
-            color: colors.get(c.id) ?? chartOtherColor,
-          }))}
-        />
+        <View style={{ marginHorizontal: -14 }}>
+          <CategoryDonut
+            title={`${categoryId ? "所选分类" : "总"}${label}`}
+            onToggle={onKindChange ? () => onKindChange(kind === "expense" ? "income" : "expense") : undefined}
+            toggleLabel={`切换为${kind === "expense" ? "收入" : "支出"}分类统计`}
+            total={total}
+            items={categories.map((c) => ({
+              id: c.id,
+              name: c.category?.name ?? "未分类",
+              amount: c.amount,
+              color: colors.get(c.id) ?? chartOtherColor,
+            }))}
+          />
+        </View>
         {!categories.length && (
           <Txt color={t.muted} style={{ textAlign: "center" }}>
             所选时间暂无{label}记录

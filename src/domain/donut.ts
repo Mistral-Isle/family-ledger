@@ -109,14 +109,23 @@ export function donutLayout(
   const source = donutSlices(items);
   const cx = width / 2,
     cy = height / 2;
-  const fontSize = width < 280 ? 9 : 11;
-  const edgePad = width < 280 ? 2 : 6;
-  const barWidth = 3.5;
-  const barGap = width < 280 ? 3 : 6;
-  const labelMargin = edgePad + barWidth + barGap;
-  const textWidth = (text: string) =>
+  const majorFontSize = width < 280 ? 9.5 : 11.5;
+  const minorFontSize = width < 280 ? 9 : 10.5;
+  const edgePad = width < 280 ? 2 : 3;
+  const elbowPad = 7;
+  const textGap = 5;
+  const textWidth = (text: string, size: number) =>
     Array.from(text).reduce(
-      (sum, char) => sum + (/[^\x00-\x7F]/.test(char) ? 1 : 0.57) * fontSize,
+      (sum, char) =>
+        sum +
+        (/[^\x00-\x7F]/.test(char)
+          ? 1.04
+          : char === "%"
+            ? 0.9
+            : char === " " || char === "."
+              ? 0.32
+              : 0.63) *
+          size,
       0,
     );
   const candidates = source
@@ -164,16 +173,16 @@ export function donutLayout(
         const x = cx + cos * outerRadius,
           anchorY = cy + sin * outerRadius;
         const naturalY = cy + sin * (outerRadius + 10);
+        const major = slice.share >= 0.1;
         const name = slice.name.replace(/[\s/／]+/g, "");
         const shortName = name.length > 4 ? name.slice(0, 3) + "…" : name;
         const compactPct = compactShareLabel(slice.share);
         const singleText = shortName + " " + compactPct;
         const maxSingleWidth =
-          width / 2 - (outerRadius + 10) - labelMargin - 6;
+          width / 2 - (outerRadius + elbowPad) - edgePad - textGap;
         const twoLine =
-          slice.share >= 0.1 || textWidth(singleText) > maxSingleWidth;
-        const barX = side === 1 ? width - edgePad - barWidth : edgePad;
-        const textX = side === 1 ? barX - barGap : barX + barWidth + barGap;
+          major || textWidth(singleText, minorFontSize) > maxSingleWidth;
+        const textX = side === 1 ? width - edgePad : edgePad;
         return {
           ...slice,
           side,
@@ -183,13 +192,12 @@ export function donutLayout(
           y: naturalY,
           elbowX: 0,
           endX: 0,
-          barX,
-          barWidth,
           textX,
           compactPct,
+          major,
           twoLine,
           displayName: shortName,
-          labelHeight: twoLine ? 28 : 16,
+          labelHeight: twoLine ? 28 : 17,
         };
       });
     for (const side of [-1, 1]) {
@@ -226,13 +234,20 @@ export function donutLayout(
         l.side *
           Math.max(
             Math.abs(l.x - cx) + 5,
-            Math.sqrt(Math.max(0, (outerRadius + 10) ** 2 - dy ** 2)),
+            Math.sqrt(Math.max(0, (outerRadius + elbowPad) ** 2 - dy ** 2)),
           );
+      const lineSize = l.major ? majorFontSize : minorFontSize;
       const needed = l.twoLine
-        ? Math.max(textWidth(l.displayName), textWidth(shareLabel(l.share, 1)))
-        : textWidth(l.displayName + " " + l.compactPct);
+        ? Math.max(
+            textWidth(l.displayName, lineSize),
+            textWidth(
+              l.major ? shareLabel(l.share, 1) : l.compactPct,
+              lineSize - 0.5,
+            ),
+          )
+        : textWidth(l.displayName + " " + l.compactPct, minorFontSize);
       const textInnerX = l.side === 1 ? l.textX - needed : l.textX + needed;
-      l.endX = l.side === 1 ? textInnerX - 5 : textInnerX + 5;
+      l.endX = l.side === 1 ? textInnerX - textGap : textInnerX + textGap;
       const dx = l.elbowX - l.x,
         deltaY = l.y - l.anchorY;
       // A line leaving the ring must point outward, including after label avoidance.
@@ -244,7 +259,9 @@ export function donutLayout(
         valid = false;
       if (l.side * (l.endX - l.elbowX) < 3) valid = false;
       const available =
-        l.side === 1 ? l.textX - l.elbowX - 5 : l.elbowX - l.textX - 5;
+        l.side === 1
+          ? l.textX - l.elbowX - textGap
+          : l.elbowX - l.textX - textGap;
       if (needed > available) valid = false;
       score += (l.y - l.naturalY) ** 2 * 8 + dx * dx + deltaY * deltaY;
     }

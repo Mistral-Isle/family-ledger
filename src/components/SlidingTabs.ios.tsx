@@ -2,7 +2,8 @@ import {
   requireNativeViewManager,
   requireOptionalNativeModule,
 } from "expo-modules-core";
-import type { ViewProps } from "react-native";
+import { GlassView } from "expo-glass-effect";
+import { View, type ViewProps } from "react-native";
 import { useTheme } from "./ui";
 import { useLiquidGlass } from "./GlassSurface";
 import {
@@ -41,22 +42,38 @@ export function Segmented<T extends string>({
       options.findIndex((o) => o.value === value),
     );
     return (
-      <NativeLedgerTabBar
-        items={options.map((o) => ({
-          value: o.value,
-          label: o.label,
-          symbol: o.icon ?? "circle.fill",
-        }))}
-        selectedIndex={selectedIndex}
-        dark={t.dark}
-        activeColor={t.blue}
-        mutedColor={t.muted}
-        onSelect={(event) => {
-          const chosen = options[event.nativeEvent.index];
-          if (chosen && chosen.value !== value) onChange(chosen.value);
-        }}
-        style={{ height: 62, width: "100%" }}
-      />
+      <View style={{ height: 62, width: "100%" }}>
+        <GlassView
+          pointerEvents="none"
+          glassEffectStyle="regular"
+          colorScheme={t.dark ? "dark" : "light"}
+          style={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+            borderRadius: 31,
+            borderCurve: "continuous",
+          }}
+        />
+        <NativeLedgerTabBar
+          items={options.map((o) => ({
+            value: o.value,
+            label: o.label,
+            symbol: o.icon ?? "circle.fill",
+          }))}
+          selectedIndex={selectedIndex}
+          dark={t.dark}
+          activeColor={t.blue}
+          mutedColor={t.muted}
+          onSelect={(event) => {
+            const chosen = options[event.nativeEvent.index];
+            if (chosen && chosen.value !== value) onChange(chosen.value);
+          }}
+          style={{ height: 62, width: "100%" }}
+        />
+      </View>
     );
   }
 

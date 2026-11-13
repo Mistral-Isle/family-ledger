@@ -5,9 +5,7 @@ import Svg, {
   G,
   Path,
   Polyline,
-  Rect,
   Text as SvgText,
-  TSpan,
 } from "react-native-svg";
 import {
   donutLayout,
@@ -69,16 +67,16 @@ export function CategoryDonut({
 }) {
   const t = useTheme();
   const [width, setWidth] = useState(320);
-  const height = Math.max(248, Math.round(width * 0.72));
+  const height = Math.max(256, Math.round(width * 0.75));
   const cx = width / 2,
     cy = height / 2,
     outerRadius = Math.max(
-      46,
-      Math.min(width * 0.22, cx - (width < 280 ? 58 : 82)),
+      50,
+      Math.min(width * 0.25, cx - (width < 280 ? 54 : 91)),
     );
-  const ringWidth = outerRadius * 0.36,
+  const ringWidth = outerRadius * 0.35,
     innerRadius = outerRadius - ringWidth,
-    rimInnerRadius = innerRadius - Math.max(5, ringWidth * 0.22);
+    rimInnerRadius = innerRadius - Math.max(5.5, ringWidth * 0.22);
   const { slices, labels } = useMemo(
     () => donutLayout(items, width, height, outerRadius),
     [items, width, height, outerRadius],
@@ -98,7 +96,8 @@ export function CategoryDonut({
       : Platform.OS === "ios"
         ? "System"
         : "sans-serif";
-  const labelSize = width < 280 ? 9 : 11;
+  const majorSize = width < 280 ? 9.5 : 11.5;
+  const minorSize = width < 280 ? 9 : 10.5;
   return (
     <View
       testID="category-donut"
@@ -120,14 +119,15 @@ export function CategoryDonut({
             opacity={0.65}
           />
         ) : (
-          slices.map((slice, index) => {
-            const endTurn =
-              slice.start +
-              slice.share +
-              (slices.length > 1 && index < slices.length - 1 ? 0.0006 : 0);
-            return (
-              <G key={slice.id}>
+          <>
+            {slices.map((slice, index) => {
+              const endTurn =
+                slice.start +
+                slice.share +
+                (slices.length > 1 && index < slices.length - 1 ? 0.0006 : 0);
+              return (
                 <Path
+                  key={slice.id}
                   d={sectorPath(
                     cx,
                     cy,
@@ -138,21 +138,31 @@ export function CategoryDonut({
                   )}
                   fill={slice.color}
                 />
-                <Path
-                  d={sectorPath(
-                    cx,
-                    cy,
-                    rimInnerRadius,
-                    innerRadius,
-                    slice.start,
-                    endTurn,
-                  )}
-                  fill={slice.color}
-                  opacity={0.24}
-                />
-              </G>
-            );
-          })
+              );
+            })}
+            <G opacity={0.22}>
+              {slices.map((slice, index) => {
+                const endTurn =
+                  slice.start +
+                  slice.share +
+                  (slices.length > 1 && index < slices.length - 1 ? 0.0006 : 0);
+                return (
+                  <Path
+                    key={`rim-${slice.id}`}
+                    d={sectorPath(
+                      cx,
+                      cy,
+                      rimInnerRadius,
+                      innerRadius,
+                      slice.start,
+                      endTurn,
+                    )}
+                    fill={slice.color}
+                  />
+                );
+              })}
+            </G>
+          </>
         )}
         <Circle
           cx={cx}
@@ -165,6 +175,7 @@ export function CategoryDonut({
         />
         {labels.map((label) => {
           const anchor = label.side === 1 ? "end" : "start";
+          const lineSize = label.major ? majorSize : minorSize;
           return (
             <G key={label.id}>
               <Polyline
@@ -176,23 +187,15 @@ export function CategoryDonut({
                 strokeLinejoin="round"
                 fill="none"
               />
-              <Rect
-                x={label.barX}
-                y={label.y - (label.twoLine ? 12 : 7.5)}
-                width={label.barWidth}
-                height={label.twoLine ? 24 : 15}
-                rx={1.75}
-                fill={label.color}
-              />
               {label.twoLine ? (
                 <>
                   <SvgText
                     x={label.textX}
                     y={label.y - 2}
                     textAnchor={anchor}
-                    fontSize={labelSize}
+                    fontSize={lineSize}
                     fontFamily={labelFont}
-                    fontWeight="600"
+                    fontWeight={label.major ? "600" : "500"}
                     fill={t.text}
                   >
                     {label.displayName}
@@ -201,12 +204,12 @@ export function CategoryDonut({
                     x={label.textX}
                     y={label.y + 12}
                     textAnchor={anchor}
-                    fontSize={labelSize - 0.5}
+                    fontSize={lineSize - 0.5}
                     fontFamily={labelFont}
-                    fontWeight="600"
-                    fill={label.color}
+                    fontWeight={label.major ? "600" : "500"}
+                    fill={label.major ? label.color : t.muted}
                   >
-                    {shareLabel(label.share, 1)}
+                    {label.major ? shareLabel(label.share, 1) : label.compactPct}
                   </SvgText>
                 </>
               ) : (
@@ -214,15 +217,12 @@ export function CategoryDonut({
                   x={label.textX}
                   y={label.y + 4}
                   textAnchor={anchor}
-                  fontSize={labelSize}
+                  fontSize={minorSize}
                   fontFamily={labelFont}
+                  fontWeight="500"
+                  fill={t.text}
                 >
-                  <TSpan fill={t.text} fontWeight="600">
-                    {label.displayName + " "}
-                  </TSpan>
-                  <TSpan fill={t.muted} fontWeight="500">
-                    {label.compactPct}
-                  </TSpan>
+                  {`${label.displayName} ${label.compactPct}`}
                 </SvgText>
               )}
             </G>

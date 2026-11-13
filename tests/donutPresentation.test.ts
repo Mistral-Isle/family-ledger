@@ -158,35 +158,48 @@ test("cycleChartColors applies the warm soft 10-color spectrum sequentially and 
   expect(map11.get("cat-10")).toBe(chartPalette[1]);
 });
 
-test("Scheme B2 places flush edge bars, two-line major slices, and compact single-line minor slices", () => {
-  const width = 360;
-  const height = Math.max(248, Math.round(width * 0.72));
-  const outerRadius = Math.max(46, Math.min(width * 0.22, width / 2 - 82));
+test("barless donut keeps flush edge labels, two-line major slices, and single-line 4-char minor slices", () => {
+  const width = 349;
+  const height = Math.max(256, Math.round(width * 0.75));
+  const outerRadius = Math.max(50, Math.min(width * 0.25, width / 2 - 91));
   const layout = donutLayout(
     [
-      { id: "food", name: "三餐", amount: 1533.26, color: chartPalette[0]! },
-      { id: "gift", name: "礼金", amount: 1000, color: chartPalette[1]! },
-      { id: "pet", name: "宠物", amount: 231.52, color: chartPalette[2]! },
-      { id: "ticket", name: "车票", amount: 179.89, color: chartPalette[3]! },
-      { id: "shop", name: "购物", amount: 156.11, color: chartPalette[4]! },
+      { id: "rent", name: "房租", amount: 3500, color: chartPalette[0]! },
+      { id: "car-loan", name: "车贷", amount: 833.33, color: chartPalette[1]! },
+      { id: "parts", name: "配件", amount: 327.7, color: chartPalette[2]! },
+      { id: "ai", name: "AI", amount: 290, color: chartPalette[3]! },
+      { id: "supplies", name: "用品", amount: 290, color: chartPalette[4]! },
+      { id: "meals", name: "日常用餐", amount: 273.5, color: chartPalette[5]! },
+      { id: "gadgets", name: "生活小物", amount: 271.3, color: chartPalette[6]! },
+      { id: "groceries", name: "买菜食材", amount: 267.6, color: chartPalette[7]! },
+      { id: "daily", name: "日用", amount: 238.5, color: chartPalette[8]! },
     ],
     width,
     height,
     outerRadius,
   );
-  expect(layout.labels.length).toBeGreaterThanOrEqual(4);
+  expect(layout.labels.length).toBeGreaterThanOrEqual(8);
+  const byId = new Map(layout.labels.map((l) => [l.id, l]));
+  expect(byId.get("rent")?.major).toBe(true);
+  expect(byId.get("rent")?.twoLine).toBe(true);
+  expect(byId.get("car-loan")?.major).toBe(true);
+  expect(byId.get("car-loan")?.twoLine).toBe(true);
+  for (const id of ["parts", "ai", "supplies", "meals", "gadgets", "groceries", "daily"]) {
+    const label = byId.get(id);
+    expect(label).toBeDefined();
+    expect(label?.major).toBe(false);
+    expect(label?.twoLine).toBe(false);
+  }
   for (const label of layout.labels) {
     if (label.side === 1) {
-      expect(label.barX).toBeCloseTo(width - 6 - label.barWidth);
+      expect(label.textX).toBe(width - 3);
       expect(label.endX).toBeLessThan(label.textX);
       expect(label.endX).toBeGreaterThan(label.elbowX);
     } else {
-      expect(label.barX).toBe(6);
+      expect(label.textX).toBe(3);
       expect(label.endX).toBeGreaterThan(label.textX);
       expect(label.endX).toBeLessThan(label.elbowX);
     }
-    if (label.share >= 0.1) expect(label.twoLine).toBe(true);
-    else expect(label.twoLine).toBe(false);
   }
 });
 
