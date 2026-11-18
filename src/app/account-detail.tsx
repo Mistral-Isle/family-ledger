@@ -19,7 +19,7 @@ import {
 import { accountHistory } from "../domain/accountDetails";
 import { accountBalance } from "../domain/selectors";
 import { formatMoney } from "../domain/money";
-import { today, thisMonth } from "../domain/date";
+import { thisMonth } from "../domain/date";
 import { MonthField } from "../components/MonthField";
 import { financeKind, financialRow } from "../domain/financialRows";
 import { zh } from "../i18n/zh";
@@ -98,7 +98,7 @@ function AccountDetail() {
         </Txt>
         <Row>
           <Txt size={34} bold>
-            {formatMoney(accountBalance(account, data.txns, today()))}
+            {formatMoney(accountBalance(account, data.txns))}
           </Txt>
           {!account.deleted && (
             <IconButton

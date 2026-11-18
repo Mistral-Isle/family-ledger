@@ -4,12 +4,19 @@ import { assertMoney } from "./money";
 
 export type AssetView = "mine" | "family";
 
-export function assetViewAccounts(data: Snapshot, view: AssetView, at: string) {
+export function assetViewAccounts(data: Snapshot, view: AssetView, at = "9999-12-31") {
   return data.accounts
     .filter(a => a.scope === "family" && !a.deleted &&
       (view === "family" || (!!data.meId && a.ownerMemberId === data.meId)))
     .sort((a, b) => a.sort - b.sort)
-    .map(account => ({ account, balance: accountBalance(account, data.txns, at) }));
+    .map(account => ({
+      account,
+      balance: accountBalance(
+        account,
+        data.txns,
+        account.kind === "prepaid" ? at : undefined,
+      ),
+    }));
 }
 
 export function assetAccountGroups(data: Snapshot, rows: ReturnType<typeof assetViewAccounts>) {

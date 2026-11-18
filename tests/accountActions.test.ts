@@ -121,6 +121,20 @@ test("balance correction uses dated adjustment, keeps initial balance and spendi
     expect(report.rows[0]!.balance).toBe(-500);
     expect(report.inflow).toBe(11500);
     expect(report.outflow).toBe(12000);
+    const categoryId = after.categories.find(
+      (c) => c.kind === "expense" && c.parentId,
+    )!.id;
+    f.repo.saveTxn({
+      type: "expense",
+      accountId: f.a.id,
+      categoryId,
+      amount: 2000,
+      occurredAt: "2026-12-01",
+      note: "下月停车费",
+      forWhom: "both",
+    });
+    f.repo.adjustAccountBalance(f.a.id, -3000, "2026-11-18");
+    expect(accountBalance(f.a, f.repo.snapshot().txns)).toBe(-3000);
   } finally {
     f.sqlite.close();
   }

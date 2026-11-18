@@ -10,6 +10,7 @@ test("personal assets use account ownership and family assets include each owner
     data.members.push({ ...data.members[0]!, id: "partner", name: "对方" });
     data.accounts = [
       { ...base, id: "mine", ownerMemberId: data.meId, initialBalance: 10000 },
+      { ...base, id: "prepaid", kind: "prepaid", ownerMemberId: data.meId, initialBalance: 3000 },
       { ...base, id: "theirs", ownerMemberId: "partner", initialBalance: -2000 },
       { ...base, id: "shared", ownerMemberId: "", initialBalance: 3000 },
       { ...base, id: "private", scope: "private", initialBalance: 8000 },
@@ -21,12 +22,15 @@ test("personal assets use account ownership and family assets include each owner
       occurredAt: "2026-11-01", forWhom: "both", note: "" });
     const txn = f.repo.snapshot().txns[0]!;
     data.txns = [{ ...txn, accountId: "mine", recorderMemberId: "partner" },
-      { ...txn, id: "future", accountId: "mine", occurredAt: "2027-01-01" }];
+      { ...txn, id: "future", accountId: "mine", occurredAt: "2027-01-01" },
+      { ...txn, id: "future-prepaid", accountId: "prepaid", occurredAt: "2027-01-01" }];
     const mine = assetViewAccounts(data, "mine", "2026-11-01");
-    expect(mine.map(r => r.account.id).sort()).toEqual(["archived", "mine"]);
-    expect(mine.reduce((n, r) => n + r.balance, 0)).toBe(13000);
+    expect(mine.map(r => r.account.id).sort()).toEqual(["archived", "mine", "prepaid"]);
+    expect(mine.find(r => r.account.id === "mine")?.balance).toBe(8000);
+    expect(mine.find(r => r.account.id === "prepaid")?.balance).toBe(3000);
+    expect(mine.reduce((n, r) => n + r.balance, 0)).toBe(15000);
     const family = assetViewAccounts(data, "family", "2026-11-01");
-    expect(family.reduce((n, r) => n + r.balance, 0)).toBe(14000);
+    expect(family.reduce((n, r) => n + r.balance, 0)).toBe(16000);
     const groups = assetAccountGroups(data, family);
     expect(groups.map(g => g.name)).toEqual(["我的账户", "对方的账户", "共同账户"]);
     expect(groups.flatMap(g => g.rows)).toHaveLength(family.length);

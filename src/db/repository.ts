@@ -961,7 +961,7 @@ export class LedgerRepository {
       )
         throw new Error(zh.finance.managed);
       const delta = assertMoney(
-        target - accountBalance(account, data.txns, date),
+        target - accountBalance(account, data.txns),
       );
       if (!delta) return;
       const type = options.countAsCashflow

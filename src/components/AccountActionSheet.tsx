@@ -36,7 +36,7 @@ export function AccountActionSheet({
     insets = useSafeAreaInsets();
   const account = data.accounts.find((a) => a.id === id && !a.deleted);
   const [amount, setAmount] = useState(
-    account ? moneyInput(accountBalance(account, data.txns, today())) : "0",
+    account ? moneyInput(accountBalance(account, data.txns)) : "0",
   );
   const [date, setDate] = useState(today()),
     [error, setError] = useState("");
@@ -46,7 +46,7 @@ export function AccountActionSheet({
   try {
     difference =
       parseMoney(amount) -
-      (account ? accountBalance(account, data.txns, date) : 0);
+      (account ? accountBalance(account, data.txns) : 0);
   } catch {
     /* incomplete input */
   }
